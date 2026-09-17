@@ -3,7 +3,8 @@
 - Project / selected epics:
 - Original request and intended outcomes:
 - Mode: build | resume
-- Started at / original deadline:
+- Stopping condition: selected scope accepted; no automatic time limit
+- Explicit user stop (if any; only a later user instruction clears it):
 - Restrictions and authorization boundaries:
 - Authorized provider routes:
 - Lead host / requested model / observed model:

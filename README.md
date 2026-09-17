@@ -30,8 +30,8 @@ claude --model opus --effort xhigh
 Then:
 
 ```text
-/dev-auto epics 1-3 --for 3h
-/dev-auto project --for 3h
+/dev-auto epics 1-3
+/dev-auto project
 /dev-auto status
 /dev-auto resume
 ```
@@ -44,7 +44,7 @@ Optional continuation in the same Claude session:
 /loop 20m /dev-auto resume
 ```
 
-Start the initial dev-auto run first. The loop interval is a wakeup cadence, not the work duration. Scheduled prompts wait until the current turn is idle, and the session must stay running. A fixed loop keeps firing until canceled; cancel its associated job when the run reports COMPLETE, PAUSED or BLOCKED. Start with a supervised epic; scheduled execution has not yet been exercised by this project. `resume` must preserve the original deadline and avoid restarting completed or still-active work. Do not create multiple development sessions for the same working tree.
+Start the initial dev-auto run first. The loop is a recovery wakeup if the agent stalls or a turn ends while work remains. Its interval does not limit the run: dev-auto keeps working until the selected scope is accepted. Scheduled prompts wait until the current turn is idle, so this cannot interrupt a hung tool or recover a closed client; the session must stay running. Cancel its associated job after COMPLETE or an explicit stop; on BLOCKED, resolve the named blocker and cancel the loop if repeated wakeups cannot help. Start with a supervised epic; scheduled execution has not yet been exercised by this project. `resume` reconciles actual progress and avoids restarting completed or still-active work. Do not create multiple development sessions for the same working tree.
 
 Claude documents skill composition with `/loop` in [scheduled tasks](https://code.claude.com/docs/en/scheduled-tasks). This skill provides no independent scheduler or hard timeout.
 
@@ -60,8 +60,8 @@ codex -m gpt-5.6-sol -c model_reasoning_effort=xhigh
 Then invoke the shared skill:
 
 ```text
-$dev-auto epics 1-3 --for 3h
-$dev-auto project --for 3h
+$dev-auto epics 1-3
+$dev-auto project
 $dev-auto status
 $dev-auto resume
 ```
@@ -81,9 +81,9 @@ The lead can use GLM Flash/max or Luna/max when helpful and choose suitable mode
 
 GLM runs through your configured Claude Code GLM profile, even when Codex is the lead. Credentials are never part of this repository. An unavailable route is reported; no silent model or effort substitution.
 
-## Duration, permissions and limits
+## Completion, permissions and limits
 
-`--for 3h` is a cooperative upper bound. The agent should finish early when accepted, stop launching work near the deadline, and leave a resumable handoff if incomplete. It is not an OS-enforced timeout; resume does not grant a new time budget. Explicitly extend the deadline when you want more work.
+Dev-auto works until the selected scope passes its implementation, test and review requirements. There is no automatic time limit or need to renew a work window. A real blocker, explicit user stop, or host interruption leaves a resumable handoff. Tell the agent to stop when you want to stop; this also stops its identified recovery loop when the host supports cancellation. Scheduled wakeups cannot undo your stop. The skill cannot override host rate limits or keep a closed client running.
 
 The skill uses native host tools and permissions. It does not create a sandbox or make concurrent sessions safe by itself. Helpers must have appropriate actual access restrictions, ownership and nonconflicting resources. Commit, push, merge, deploy and production access require their own authorization; a development request alone does not grant them.
 

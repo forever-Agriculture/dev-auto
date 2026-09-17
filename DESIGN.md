@@ -2,6 +2,8 @@
 
 Date: 2026-09-17. Status: design history; lean implementation complete. The owner's final simplification and current [IMPLEMENTATION.md](IMPLEMENTATION.md) take precedence over earlier proposals for custom mechanisms: nearly direct development, one shared skill, small routing reference and handoff. Reuse native tools and permissions; no new orchestration framework.
 
+Owner correction after installation: dev-auto runs until the selected scope is accepted, with no automatic work deadline. Claude `/loop` is only a recovery wakeup. Earlier time-window proposals below are historical and superseded by the current skill and implementation specification.
+
 ## Purpose
 
 Deliver accepted project outcomes with a direct coding lead, useful independent help, and proportionate verification. Optimize quality, total cost, elapsed time and owner attention together. BMAD remains the source of planning intent; its implementation workflow is not invoked.
