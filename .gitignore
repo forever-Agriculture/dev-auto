@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.dev-auto/
+*.stderr
+*.jsonl
+.env
+.env.*
+docs/build/
+docs/reviews/*-high.json
+docs/reviews/*-review.json
+docs/reviews/*-final.json
