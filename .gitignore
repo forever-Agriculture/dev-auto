@@ -10,3 +10,4 @@ docs/build/
 docs/reviews/*-high.json
 docs/reviews/*-review.json
 docs/reviews/*-final.json
+docs/reviews/*.start

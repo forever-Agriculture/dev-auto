@@ -45,8 +45,9 @@ report discrepancies and mark the freshness of prior checks unverified.
 Use native helpers for sizeable independent work, concrete review needs or an
 unresolved decision. Supply fresh context, exact scope, ownership and expected
 evidence. Before dispatch, read [references/models.md](references/models.md) for
-capability floors, authorized routes and safe commands. Record the observed route
-and model; surface mismatches or dispatch failures instead of silent substitution.
+capability floors, authorized routes and safe commands. Record the observed route,
+model and usage from host records; surface mismatches or dispatch failures instead
+of silent substitution.
 
 During repair, use focused checks. Before accepting an epic, verify its outcomes,
 affected existing behavior and relevant earlier-epic contracts. Material regression
@@ -62,8 +63,10 @@ review can cover the coincident final epic. Material gaps block acceptance.
 
 Record the reviewed revision, finding closures, actual checks and unverified
 boundaries. Model approval supports evidence; runtime claims require exercised
-behavior. Keep raw review transcripts in external scratch space and concise
-receipts in the project; inspect staged files before committing your changes.
+behavior. Keep raw transcripts, screenshots and runtime dumps untracked, in external
+scratch space or an ignored `.dev-auto/evidence/` directory; commit only the handoff,
+which cites receipts and raw evidence by path and hash. Inspect staged files before
+committing your changes.
 Existing tracked evidence needs scoped cleanup that preserves active runs and history.
 
 ## Handoff and recovery

@@ -42,8 +42,20 @@ claim that prompt restrictions enforce access.
 Separate read-only review from implementation and safe test work. A reviewer can
 use native read tools or receive a deliberately prepared source packet. An
 implementation helper uses native, suitably confined tools with only the workspace
-access required by its owned files. When the actual model is not observable, record
-`unobservable`; do not retry or dispatch another worker merely to discover it.
+access required by its owned files.
+
+Observe the actual model, effort and usage from host records instead of guessing.
+Codex writes every session, including `codex exec` runs and native helpers, to
+`~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, where `turn_context` payloads carry
+`model` and `effort` and the last `token_count` payload carries cumulative
+`total_token_usage`; Claude Code `-p --output-format json` receipts carry `modelUsage`
+and `total_cost_usd`. An in-session helper with no receipt of its own is covered by
+the lead's record; list the remainder under gaps. Record `unobservable` only when no
+record exists, and never retry or dispatch another worker merely to discover it.
+
+Wait for a helper with the longest timeout the host accepts (Codex accepted
+360000 ms); a wait returns as soon as the helper finishes, and every timed-out wait
+re-sends the lead context. Do independent work between waits.
 
 ## Direct CLI routes
 
@@ -57,12 +69,15 @@ outside the tracked working tree.
 Read-only Codex review:
 
 ```bash
-codex exec --skip-git-repo-check --ephemeral -C "$PROJECT" \
+codex exec --skip-git-repo-check -C "$PROJECT" \
   -m gpt-6-astra -c model_reasoning_effort=medium -c 'mcp_servers={}' \
   --sandbox read-only --json -o "$OUTPUT" - < "$PROMPT"
 ```
 
-The reviewer can still run read-only shell commands inside the sandbox; `-C` and
+`--ephemeral` is deliberately omitted: the `--json` output names neither model nor
+usage, so the persisted rollout file is the receipt. Checked 2026-09-18 against
+`codex exec --help` only, not a live run; confirm on the first live run that the
+rollout appears with model and usage. The reviewer can still run read-only shell commands inside the sandbox; `-C` and
 read-only do not create a read allowlist or scrub the environment. Use this route
 only when its remaining host read scope is acceptable. The `mcp_servers={}`
 override drops globally configured MCP servers for that run.
@@ -123,7 +138,7 @@ Codex, invocation-local MCP (no global registration; the routine route above sta
 browser-free):
 
 ```bash
-codex exec --skip-git-repo-check --ephemeral -C "$PROJECT" \
+codex exec --skip-git-repo-check -C "$PROJECT" \
   -m gpt-6-astra -c model_reasoning_effort=medium --sandbox read-only --json \
   -c 'mcp_servers={}' \
   -c 'mcp_servers.playwright.command="npx"' \

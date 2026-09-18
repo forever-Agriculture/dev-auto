@@ -7,7 +7,7 @@
 - Explicit user stop (if any; only a later user instruction clears it):
 - Restrictions and authorization boundaries: current limits; source coordinates for approvals
 - Authorized provider routes:
-- Lead host / requested model / observed model:
+- Lead host / requested model / observed model: from the Codex rollout or Claude receipt
 
 ## Progress
 
@@ -35,7 +35,7 @@
 - Timing: started / accepted / elapsed including waits:
 - Dispatches: purpose / provider-model-effort / receipt:
 - Owner interventions: corrections / necessary approvals / avoidable repeat requests; count, reason, approximate minutes:
-- Observed usage: lead + helpers + recovery; source / gaps:
+- Observed usage: lead + helpers + recovery; Codex rollout `total_token_usage`, Claude `total_cost_usd`; gaps:
 
 ## Resume
 
