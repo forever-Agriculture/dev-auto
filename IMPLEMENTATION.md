@@ -25,7 +25,7 @@ No controller, scheduler, worker launcher framework, event journal, custom retry
 9. After each epic, independently check actual implementation against both epic intent and the project as a whole. Material gaps block completion. Project scope includes a final cross-epic evaluation. No guarantee of correctness from model approval alone.
 10. Keep a short durable handoff: scope, stopping condition, restrictions, model routes, active helpers, original/approved intent changes, findings, evidence, cross-epic obligations and next action. Resume restores these and reconciles actual work; never blindly starts duplicate work. Use native lifecycle tools and don't signal unrelated processes.
 11. Bound correction work: consolidate findings, one full review plus focused recheck by default; repeated failed fixes call for new evidence. Preserve work and continue independent authorized work on a real blocker. Preserve authorization boundaries on resume or model escalation. A malformed worker summary is not a reason to repeat completed implementation.
-12. Honor host permissions and owner restrictions. No implicit commit/push/merge/deploy or production access. Do not claim effective worker confinement from a prompt or file-ownership list.
+12. Honor host permissions and owner restrictions. Honor recorded standing permission for local commits of ready, checked task changes, preserving unrelated staged and unstaged work. Do not infer push/merge/deploy or production access from commit permission. Do not claim effective worker confinement from a prompt or file-ownership list.
 
 ## Implementation and verification assignments
 

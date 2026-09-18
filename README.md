@@ -89,7 +89,7 @@ GLM runs through your configured Claude Code GLM profile, even when Codex is the
 
 Dev-auto works until the selected scope passes its implementation, test and review requirements. There is no automatic time limit or need to renew a work window. A real blocker, explicit user stop, or host interruption leaves a resumable handoff. Tell the agent to stop when you want to stop; this also stops its identified recovery loop when the host supports cancellation. Scheduled wakeups cannot undo your stop. The skill cannot override host rate limits or keep a closed client running.
 
-The skill uses native host tools and permissions. It does not create a sandbox or make concurrent sessions safe by itself. Helpers must have appropriate actual access restrictions, ownership and nonconflicting resources. Commit, push, merge, deploy and production access require their own authorization; a development request alone does not grant them.
+The skill uses native host tools and permissions. It does not create a sandbox or make concurrent sessions safe by itself. Helpers must have appropriate actual access restrictions, ownership and nonconflicting resources. Honor the owner's recorded authorization, including standing permission for local commits of ready, checked task changes. Preserve unrelated staged and unstaged work. Push, merge, deploy and production access require their own authorization; permission to commit does not grant them.
 
 Independent review and green tests are evidence, not guarantees. Unverified flows and external acceptance gates remain explicit. A full real-project pilot is needed to establish unattended reliability and any cost advantage over direct development.
 
