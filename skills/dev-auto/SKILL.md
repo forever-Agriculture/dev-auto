@@ -68,8 +68,10 @@ Existing tracked evidence needs scoped cleanup that preserves active runs and hi
 
 ## Handoff and recovery
 
-Maintain `.dev-auto/handoff.md` from [assets/handoff.md](assets/handoff.md) at material
-changes, acceptance and before pausing or likely compaction. Keep every selected
+Maintain `.dev-auto/handoff.md` from [assets/handoff.md](assets/handoff.md). Save scope,
+permission and blocker changes before dependent work; honor stops immediately and
+record them. Record helper dispatches and review outcomes before other work, and
+update at acceptance and before pausing. Keep every selected
 epic's state/dependency, current restrictions and approval coordinates, pending
 findings, active helpers, evidence and next action. Replace stale state; link useful
 history and failed attempts. Record available timing, usage and owner interventions
@@ -81,8 +83,9 @@ otherwise retain it. An explicit stop persists until the owner resumes.
 
 On resume, after compaction or an active-run hook reminder, first reread this skill
 and the complete handoff. Actions remain read-only until both are read; unavailable
-required files mean BLOCKED. Reconcile helper results, retain material findings and
-continue without duplicating completed or active work.
+required files mean BLOCKED. Reconcile helper results and stale state, retain material
+findings, and save the reconciled handoff in build/resume before continuing without
+duplicating completed or active work.
 
 The hook provides guidance and complete snapshots up to 12,000 characters; larger
 files are omitted with a full-read warning. Move resolved history/verbose receipts
