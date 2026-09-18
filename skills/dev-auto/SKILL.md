@@ -10,6 +10,12 @@ background-job, and delegation capabilities. Do not build or invoke a controller
 scheduler, worker launcher, event journal, retry framework, or second progress
 database.
 
+This skill owns the implementation workflow. Use BMAD plans as requirements; do
+not compose `bmad-build` or another implementation workflow into the run unless
+the owner explicitly requests it. An approved implementation or redesign proceeds
+directly; creating a local spec does not create a new approval checkpoint. Honor
+any separately required project or owner approval gate within its actual scope.
+
 Optimize for accepted outcomes across quality, total cost, elapsed time, and owner
 attention. Reuse valid evidence, remove demonstrated overhead, and prefer the
 smallest sufficient check. Record available measurements at existing handoff
@@ -60,10 +66,18 @@ freshness marked unverified.
 For a new work run, create `.dev-auto/handoff.md` from
 [assets/handoff.md](assets/handoff.md). Update it only after a material change to
 scope, restrictions, status, findings, or active helpers, at acceptance, and before
-pausing or likely compaction. Keep current state concise; move superseded history to
-`.dev-auto/log.md` only when useful. Never evict unresolved information to meet a
-size target. Keep the status and explicit-stop labels stable and use `none` when
-either is empty. Never create or change it in `status` mode.
+pausing or likely compaction. Keep the full selected scope, each epic's current
+state/dependency, current restrictions with approval evidence coordinates, pending
+findings, active helpers and next action in the handoff. Replace superseded current
+state instead of appending contradictory restrictions; loosen or drop a restriction
+only with evidence of a later owner instruction, otherwise keep the narrower one.
+Preserve useful history in `.dev-auto/log.md` and link detailed receipts, including
+failed attempts still relevant to the diagnosis. At these existing boundaries, if the
+handoff exceeds the hook's 12,000-character limit, move resolved history and verbose
+receipts out first. Never remove unresolved information merely to fit; if it still
+exceeds the limit, retain it and require the complete read. Keep the status and
+explicit-stop labels stable and use `none` when either is empty. Never create or
+change the handoff in `status` mode.
 
 ## Work directly
 
@@ -79,6 +93,11 @@ either is empty. Never create or change it in `status` mode.
   epics and remove superseded code after checking for callers.
 - When the value of an approach is uncertain, run the smallest authorized
   representative outcome check before substantial implementation or polishing.
+- After two fixes fail to achieve the same required outcome, compare the failure
+  receipts and inspect the shared failing boundary and any working equivalent
+  before another repair. Different error strings do not establish different root
+  causes. Prefer an offline replay of captured failures when representative; name
+  what a new live attempt would prove and retain its existing spend/stop rules.
 - Honor repository and host permissions. Commit, push, merge, deploy, production
   access, and destructive cleanup each require their own authorization when not
   already explicit.
@@ -128,7 +147,6 @@ launcher, quota, or configuration failure.
   model family without a named unresolved risk. Record the reviewed revision and
   closure evidence. Remaining material gaps block acceptance; ask the owner only
   for a real scope, authority, or risk decision—not merely because a review ran.
-  Repeated failed fixes require new evidence, not more speculative edits.
 - Give reviewers only task-relevant material. Tools-disabled routes use a prepared
   packet. Codex uses a read-only sandbox with MCP servers cleared; use the project
   directly when its readable scope is appropriate, otherwise prepare a smaller
@@ -139,6 +157,10 @@ launcher, quota, or configuration failure.
   checks actually run, unreviewed areas, limitations, and anything unverified. Keep
   raw provider transcripts outside the tracked working tree and free of credentials;
   retain only concise decisions, receipts, and evidence coordinates in `.dev-auto/`.
+  Choose an external scratch output path before dispatch. Before an authorized
+  commit, inspect the staged paths for accidental raw transcripts; exclude your
+  own accidental additions. Existing tracked transcripts need separate scoped
+  cleanup; never rewrite history or remove another active run's evidence.
 - On a real blocker, record it and continue independent authorized work within the
   selected scope. Never mark the blocked epic accepted or let later progress hide
   its unresolved finding.

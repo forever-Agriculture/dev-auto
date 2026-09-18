@@ -5,13 +5,13 @@
 - Mode: build | resume
 - Stopping condition: selected scope accepted; no automatic time limit
 - Explicit user stop (if any; only a later user instruction clears it):
-- Restrictions and authorization boundaries:
+- Restrictions and authorization boundaries: current limits; source coordinates for approvals
 - Authorized provider routes:
 - Lead host / requested model / observed model:
 
 ## Progress
 
-- Sprint board and reconciled state:
+- Sprint board and reconciled state: each selected epic; dependency or blocker
 - Implemented:
 - Associated loop (optional; host and native loop/task ID):
 - Active native helpers (ID, route, scope, ownership, state):
@@ -25,7 +25,7 @@
 
 ## Evidence
 
-- Checks run and observed results:
+- Checks run and observed results: concise results; detailed receipt paths
 - Reviewed scope and route:
 - Reviewed revision / material finding closures / recheck or delta evidence:
 - Unreviewed or unverified areas:
@@ -34,7 +34,7 @@
 
 - Timing: started / accepted / elapsed including waits:
 - Dispatches: purpose / provider-model-effort / receipt:
-- Owner interventions: count / reason / approximate minutes:
+- Owner interventions: corrections / necessary approvals / avoidable repeat requests; count, reason, approximate minutes:
 - Observed usage: lead + helpers + recovery; source / gaps:
 
 ## Resume

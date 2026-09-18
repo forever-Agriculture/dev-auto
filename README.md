@@ -7,6 +7,11 @@ of proportionate quality, security, and recovery checks. Real runs inform the
 ongoing search for the best balance of quality, total cost, elapsed time, and owner
 attention; simplify when evidence shows overhead does not earn its cost.
 
+Dev-auto owns the implementation workflow: consume BMAD plans directly, without
+nesting another build workflow or introducing a second approval for authorized
+work. Repeated failed outcomes trigger diagnosis of the shared boundary before
+another repair, even when successive errors differ.
+
 ## Install
 
 Requires Python 3 and the coding clients you intend to use. From this repository:
@@ -83,6 +88,12 @@ Codex's native skill picker may also expose it. The skill does not switch the cu
 4. Uses focused story tests and appropriate project regression/integration checks; checks existing behavior, not just new tests.
 5. Uses one independent whole-epic review, followed only by a focused recheck or evidence-triggered delta when needed; project scope also receives a cross-epic final evaluation.
 6. Preserves pending findings, restrictions, routes, evidence and next actions in a short project handoff.
+
+The handoff keeps every selected epic and its dependency visible. At material
+updates, replace stale state and link detailed receipts; move resolved history out
+when it would exceed the hook's 12,000-character snapshot limit. Unresolved
+restrictions and findings take precedence over size. Owner-effort records separate
+corrections, necessary approvals and avoidable repeated requests.
 
 Reviewers run without tools by default. For a named UI acceptance question the lead may dispatch a browser-enabled review that uses the Playwright MCP against lead-supplied local URLs only; see the browser-enabled variants in the routing reference.
 
