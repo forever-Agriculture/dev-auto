@@ -50,8 +50,10 @@ model and usage from host records; surface mismatches or dispatch failures inste
 of silent substitution.
 
 During repair, use focused checks. Before accepting an epic, verify its outcomes,
-affected existing behavior and relevant earlier-epic contracts. Material regression
-tests must fail on the original defect and pass with the fix; reproduce alleged
+affected existing behavior and relevant earlier-epic contracts. New or changed
+behavior ships with automated tests that exercise it in the project's existing test
+layers; list any behavior left untested in the handoff. Material regression tests
+must fail on the original defect and pass with the fix; reproduce alleged
 pre-existing failures in isolation while preserving working-tree changes.
 
 An independent strong reviewer checks each epic against original intent and
