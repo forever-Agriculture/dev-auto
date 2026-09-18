@@ -6,21 +6,25 @@ availability and inspect the actual receipt when practical; never claim a route 
 effort level from the prompt alone. External CLIs require configured, authorized
 access.
 
-## Roles
+## Capability routing
 
-| Work | Preferred route | Fallback or alternative |
+Keep a suitable lead on the work. Dispatch only for a concrete independent task,
+then choose one available route that meets its capability floor. The options in this
+table are unordered: do not walk them as a ladder, pair providers by default, or
+escalate after a sufficient result. Escalate only for a specific failed route,
+unresolved uncertainty, or consequential risk.
+
+| Work | Capability floor | Suitable routes (unordered) |
 | --- | --- | --- |
-| Codex lead | `gpt-5.6-sol`, `xhigh` | Keep the current lead when it is already suitable |
-| Claude Code lead | `opus`, `xhigh` | Keep the current lead when it is already suitable |
-| Routine review, bounded tests, easy isolated work | `GLM-5.3-Flash`, `max`, via the Claude GLM profile | `gpt-5.6-luna`, `max`; then `sonnet`, `low` or `medium` |
-| Debugging assistance | `GLM-5.3`, `max`, via the Claude GLM profile | The lead diagnoses directly when dispatch adds no value |
-| Whole-epic important risks and project alignment | `gpt-6-astra`, `medium` | `fable`, `medium`; use `low` for a bounded, well-evidenced question |
-| Whole-project final evaluation or critical decision | `gpt-6-astra`, `high` | `fable`, `high` |
+| Codex lead | Strong implementation owner | `gpt-5.6-sol`, `xhigh` |
+| Claude Code lead | Strong implementation owner | `opus`, `xhigh` |
+| Routine review, bounded tests, easy isolated work | Reliable bounded worker | `GLM-5.3-Flash`, `max`; `gpt-5.6-luna`, `max`; `sonnet`, `low` or `medium` |
+| Debugging assistance | Strong debugger with the relevant evidence | `GLM-5.3`, `max`; the lead directly |
+| Whole-epic important risks and project alignment | Independent strong reasoner | `gpt-6-astra` or `fable`, `medium`; `low` for a bounded, well-evidenced question |
+| Whole-project final evaluation or critical decision | Independent top-tier reasoner | `gpt-6-astra` or `fable`, `high` |
 
-`fable` currently resolves to `claude-fable-5-1`. Astra then Fable is an
-escalation/fallback tier, not a mandatory pair. Do not call Fable after a sufficient
-Astra result merely to complete a ceremony. Codex currently supports Sol at `xhigh`,
-Luna at `max`, and Astra at `low`, `medium`, or `high`.
+`fable` currently resolves to `claude-fable-5-1`. Codex currently supports Sol at
+`xhigh`, Luna at `max`, and Astra at `low`, `medium`, or `high`.
 
 Strong reviewers examine the original requirements, relevant source, raw evidence,
 architecture, cross-story effects, omissions, and drift. Cheap helpers may collect
@@ -45,7 +49,10 @@ access required by its owned files. When the actual model is not observable, rec
 
 Use these only when native delegation is unavailable or unsuitable and the user has
 authorized the external provider. Set `PROJECT`, `PROMPT`, and `OUTPUT` to explicit,
-task-specific paths. Never include credentials or unrelated private data.
+task-specific paths. Use the project directly when its readable scope is appropriate;
+otherwise set `PROJECT` to a prepared workspace containing only the required source
+and evidence. Exclude credentials and unrelated private data, and keep `OUTPUT`
+outside the tracked working tree.
 
 Read-only Codex review:
 
@@ -55,12 +62,14 @@ codex exec --skip-git-repo-check --ephemeral -C "$PROJECT" \
   --sandbox read-only --json -o "$OUTPUT" - < "$PROMPT"
 ```
 
-The reviewer can still run read-only shell commands inside the sandbox; the
-`mcp_servers={}` override drops any globally configured MCP servers for that run.
+The reviewer can still run read-only shell commands inside the sandbox; `-C` and
+read-only do not create a read allowlist or scrub the environment. Use this route
+only when its remaining host read scope is acceptable. The `mcp_servers={}`
+override drops globally configured MCP servers for that run.
 
-Authorized Codex implementation uses the same form with the selected model/effort
-and `--sandbox workspace-write`. The sandbox and host policy, not the prompt, define
-its actual access.
+Authorized Codex implementation uses the real project path with the selected
+model/effort and `--sandbox workspace-write`. The sandbox and host policy, not the
+prompt, define its actual access.
 
 Tools-disabled Claude review from a prepared source packet:
 
@@ -72,21 +81,29 @@ claude -p --model fable --effort medium --output-format json \
 ```
 
 The configured GLM profile is `~/.claude-glm/env.sh`. It contains credentials: do
-not read, print, copy, or trace it. A tools-disabled routine review is:
+not read, print, copy, or trace it. The CLI accepts these provider model names
+through Claude aliases, so set the non-secret alias values explicitly after sourcing
+the profile and inspect the receipt for the actual model. A tools-disabled routine
+review is:
 
 ```bash
 (
   set +x
   source "$HOME/.claude-glm/env.sh" || exit 1
-  claude -p --model GLM-5.3-Flash --effort max --output-format json \
+  export ANTHROPIC_DEFAULT_SONNET_MODEL=GLM-5.3-Flash
+  claude -p --model sonnet --effort max --output-format json \
     --tools '' --permission-mode dontAsk --safe-mode --no-session-persistence \
     --strict-mcp-config --mcp-config '{"mcpServers":{}}' \
-    < "$PROMPT" > "$OUTPUT"
+  < "$PROMPT" > "$OUTPUT"
 )
 ```
 
-Use `GLM-5.3` at `max` for debugging. Do not import legacy the earlier workflow wrappers or
-agent definitions.
+Wait for the terminal receipt: this route can emit an early
+`unrecognized_model` diagnostic and still complete successfully.
+
+For debugging, set `ANTHROPIC_DEFAULT_OPUS_MODEL=GLM-5.3` after sourcing and use
+the `opus` alias at `max`. Do not import legacy the earlier workflow wrappers or agent
+definitions.
 
 ## Browser-enabled review
 
@@ -144,7 +161,8 @@ falls within the authorized task, and make `--allowedTools` match it exactly.
   set +x
   cd "$PROJECT" || exit 1
   source "$HOME/.claude-glm/env.sh" || exit 1
-  claude -p --model GLM-5.3-Flash --effort max --output-format json \
+  export ANTHROPIC_DEFAULT_SONNET_MODEL=GLM-5.3-Flash
+  claude -p --model sonnet --effort max --output-format json \
     --safe-mode --tools Bash \
     --allowedTools 'Bash(python3 -m unittest discover -s tests -v)' \
     --permission-mode dontAsk --no-session-persistence \
