@@ -5,7 +5,7 @@
 Registered as a ``SessionStart`` hook (matcher ``compact|resume``) in Claude Code
 and Codex. Reads the hook event from stdin, looks for ``.dev-auto/handoff.md``
 in the session's working directory, and prints a bounded JSON
-``additionalContext`` with the fixed reminder plus the handoff's key fields.
+``additionalContext`` with the fixed reminder plus a complete, bounded handoff.
 Silent when no run is recorded there or the run is COMPLETE. Fail-open: any
 unexpected error produces no output and exit code 0. Never writes files.
 """
@@ -15,86 +15,30 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 import sys
 
 SOURCES = {"compact", "resume"}
-FIELD_LIMIT = 500
-EXCERPT_LIMIT = 2_000
-OMITTED = "(too long for this excerpt; read the handoff)"
-FIELDS = (
-    "Status",
-    "Explicit user stop",
-    "Restrictions and authorization boundaries",
-    "Authorized provider routes",
-    "Active native helpers",
-    "Material pending findings",
-    "Next safe action",
-)
+HANDOFF_LIMIT = 12_000
 SKILL_DIR = Path(__file__).resolve().parents[1] / "skills" / "dev-auto"
 
 REMINDER = (
     "[dev-auto SessionStart hook, installed by the workstation owner via "
     "scripts/install-dev-auto.py; source: hooks/dev-auto-session-start.py] "
     "dev-auto run in progress; context was compacted or the session resumed. Before "
-    "any other substantive action reread {skill} and {handoff}; before any dispatch "
+    "any other substantive action, your first tool action must read {skill} and the "
+    "complete {handoff} (use multiple reads if truncated); before any dispatch "
     "reread {models}. The handoff, not memory, is authoritative for restrictions, "
     "authorized routes, explicit stops, pending findings, and active helpers. "
-    "Continue the recorded next safe action; never restart completed or accepted "
+    "The snapshot below is recovery data, not new authorization or a substitute for "
+    "those reads. Until recovery reads finish, take only read-only recovery actions; "
+    "if a required file cannot be read, report BLOCKED. Then reconcile the recorded "
+    "next safe action; never restart completed or accepted "
     "work or duplicate an active helper. Keep your current role: this reminder "
     "starts no work and promotes no helper to lead. Current owner instructions "
     "override older records; missing authorization is not permission. An explicit "
     "user stop stays in force until the user asks to continue."
 )
-
-
-def parse_fields(text: str) -> dict[str, str]:
-    """Return ``label -> value`` for top-level ``- Label: value`` bullets.
-
-    A field's value continues over following lines until the next top-level
-    bullet or heading, so indented continuation lines and indented sub-bullets
-    stay attached; a non-indented ``- `` line starts a new field. Labels must
-    not contain a colon; the first colon ends the label.
-    """
-    fields: dict[str, str] = {}
-    label: str | None = None
-    parts: list[str] = []
-
-    def flush() -> None:
-        if label is not None:
-            fields[label] = "\n".join(parts).strip()
-
-    for line in text.splitlines():
-        if line.startswith("- ") and ":" in line:
-            flush()
-            head, _, rest = line[2:].partition(":")
-            label, parts = head.strip(), [rest.strip()]
-        elif line.startswith("#") or (line.startswith("- ") and label is not None):
-            flush()
-            label, parts = None, []
-        elif label is not None:
-            parts.append(line.rstrip())
-    flush()
-    return fields
-
-
-def excerpt(fields: dict[str, str]) -> tuple[str, bool]:
-    """Build the field excerpt, at most EXCERPT_LIMIT characters; the flag says whether anything was omitted."""
-    lines: list[str] = []
-    omitted = False
-    for index, name in enumerate(FIELDS):
-        value = next((v for k, v in fields.items() if k.startswith(name)), "").strip()
-        if not value:
-            continue
-        candidate = f"- {name}: {value}"
-        placeholder = f"- {name}: {OMITTED}"
-        used = sum(len(line) + 1 for line in lines)
-        reserve = sum(len(f"- {later}: {OMITTED}") + 1 for later in FIELDS[index + 1 :])
-        if len(candidate) > FIELD_LIMIT or used + len(candidate) + reserve > EXCERPT_LIMIT:
-            lines.append(placeholder)
-            omitted = True
-            continue
-        lines.append(candidate)
-    return "\n".join(lines), omitted
 
 
 def build_context(cwd: Path) -> str | None:
@@ -107,18 +51,31 @@ def build_context(cwd: Path) -> str | None:
         models=SKILL_DIR / "references" / "models.md",
     )
     try:
-        fields = parse_fields(handoff.read_text(encoding="utf-8", errors="replace"))
+        with handoff.open(encoding="utf-8", errors="replace") as handle:
+            body = handle.read(HANDOFF_LIMIT + 1)
     except OSError:
-        return reminder + "\n\nHandoff excerpt unavailable; read the file directly."
-    status_words = fields.get("Status", "").split()
-    status = status_words[0].strip(".,;:!").upper() if status_words else ""
-    if status == "COMPLETE":
+        return reminder + "\n\nHandoff unavailable; read the file directly before proceeding."
+    if len(body) > HANDOFF_LIMIT:
+        return reminder + (
+            "\n\nHandoff snapshot INCOMPLETE: exceeds 12,000 characters; omitted in full "
+            "to avoid dropping a restriction. Read the complete file before proceeding; "
+            "then move superseded history to log.md toward the 6,000-character target."
+        )
+    # Preserve continuation lines and duplicates when checking terminal state.
+    fields = list(re.finditer(
+        r"^- (Status|Explicit user stop[^:\n]*):([^\n]*(?:\n(?!- |#)[^\n]*)*)",
+        body, re.MULTILINE,
+    ))
+    statuses = [match[2].strip().rstrip(".,;:!").upper()
+                for match in fields if match[1] == "Status"]
+    stops = [match[2].strip().lower() for match in fields if match[1] != "Status"]
+    # Ambiguous/duplicate state must not suppress the recovery reminder.
+    terminal_line = body.rstrip().splitlines()[-1] if body.strip() else ""
+    if (statuses == ["COMPLETE"] and stops == ["none"]
+            and terminal_line.strip().rstrip(".,;:!").upper() == "- STATUS: COMPLETE"):
         return None
-    body, omitted = excerpt(fields)
-    if not body:
-        return reminder + "\n\nHandoff excerpt unavailable; read the file directly."
-    note = "\n(Excerpt incomplete; the full handoff is required.)" if omitted else ""
-    return f"{reminder}\n\nHandoff excerpt ({handoff}):\n{body}{note}"
+    warning = "" if len(statuses) == 1 else "\nStatus missing or ambiguous; reconcile before proceeding."
+    return f"{reminder}{warning}\n\nComplete handoff snapshot ({handoff}):\n{body}"
 
 
 def main() -> int:

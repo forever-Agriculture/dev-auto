@@ -4,6 +4,7 @@ Read this before dispatching the strong full review at an epic or project
 boundary, and pass its questions to the reviewer. Supply the reviewer with the
 original requirements, the exact reviewed revision or content fingerprint, the
 changed files or a prepared source packet, a risk map, and test instructions.
+Include the handoff's rounds used for this scope and prior closure evidence.
 
 ## Questions for the reviewer
 
@@ -24,6 +25,12 @@ changed files or a prepared source packet, a risk map, and test instructions.
 A finding names the violated requirement or invariant, a concrete location or
 reproduction, the consequence, and a proposed verification. No finding quotas.
 Optional polish does not block acceptance.
+
+For a recheck, name each material finding as open or closed with evidence against
+the supplied final revision/fingerprint. A changed commit alone is not closure.
+The one supplemental delta check allowed by `SKILL.md` must name its trigger,
+previous unresolved findings, changed boundaries, and reused evidence. It does
+not restart the full review allowance; remaining material gaps block acceptance.
 
 ## Second-family check
 

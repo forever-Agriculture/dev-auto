@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -162,12 +163,33 @@ class InstallerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.assertEqual(self.run_installer(root).returncode, 0)
-            before = {relative: (root / relative).lstat() for relative in RELATIVE_DESTINATIONS}
+            def snapshot() -> dict:
+                result = {}
+                for relative in RELATIVE_DESTINATIONS:
+                    path = root / relative
+                    stat = path.lstat()
+                    result[str(relative)] = (
+                        stat.st_ino, stat.st_mode, stat.st_size,
+                        stat.st_mtime_ns, stat.st_ctime_ns, path.readlink(),
+                    )
+                for relative in HOOK_FILES:
+                    path = root / relative
+                    stat = path.stat()
+                    result[str(relative)] = (
+                        stat.st_ino, stat.st_mode, stat.st_size,
+                        stat.st_mtime_ns, stat.st_ctime_ns, path.read_bytes(),
+                    )
+                return result
 
+            # Force an old access time: resolving a link may update it, without
+            # changing the installation. Do not assert atime or sleep for a tick.
+            for relative in RELATIVE_DESTINATIONS:
+                path = root / relative
+                os.utime(path, ns=(1_000_000_000, path.lstat().st_mtime_ns), follow_symlinks=False)
+            before = snapshot()
             repeated = self.run_installer(root)
             self.assertEqual(repeated.returncode, 0, repeated.stderr)
-            after = {relative: (root / relative).lstat() for relative in RELATIVE_DESTINATIONS}
-            self.assertEqual(before, after)
+            self.assertEqual(before, snapshot())
 
     def test_existing_directory_is_preserved_and_prevents_partial_install(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

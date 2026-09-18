@@ -2,6 +2,11 @@
 
 Direct development from BMAD plans, with project-alignment checks, regression tests, independent reviews and useful model delegation. One shared skill for Codex and Claude Code; no custom orchestration engine.
 
+Direct Codex/Claude implementation is the foundation. Dev-auto adds a thin layer
+of proportionate quality, security, and recovery checks. Real runs inform the
+ongoing search for the best balance of quality, total cost, elapsed time, and owner
+attention; simplify when evidence shows overhead does not earn its cost.
+
 ## Install
 
 Requires Python 3 and the coding clients you intend to use. From this repository:
@@ -16,7 +21,7 @@ The installer links both clients to `skills/dev-auto` in this checkout and regis
 - Codex: `~/.agents/skills/dev-auto`; hook group in `~/.codex/hooks.json`
 - Claude Code: `~/.claude/skills/dev-auto`; hook group in `~/.claude/settings.json`
 
-The hook (`hooks/dev-auto-session-start.py`) runs on `SessionStart` with matcher `compact|resume`. When the session's working directory holds an unfinished `.dev-auto/handoff.md`, it injects a short reminder to reread the skill, the handoff, and the routing reference, plus the handoff's status, stop, restrictions, routes, helpers, pending findings, and next action. It is silent otherwise, never writes, and fails open. Codex requires trusting a new hook once through `/hooks`. Use `--links-only` to skip hook registration. Run the installer while no client is writing its settings; it replaces the file atomically but does not detect a concurrent edit. The hook only sees the session's working directory, so start the client from the project root you are developing.
+The hook (`hooks/dev-auto-session-start.py`) runs on `SessionStart` with matcher `compact|resume`. When the session's working directory holds an unfinished `.dev-auto/handoff.md`, it injects a reminder to reread the skill and complete handoff first, then the routing reference before dispatch. It includes the whole handoff up to 12,000 characters, preserving renamed fields and free text. Larger handoffs are omitted in full with an explicit incomplete warning. The snapshot is recovery data, not authorization or a substitute for rereading; the hook cannot enforce model compliance. It is silent when no handoff exists or completion is unambiguous, never writes, and fails open. Codex requires trusting a new hook once through `/hooks`. Use `--links-only` to skip hook registration. Run the installer while no client is writing its settings; it replaces the file atomically but does not detect a concurrent edit. The hook only sees the session's working directory, so start the client from the project root you are developing.
 
 Keep the checkout in place. Both links use the same files, so edits stay synchronized. Existing conflicting files/links are preserved rather than overwritten. Start a fresh client session after installation or policy changes; already-loaded instructions may be stale.
 

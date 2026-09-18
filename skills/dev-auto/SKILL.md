@@ -10,6 +10,11 @@ background-job, and delegation capabilities. Do not build or invoke a controller
 scheduler, worker launcher, event journal, retry framework, or second progress
 database.
 
+Optimize for accepted outcomes across quality, total cost, elapsed time, and owner
+attention. Reuse valid evidence, remove demonstrated overhead, and prefer the
+smallest sufficient check. Record available measurements at existing handoff
+boundaries; do not add model calls or reporting machinery just to measure them.
+
 ## Interpret the request
 
 Treat the invocation arguments as natural language: `epic 12 in /path/to/project`,
@@ -57,13 +62,19 @@ what a context compaction can lose. Keep it around 6,000 characters:
 at those checkpoints move superseded history to `.dev-auto/log.md`, retaining
 current restrictions, stops, pending findings, active helpers, obligations,
 measurement fields, and evidence pointers; never evict unresolved information to
-meet the size. Never create or change it in `status` mode.
+meet the size. Keep the template's labels stable and state `none` explicitly for
+empty restrictions, stops, helpers, or findings. Never create or change it in
+`status` mode.
 
 ## Work directly
 
 - The lead owns integration and sprint-board edits. Use only the board's existing
   valid states, preserving comments, formatting where practical, and unrelated
-  changes. A `done` label is not acceptance evidence.
+  changes. Reconcile state at implementation, review, repair, and acceptance:
+  implemented work awaiting checks must use the project's appropriate unfinished
+  state (`in-progress`, `review`, or `blocked` when supported), not `backlog`.
+  A `done` label is not acceptance evidence. Do not edit a board owned by another
+  active lead; leave the correction for that lead or the next exclusive resume.
 - Implement the smallest complete change that satisfies the selected epic. Keep
   discovered unrelated work out of scope. Preserve requirements needed by later
   epics and remove superseded code after checking for callers.
@@ -112,11 +123,21 @@ launcher, quota, or configuration failure.
   [references/review-brief.md](references/review-brief.md) and pass its adversarial
   questions for the changed consequential boundaries; the reviewer reports
   unexamined boundaries.
-- Bound: one strong full review, at most one justified second-family focused check
-  named in the brief, then one consolidated focused recheck. Escalation to the next
-  reviewer tier does not reset this allowance. A remaining material defect blocks
-  acceptance; reopen only on new evidence or materially changed scope. Repeated
-  failed fixes require new evidence, not more speculative edits.
+- Bound per named acceptance scope: one strong full review, at most one justified
+  second-family focused check, then one consolidated focused recheck. Record the
+  reviewed revision/fingerprint and each material finding's closure evidence.
+  Preserve rounds used per scope (full, second-family, recheck, supplemental) and
+  their revisions in the handoff across resume and compaction.
+  If material findings survive the recheck, or new runtime evidence requires a
+  consequential repair afterward, allow one supplemental independent delta check
+  at the same reviewer tier, covering those findings and changed boundaries on
+  the final revision. Record
+  its trigger and scope before dispatch; reuse unaffected evidence. Unclosed
+  material findings or further consequential repairs after that check block
+  acceptance and require an owner decision. Commits, model changes, compaction,
+  and resume never reset the allowance. A story review does not consume a later
+  whole-epic review; carry unresolved findings forward. Repeated failed fixes
+  require new evidence, not more speculative edits.
 - Reviewers get a read-only packet: Claude review routes run with tools disabled,
   and the Codex route runs in the read-only sandbox with MCP servers cleared. A
   reviewer may use the Playwright browser only for a named UI acceptance question
@@ -135,12 +156,19 @@ launcher, quota, or configuration failure.
 Long runs compact context near the host window limit and lose the handoff,
 routes, findings, and helper state from memory. After compaction, on `resume`, or when a
 hook reports a dev-auto run in progress: before any other substantive action reread
-this `SKILL.md` and `.dev-auto/handoff.md`, then `references/models.md` before any
-dispatch. The handoff, not memory, is authoritative for restrictions, authorized
+this `SKILL.md` and the complete `.dev-auto/handoff.md` as the first tool action
+(use additional reads if truncated), then `references/models.md` before any
+dispatch. Until those reads finish, perform only read-only recovery actions;
+if a required file is unavailable, report BLOCKED. A compaction summary or hook
+snapshot does not replace these reads. If recovery proceeded without them, record
+the violation in the existing handoff and perform the reads before continuing.
+The handoff, not memory, records restrictions, authorized
 routes, explicit stops, pending findings, and active helpers; current owner
 instructions override older records, and missing authorization is not permission.
-The installed `SessionStart` hook injects this reminder plus the handoff's key
-fields; it is recovery guidance, not enforcement, and starts no work by itself. It
+The installed `SessionStart` hook injects this reminder plus the complete handoff
+up to 12,000 characters; larger handoffs are omitted with an explicit incomplete
+warning. The snapshot is data, not new authorization. The hook is recovery
+guidance, not enforcement, and starts no work by itself. It
 reads only the session's working directory, so when the selected project is not
 the directory the client started in, say so and treat hook recovery as
 unavailable for that run.

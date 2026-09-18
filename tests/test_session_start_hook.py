@@ -46,6 +46,7 @@ class SessionStartHookTests(unittest.TestCase):
     def filled(self, **fields: str) -> str:
         text = TEMPLATE.read_text(encoding="utf-8")
         text = text.replace("- Status: ACTIVE | PAUSED | BLOCKED | COMPLETE", "- Status: ACTIVE")
+        fields.setdefault("Explicit user stop (if any; only a later user instruction clears it)", "none")
         for label, value in fields.items():
             key = f"- {label}:"
             self.assertIn(key, text, label)
@@ -96,8 +97,8 @@ class SessionStartHookTests(unittest.TestCase):
             self.assertIn("never GLM", context)
             self.assertIn("retry double-charges", context)
             self.assertIn("run tests for story 2.3", context)
-            self.assertNotIn("Sprint board", context)
-            self.assertLess(len(context), 3_000)
+            self.assertIn("Sprint board", context)
+            self.assertLess(len(context), 14_000)
 
     def test_multiline_field_and_explicit_stop_are_kept_whole(self) -> None:
         text = self.filled().replace(
@@ -114,36 +115,59 @@ class SessionStartHookTests(unittest.TestCase):
         self.assertIn("no production access\n  - never push\n  - local-only network", context)
         self.assertIn("owner said stop at 14:02", context)
 
-    def test_oversized_field_is_omitted_whole_and_marked(self) -> None:
-        big = "never touch " + "x" * 700
-        self.write_handoff(self.filled(**{"Restrictions and authorization boundaries": big}))
+    def test_renamed_fields_and_free_text_survive(self) -> None:
+        text = ("# Handoff\n- Status: ACTIVE\n- Restrictions: never deploy\n"
+                "- Provider routes: approved helper only\n- Risk 1: double charge\n"
+                "Spend authorization: one attempt only; no replacement.\n"
+                "- Restrictions: production access USED; no further access\n")
+        self.write_handoff(text)
+        context = context_of(run_hook({"source": "compact", "cwd": str(self.root)}))
+        self.assertIn(text, context)
+        self.assertIn("first tool action", context)
+
+    def test_long_field_is_preserved_within_total_bound(self) -> None:
+        text = self.filled(**{"Restrictions and authorization boundaries": "x" * 800})
+        self.write_handoff(text)
+        self.assertIn(text, context_of(run_hook({"source": "resume", "cwd": str(self.root)})))
+
+    def test_oversized_handoff_is_omitted_whole_and_marked(self) -> None:
+        text = "- Status: ACTIVE\n" + "x" * 12_000 + "\nNEVER SPEND AGAIN"
+        self.write_handoff(text)
         context = context_of(run_hook({"source": "compact", "cwd": str(self.root)}))
         self.assertNotIn("x" * 50, context)
-        self.assertIn("Restrictions and authorization boundaries: (too long", context)
-        self.assertIn("Excerpt incomplete", context)
+        self.assertIn("snapshot INCOMPLETE", context)
+        self.assertIn("complete file before proceeding", context)
+        self.assertLess(len(context), 2_500)
 
-    def test_excerpt_total_stays_within_limit_with_many_large_fields(self) -> None:
-        big = "x" * 430  # accepted lines reach ~1,950 chars, so the pre-fix placeholders overshoot
-        self.write_handoff(self.filled(**{
-            "Explicit user stop (if any; only a later user instruction clears it)": big,
-            "Restrictions and authorization boundaries": big,
-            "Authorized provider routes": big,
-            "Active native helpers (ID, route, scope, ownership, state)": big,
-            "Material pending findings": big,
-            "Next safe action": big,
-        }))
-        context = context_of(run_hook({"source": "compact", "cwd": str(self.root)}))
-        body = context.split("Handoff excerpt (", 1)[1].split("):\n", 1)[1]
-        body = body.split("\n(Excerpt incomplete", 1)[0]
-        self.assertLessEqual(len(body), 2_000, len(body))
-        self.assertIn("(too long for this excerpt; read the handoff)", body)
-        self.assertIn("Excerpt incomplete", context)
+    def test_exact_size_boundary_preserves_complete_text(self) -> None:
+        text = "- Status: ACTIVE\n"
+        text += "x" * (12_000 - len(text))
+        self.write_handoff(text)
+        self.assertIn(text, context_of(run_hook({"source": "compact", "cwd": str(self.root)})))
+
+    def test_ambiguous_complete_and_explicit_stop_are_not_suppressed(self) -> None:
+        for text in ("- Status: ACTIVE\n- Status: COMPLETE\n",
+                     "- Status: COMPLETE\n- Explicit user stop: stop now\n",
+                     "- Explicit user stop:\n  owner says stop\n- Status: COMPLETE\n",
+                     "- Status: COMPLETE pending acceptance\n"):
+            self.handoff.parent.mkdir(exist_ok=True)
+            self.handoff.write_text(text)
+            self.assertIn(text, context_of(run_hook({"source": "resume", "cwd": str(self.root)})))
 
     def test_malformed_handoff_still_gives_reminder(self) -> None:
         self.write_handoff("garbage without any bullets\n")
         context = context_of(run_hook({"source": "compact", "cwd": str(self.root)}))
         self.assertIn("dev-auto run in progress", context)
-        self.assertIn("Handoff excerpt unavailable", context)
+        self.assertIn("Status missing or ambiguous", context)
+
+    def test_quoted_complete_or_missing_canonical_stop_still_injects(self) -> None:
+        for text in ("- Explicit user stop: none\nExample:\n```\n- Status: COMPLETE\n```\n",
+                     "- Stop: owner says stop\n- Status: COMPLETE\n",
+                     "- Status: COMPLETE\n",
+                     "- Explicit user stop: none\n- Explicit user stop: none\n- Status: COMPLETE\n"):
+            self.handoff.parent.mkdir(exist_ok=True)
+            self.handoff.write_text(text)
+            self.assertIn(text, context_of(run_hook({"source": "resume", "cwd": str(self.root)})))
 
     def test_bad_input_fails_open(self) -> None:
         result = run_hook("{not json")

@@ -27,12 +27,13 @@
 
 - Checks run and observed results:
 - Reviewed scope and route:
+- Reviewed revision / material finding closures / supplemental check used and trigger:
 - Unreviewed or unverified areas:
 
 ## Measurement
 
 - Timing: started / accepted / elapsed including waits:
-- Reviews: full / focused rounds; evidence links:
+- Reviews by scope: full / second-family / recheck / supplemental used; revisions and evidence links:
 - Dispatches: purpose / provider-model-effort / receipt:
 - Owner interventions: count / reason / approximate minutes:
 - Observed usage: lead + helpers + recovery; source / gaps:
