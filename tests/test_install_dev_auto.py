@@ -1,5 +1,7 @@
+# MODULE: test_install_dev_auto.py - installer tests for links and hook registration
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import tempfile
@@ -10,6 +12,11 @@ import unittest
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "install-dev-auto.py"
 SOURCE = (REPO / "skills" / "dev-auto").resolve()
+HOOK = REPO / "hooks" / "dev-auto-session-start.py"
+HOOK_FILES = (
+    Path(".claude/settings.json"),
+    Path(".codex/hooks.json"),
+)
 RELATIVE_DESTINATIONS = (
     Path(".agents/skills/dev-auto"),
     Path(".claude/skills/dev-auto"),
@@ -37,6 +44,119 @@ class InstallerTests(unittest.TestCase):
 
             checked = self.run_installer(root, "--check")
             self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+
+    def test_registers_hook_in_both_clients_preserving_existing_content(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            settings = root / ".claude" / "settings.json"
+            settings.parent.mkdir(parents=True)
+            existing = {
+                "model": "opus",
+                "hooks": {
+                    "SessionStart": [{"matcher": "startup", "hooks": [{"type": "command", "command": "echo hi"}]}],
+                    "Stop": [{"hooks": [{"type": "command", "command": "echo bye"}]}],
+                },
+            }
+            settings.write_text(json.dumps(existing), encoding="utf-8")
+
+            result = self.run_installer(root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for relative in HOOK_FILES:
+                data = json.loads((root / relative).read_text(encoding="utf-8"))
+                groups = data["hooks"]["SessionStart"]
+                ours = [g for g in groups if HOOK.name in g["hooks"][0]["command"]]
+                self.assertEqual(len(ours), 1, relative)
+                self.assertEqual(ours[0]["matcher"], "compact|resume")
+                self.assertEqual(ours[0]["hooks"][0]["command"], f"python3 {HOOK}")
+            claude = json.loads(settings.read_text(encoding="utf-8"))
+            self.assertEqual(claude["model"], "opus")
+            self.assertEqual(claude["hooks"]["Stop"], existing["hooks"]["Stop"])
+            self.assertEqual(claude["hooks"]["SessionStart"][0], existing["hooks"]["SessionStart"][0])
+
+            repeated = self.run_installer(root)
+            self.assertEqual(repeated.returncode, 0, repeated.stderr)
+            again = json.loads(settings.read_text(encoding="utf-8"))
+            self.assertEqual(again, claude)
+            self.assertEqual(self.run_installer(root, "--check").returncode, 0)
+
+    def test_links_only_skips_hooks_and_check_reports_them_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual(self.run_installer(root, "--links-only").returncode, 0)
+            for relative in HOOK_FILES:
+                self.assertFalse((root / relative).exists())
+            checked = self.run_installer(root, "--check")
+            self.assertEqual(checked.returncode, 1)
+            self.assertIn("HOOK MISSING", checked.stdout)
+
+    def test_malformed_hook_file_is_preserved_and_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            hooks = root / ".codex" / "hooks.json"
+            hooks.parent.mkdir(parents=True)
+            hooks.write_text("{broken", encoding="utf-8")
+            result = self.run_installer(root)
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("unreadable", result.stderr)
+            self.assertEqual(hooks.read_text(encoding="utf-8"), "{broken")
+            for relative in RELATIVE_DESTINATIONS:
+                self.assertFalse((root / relative).exists())
+
+    def test_type_mismatched_hook_shapes_are_refused_before_any_change(self) -> None:
+        for shape in ('{"hooks": {"SessionStart": {"matcher": "startup"}}}', '{"hooks": []}', '[]'):
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                settings = root / ".claude" / "settings.json"
+                settings.parent.mkdir(parents=True)
+                settings.write_text(shape, encoding="utf-8")
+                result = self.run_installer(root)
+                self.assertEqual(result.returncode, 2, shape + result.stderr)
+                self.assertIn("Nothing changed", result.stderr)
+                self.assertEqual(settings.read_text(encoding="utf-8"), shape)
+                for relative in RELATIVE_DESTINATIONS:
+                    self.assertFalse((root / relative).exists(), shape)
+
+    def test_symlinked_settings_are_written_through_and_keep_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dotfile = root / "dotfiles" / "claude-settings.json"
+            dotfile.parent.mkdir(parents=True)
+            dotfile.write_text('{"model": "opus"}', encoding="utf-8")
+            dotfile.chmod(0o664)
+            settings = root / ".claude" / "settings.json"
+            settings.parent.mkdir(parents=True)
+            settings.symlink_to(dotfile)
+            result = self.run_installer(root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(settings.is_symlink())
+            data = json.loads(dotfile.read_text(encoding="utf-8"))
+            self.assertEqual(data["model"], "opus")
+            self.assertEqual(len(data["hooks"]["SessionStart"]), 1)
+            self.assertEqual(dotfile.stat().st_mode & 0o777, 0o664)
+            self.assertEqual(self.run_installer(root, "--check").returncode, 0)
+
+    def test_hook_command_quotes_paths_with_spaces_and_metacharacters(self) -> None:
+        import importlib.util
+        import shlex
+
+        spec = importlib.util.spec_from_file_location("installer", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        script = Path("/tmp/my checkout; rm -rf x/hooks/dev-auto-session-start.py")
+        command = module.hook_group(script)["hooks"][0]["command"]
+        self.assertEqual(shlex.split(command), ["python3", str(script)])
+
+    def test_malformed_nested_group_is_skipped_not_crashed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            settings = root / ".claude" / "settings.json"
+            settings.parent.mkdir(parents=True)
+            settings.write_text('{"hooks": {"SessionStart": [{"hooks": null}, 7]}}', encoding="utf-8")
+            result = self.run_installer(root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            groups = json.loads(settings.read_text(encoding="utf-8"))["hooks"]["SessionStart"]
+            self.assertEqual(groups[:2], [{"hooks": None}, 7])
+            self.assertEqual(len(groups), 3)
 
     def test_reinstall_is_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

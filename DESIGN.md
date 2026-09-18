@@ -107,6 +107,14 @@ Proposed default: one full review followed by one focused correction review at a
 
 Avoid duplicate broad reviews when the final epic and project boundary coincide: the selected strong reviewer's project-level high-effort pass may explicitly cover both required scopes. The Astra → Fable tier order still applies; combining boundaries does not require both reviewers. Reuse still-valid evidence for unchanged areas. Rerun affected checks after changes and the applicable integrated suite before acceptance; do not repeatedly run broad suites inside every repair loop.
 
+## Settled decisions (2026-09-18)
+
+Consultation briefs reference these instead of reopening them.
+
+- No controller, scheduler, or worker framework; the host's native tools and permissions are the boundary.
+- Reviewer tiers are escalation, not pairing: one strong full review, at most one justified second-family focused check, one consolidated recheck. Escalation does not reset the allowance.
+- Compaction recovery is a `SessionStart` hook plus a bounded handoff, not a custom context store; it is guidance, not enforcement, and each host's automatic case must be exercised before it is relied on.
+
 ## Small durable run record
 
 Keep the existing sprint board plus one concise run handoff and referenced evidence files. Do not duplicate BMAD story state into a second competing board.

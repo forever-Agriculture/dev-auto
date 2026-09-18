@@ -7,7 +7,8 @@ Status: initial version published and installed; current owner correction remove
 - One canonical `skills/dev-auto/SKILL.md` usable by Codex and Claude Code.
 - A small supporting model-routing reference, loaded when dispatching, with real configured routes and effort levels.
 - A short handoff template for `.dev-auto/handoff.md` in the target project. The existing `sprint-status.yaml` remains its progress board.
-- A small install/check helper only to link both clients to the canonical skill without overwriting existing content. Use native host execution, permissions, background jobs and delegation.
+- A small install/check helper only to link both clients to the canonical skill without overwriting existing content, and to register one `SessionStart` recovery hook (`compact|resume`) that reinjects the handoff's key fields after compaction. Use native host execution, permissions, background jobs and delegation.
+- A short reviewer brief (`references/review-brief.md`) with adversarial invariant questions, loaded before an independent review.
 
 No controller, scheduler, worker launcher framework, event journal, custom retry state machine, automatic review fan-out or redundant progress database. Add any further code only for a concrete demonstrated gap. The skill does not create a security boundary: the host's actual tools/permissions must provide the access required by a delegated task. If they cannot, constrain or defer that dispatch rather than invent bypasses.
 
@@ -37,7 +38,7 @@ Sol/xhigh implements the skill, references and justified install helper. GLM Fla
 - Exercise real skill discovery/invocation in Codex and Claude Code using a disposable tiny project. Show at least status/resume and an affected development/test/sprint flow; no production or user project experiments.
 - Verify concrete Claude-hosted GLM dispatch at requested effort and inspect the actual model receipt. Evaluate behavior with GLM Flash, not just static word matching.
 - Exercise preservation of a material pending finding and selected scope on resume. Verify reported acceptance limitations and project regression checks against actual artifacts.
-- Host permission/lifecycle behavior is reused, not reimplemented. Test any claimed new mechanism at its real boundary; explicitly label unexercised compaction, concurrent multi-session behavior and broader unattended reliability as unverified.
+- Host permission/lifecycle behavior is reused, not reimplemented. Test any claimed new mechanism at its real boundary; explicitly label concurrent multi-session behavior and broader unattended reliability as unverified; compaction recovery is exercised per host in `docs/verification.md` and stays labeled unverified on any host where the automatic case could not be provoked.
 - Whole-project production readiness, lower real-world cost and unattended reliability need an owner-selected real pilot. Do not manufacture those claims from a fixture or review verdict.
 
 Keep brief instructions, meaningful evidence and low owner burden. Review needless complexity as a defect. No model call should exist merely to satisfy a ceremonial stage.

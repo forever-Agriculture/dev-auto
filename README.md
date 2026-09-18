@@ -11,10 +11,12 @@ python3 scripts/install-dev-auto.py
 python3 scripts/install-dev-auto.py --check
 ```
 
-The installer links both clients to `skills/dev-auto` in this checkout:
+The installer links both clients to `skills/dev-auto` in this checkout and registers the compaction-recovery hook:
 
-- Codex: `~/.agents/skills/dev-auto`
-- Claude Code: `~/.claude/skills/dev-auto`
+- Codex: `~/.agents/skills/dev-auto`; hook group in `~/.codex/hooks.json`
+- Claude Code: `~/.claude/skills/dev-auto`; hook group in `~/.claude/settings.json`
+
+The hook (`hooks/dev-auto-session-start.py`) runs on `SessionStart` with matcher `compact|resume`. When the session's working directory holds an unfinished `.dev-auto/handoff.md`, it injects a short reminder to reread the skill, the handoff, and the routing reference, plus the handoff's status, stop, restrictions, routes, helpers, pending findings, and next action. It is silent otherwise, never writes, and fails open. Codex requires trusting a new hook once through `/hooks`. Use `--links-only` to skip hook registration. Run the installer while no client is writing its settings; it replaces the file atomically but does not detect a concurrent edit. The hook only sees the session's working directory, so start the client from the project root you are developing.
 
 Keep the checkout in place. Both links use the same files, so edits stay synchronized. Existing conflicting files/links are preserved rather than overwritten. Start a fresh client session after installation or policy changes; already-loaded instructions may be stale.
 
@@ -76,6 +78,8 @@ Codex's native skill picker may also expose it. The skill does not switch the cu
 4. Uses focused story tests and appropriate project regression/integration checks; checks existing behavior, not just new tests.
 5. Uses independent review for whole-epic correctness and project alignment; project scope also receives a cross-epic final evaluation.
 6. Preserves pending findings, restrictions, routes, evidence and next actions in a short project handoff.
+
+Reviewers run without tools by default. For a named UI acceptance question the lead may dispatch a browser-enabled review that uses the Playwright MCP against lead-supplied local URLs only; see the browser-enabled variants in the routing reference.
 
 The lead can use GLM Flash/max or Luna/max when helpful and choose suitable models for independent parallel work. GLM/max is the debugging helper. Important epic reviews normally use Astra/medium, with Fable/medium as the next tier when needed; bounded cases can use low effort. Project final evaluation and critical decisions use Astra/high then Fable/high. Strong models focus on consequential judgments while economical helpers handle routine work. See the [routing reference](skills/dev-auto/references/models.md) for exact routes.
 
