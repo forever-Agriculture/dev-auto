@@ -25,6 +25,17 @@ RELATIVE_DESTINATIONS = (
 
 
 class InstallerTests(unittest.TestCase):
+    def test_hook_parent_conflict_prevents_all_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            blocker = root / '.codex'
+            blocker.write_text('user data\n', encoding='utf-8')
+            result = self.run_installer(root)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn('Nothing changed', result.stderr)
+            self.assertEqual(blocker.read_text(), 'user data\n')
+            self.assertEqual(list(root.iterdir()), [blocker])
+
     def run_installer(self, root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [sys.executable, str(SCRIPT), "--target-root", str(root), *arguments],

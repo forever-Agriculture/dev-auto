@@ -31,6 +31,34 @@ def context_of(result: subprocess.CompletedProcess[str]) -> str:
 
 
 class SessionStartHookTests(unittest.TestCase):
+    def test_recovers_from_nested_directory(self) -> None:
+        self.write_handoff(self.filled(**{'Material pending findings': 'F1 open'}))
+        nested = self.root / 'src' / 'feature'
+        nested.mkdir(parents=True)
+        (self.root / '.git').mkdir()
+        for source in ('compact', 'resume'):
+            context = context_of(run_hook({'source': source, 'cwd': str(nested)}))
+            self.assertIn(str(self.handoff), context)
+            self.assertIn('F1 open', context)
+
+    def test_does_not_cross_nested_repository_boundary(self) -> None:
+        self.write_handoff(self.filled())
+        nested = self.root / 'other-repo'
+        nested.mkdir()
+        # Worktrees use a .git file, not a directory.
+        (nested / '.git').write_text('gitdir: elsewhere\n')
+        result = run_hook({'source': 'resume', 'cwd': str(nested)})
+        self.assertEqual((result.returncode, result.stdout), (0, ''))
+
+    def test_nearest_completed_handoff_does_not_restore_parent_run(self) -> None:
+        self.write_handoff(self.filled())
+        nested = self.root / 'child'
+        handoff = nested / '.dev-auto' / 'handoff.md'
+        handoff.parent.mkdir(parents=True)
+        handoff.write_text(self.filled().replace('- Status: ACTIVE', '- Status: COMPLETE'))
+        result = run_hook({'source': 'resume', 'cwd': str(nested)})
+        self.assertEqual((result.returncode, result.stdout), (0, ''))
+
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)

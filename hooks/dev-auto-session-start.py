@@ -4,7 +4,7 @@
 
 Registered as a ``SessionStart`` hook (matcher ``compact|resume``) in Claude Code
 and Codex. Reads the hook event from stdin, looks for ``.dev-auto/handoff.md``
-in the session's working directory, and prints a bounded JSON
+in the working directory or its ancestors within the repository, and prints a bounded JSON
 ``additionalContext`` with the fixed reminder plus a complete, bounded handoff.
 Silent when no run is recorded there or the run is COMPLETE. Fail-open: any
 unexpected error produces no output and exit code 0. Never writes files.
@@ -42,9 +42,22 @@ REMINDER = (
 )
 
 
+def find_handoff(cwd: Path) -> Path | None:
+    """Find the nearest handoff without crossing a repository or home boundary."""
+    cwd = cwd.resolve()
+    home = Path.home().resolve()
+    for directory in (cwd, *cwd.parents):
+        handoff = directory / ".dev-auto" / "handoff.md"
+        if handoff.is_file():
+            return handoff
+        if (directory / ".git").exists() or directory == home:
+            break
+    return None
+
+
 def build_context(cwd: Path) -> str | None:
-    handoff = cwd / ".dev-auto" / "handoff.md"
-    if not handoff.is_file():
+    handoff = find_handoff(cwd)
+    if handoff is None:
         return None
     reminder = REMINDER.format(
         skill=SKILL_DIR / "SKILL.md",

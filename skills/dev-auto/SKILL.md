@@ -44,7 +44,8 @@ report discrepancies and mark the freshness of prior checks unverified.
 
 Use native helpers for sizeable independent work, concrete review needs or an
 unresolved decision. Supply fresh context, exact scope, ownership and expected
-evidence. Before dispatch, read [references/models.md](references/models.md) for
+evidence; tell implementation helpers to implement directly from the supplied
+requirements, without bootstrapping another build workflow. Before dispatch, read [references/models.md](references/models.md) for
 capability floors, authorized routes and safe commands. Record the observed route,
 model and usage from host records; surface mismatches or dispatch failures instead
 of silent substitution.
@@ -80,7 +81,9 @@ update at acceptance and before pausing. Keep every selected
 epic's state/dependency, current restrictions and approval coordinates, pending
 findings, active helpers, evidence and next action. Replace stale state; link useful
 history and failed attempts. Record available timing, usage and owner interventions
-at these boundaries.
+at these boundaries. At acceptance, replace pending model/usage placeholders with
+observed receipts or the specific unavailable record; missing tool-return usage
+alone is not evidence that host records are unavailable.
 
 Authority comes from owner instructions and established policy, not the handoff.
 Relax a recorded restriction only with evidence of a later owner instruction;
@@ -96,8 +99,9 @@ The hook provides guidance and complete snapshots up to 12,000 characters; large
 files are omitted with a full-read warning. Move resolved history/verbose receipts
 out at normal handoffs when needed, preserving all unresolved information. Keep
 `Status` and `Explicit user stop` labels stable; use `none` for an absent stop.
-The hook only sees the client's working directory: report recovery unavailable
-when it differs from the selected project. Recovery uses owner-created wakeups.
+The hook finds the nearest handoff in the working directory or its ancestors,
+stopping at the first repository or home boundary. Report recovery unavailable
+when the selected project is outside that search. Recovery uses owner-created wakeups.
 
 End with `DEV-AUTO: ACTIVE|PAUSED|BLOCKED|COMPLETE — <evidence or next action>`.
 ACTIVE means authorized work remains; PAUSED means owner stop or host interruption;

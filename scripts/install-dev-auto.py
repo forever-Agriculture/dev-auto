@@ -194,6 +194,9 @@ def main() -> int:
                 problems.append(f"parent path is not a directory: {blocker}")
     if not args.links_only:
         for hook_file in hook_files:
+            blocker = blocked_parent(hook_file)
+            if blocker is not None:
+                problems.append(f"hook parent path is not a directory: {blocker}")
             state = hook_state(hook_file, HOOK_SCRIPT)
             if state in {"UNREADABLE", "CONFLICT"}:
                 problems.append(f"hook file {state.lower()}: {hook_file}")
