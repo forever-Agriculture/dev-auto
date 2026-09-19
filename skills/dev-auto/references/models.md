@@ -20,8 +20,8 @@ providers by default. Record the tier actually used and the reason for any escal
 | --- | --- | --- |
 | Codex lead | `gpt-5.6-sol`, `xhigh` | Keep the current lead when it is already suitable |
 | Claude Code lead | `opus`, `xhigh` | Keep the current lead when it is already suitable |
-| Routine review, bounded tests, easy isolated work | `GLM-5.3-Flash`, `max`, via the Claude GLM profile | `gpt-5.6-luna`, `max`; then `GLM-5.3`, `max`, via the Claude GLM profile; then `sonnet`, `low` or `medium` |
-| Debugging assistance | `GLM-5.3`, `max`, via the Claude GLM profile | The lead diagnoses directly when dispatch adds no value |
+| Routine: review, bounded tests, easy isolated work (most dispatches) | `GLM-5.3-Flash`, `max`, via the Claude GLM profile | `gpt-5.6-luna`, `max`; then `sonnet`, `low` or `medium` |
+| Complex bounded: debugging, a hard focused review, one consequential boundary short of a whole epic | `GLM-5.3`, `max`, via the Claude GLM profile | `gpt-6-astra`, `low`; or the lead directly when dispatch adds no value |
 | Whole-epic important risks and project alignment | `gpt-6-astra`, `medium` | `fable`, `medium`. `gpt-6-astra`, `low` only for a focused follow-up on a well-evidenced question |
 | Whole-project final evaluation or critical decision | `gpt-6-astra`, `high` | `fable`, `high` |
 
@@ -129,7 +129,7 @@ review is:
 Wait for the terminal receipt: this route can emit an early
 `unrecognized_model` diagnostic and still complete successfully.
 
-For debugging, or for a review that GLM Flash and Luna left unresolved, set
+For the complex bounded tier (debugging, a hard focused review), set
 `ANTHROPIC_DEFAULT_OPUS_MODEL=GLM-5.3` after sourcing and use the `opus` alias at
 `max` in the same command shape. Do not import legacy the earlier workflow wrappers or agent
 definitions.

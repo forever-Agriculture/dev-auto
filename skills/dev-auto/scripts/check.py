@@ -30,7 +30,7 @@ FIELDS = ("Lead host / requested model / observed model", "Observed usage")
 LARGE = 256 * 1024
 # First-tier model per work class, from references/models.md. Rows are
 # `purpose | class | model/effort | receipt | tier`; tier is `first` or `escalated: reason`.
-FIRST_TIER = {"routine": "glm-5.3-flash", "debugging": "glm-5.3",
+FIRST_TIER = {"routine": "glm-5.3-flash", "complex": "glm-5.3", "debugging": "glm-5.3",
               "epic-review": "gpt-6-astra", "project-review": "gpt-6-astra"}
 SESSIONS = Path.home() / ".codex" / "sessions"
 

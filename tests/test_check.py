@@ -150,6 +150,7 @@ class CheckTests(unittest.TestCase):
         for red, reason in [
             (body("review | routine | gpt-5.6-luna/max | rollout | first"), "first tier is glm-5.3-flash"),
             (body("debug | debugging | gpt-6-astra/high | rollout | first"), "first tier is glm-5.3"),
+            (body("race review | complex | gpt-5.6-luna/max | rollout | first"), "first tier is glm-5.3"),
             (body("review | epic-review | fable/medium | receipt | escalated:"), "without a reason"),
             (body("full review / native fable / receipt"), "not in"),
             (body("review | epic-review | gpt-6-astra/medium | rollout | maybe"), "tier must be"),
