@@ -49,8 +49,10 @@ Codex writes every session, including `codex exec` runs and native helpers, to
 `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, where `turn_context` payloads carry
 `model` and `effort` and the last `token_count` payload carries cumulative
 `total_token_usage`; Claude Code `-p --output-format json` receipts carry `modelUsage`
-and `total_cost_usd`. An in-session helper with no receipt of its own is covered by
-the lead's record; list the remainder under gaps. Record `unobservable` only when no
+and `total_cost_usd`. `scripts/check.py usage PATH` prints these fields from one rollout or receipt; one
+session's cumulative counter is that session's usage, not the epic's total. An
+in-session helper with no receipt of its own is covered by the lead's record; list
+the remainder under gaps. Record `unobservable` only when no
 record exists, and never retry or dispatch another worker merely to discover it.
 
 Wait for a helper with the longest timeout the host accepts (Codex accepted

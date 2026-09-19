@@ -68,9 +68,7 @@ Record the reviewed revision, finding closures, actual checks and unverified
 boundaries. Model approval supports evidence; runtime claims require exercised
 behavior. Keep raw transcripts, screenshots and runtime dumps untracked, in external
 scratch space or an ignored `.dev-auto/evidence/` directory; commit only the handoff,
-which cites receipts and raw evidence by path and hash. Inspect staged files before
-committing your changes.
-Existing tracked evidence needs scoped cleanup that preserves active runs and history.
+which cites receipts and raw evidence by path and hash.
 
 ## Handoff and recovery
 
@@ -81,9 +79,10 @@ update at acceptance and before pausing. Keep every selected
 epic's state/dependency, current restrictions and approval coordinates, pending
 findings, active helpers, evidence and next action. Replace stale state; link useful
 history and failed attempts. Record available timing, usage and owner interventions
-at these boundaries. At acceptance, replace pending model/usage placeholders with
-observed receipts or the specific unavailable record; missing tool-return usage
-alone is not evidence that host records are unavailable.
+at these boundaries. At acceptance, read each lead and helper receipt with
+`scripts/check.py usage PATH` (`usage --list PROJECT` lists Codex rollouts; choose by
+hand), record the observed routes and usage, then run `scripts/check.py check` and fix
+every FAIL before reporting COMPLETE. Record an UNABLE result instead of ignoring it.
 
 Authority comes from owner instructions and established policy, not the handoff.
 Relax a recorded restriction only with evidence of a later owner instruction;

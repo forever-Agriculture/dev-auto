@@ -95,6 +95,8 @@ when it would exceed the hook's 12,000-character snapshot limit. Unresolved
 restrictions and findings take precedence over size. Owner-effort records separate
 corrections, necessary approvals and avoidable repeated requests.
 
+Two mechanical acceptance rules are checked by a read-only helper instead of prose: `skills/dev-auto/scripts/check.py check` fails a COMPLETE handoff that still holds model/usage placeholder text or tracks raw evidence, and `check.py usage PATH` prints model, effort and usage from a Codex rollout or Claude JSON receipt. The lead runs both by hand at acceptance; the helper never writes, launches or decides, and it is not a hook.
+
 Reviewers run without tools by default. For a named UI acceptance question the lead may dispatch a browser-enabled review that uses the Playwright MCP against lead-supplied local URLs only; see the browser-enabled variants in the routing reference.
 
 The lead chooses helpers only for concrete bounded needs. GLM Flash/max, Luna/max or Sonnet can handle routine work, and GLM/max can help debug. One capable Astra or Fable reviewer handles consequential epic or project acceptance. There is no mandatory model ladder or provider pairing; escalate only after a specific failure or for a named unresolved risk. See the [routing reference](skills/dev-auto/references/models.md) for exact routes and capability floors.
