@@ -140,6 +140,27 @@ class CheckTests(unittest.TestCase):
         result = run("check", cwd=sub)
         self.assertEqual(result.returncode, 0, result.stdout)
 
+    def test_dispatch_rows_enforce_first_tier_or_reason(self) -> None:
+        def body(*rows: str) -> str:
+            return CLEAN.replace("## Resume", "- Dispatches: rows\n" + "".join(f"  - {r}\n" for r in rows) + "\n## Resume")
+        green = body("epic review | epic-review | gpt-6-astra/medium | rollout 01a1 | first",
+                     "tests | routine | gpt-5.6-luna/max | rollout 01a2 | escalated: GLM route returned EAI_AGAIN twice",
+                     "runtime scout | scout | gpt-5.6-luna/max | rollout 01a3 | first")
+        self.assertEqual(run("check", str(self.project(green).root)).returncode, 0)
+        for red, reason in [
+            (body("review | routine | gpt-5.6-luna/max | rollout | first"), "first tier is glm-5.3-flash"),
+            (body("debug | debugging | gpt-6-astra/high | rollout | first"), "first tier is glm-5.3"),
+            (body("review | epic-review | fable/medium | receipt | escalated:"), "without a reason"),
+            (body("full review / native fable / receipt"), "not in"),
+            (body("review | epic-review | gpt-6-astra/medium | rollout | maybe"), "tier must be"),
+        ]:
+            result = run("check", str(self.project(red).root))
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn(reason, result.stdout)
+
+    def test_no_dispatch_rows_is_not_a_failure(self) -> None:
+        self.assertEqual(run("check", str(self.project(CLEAN.replace("## Resume", "- Dispatches: none\n\n## Resume")).root)).returncode, 0)
+
 
 def rollout_lines(cwd: str, effort: str | None = "xhigh") -> list[str]:
     context = {"model": "gpt-5.6-sol", "cwd": cwd}
@@ -209,6 +230,55 @@ class UsageTests(unittest.TestCase):
             result = run("usage", str(path))
         self.assertEqual(result.returncode, 2, result.stdout)
         self.assertTrue(result.stdout.startswith("UNABLE"))
+
+    def test_claude_transcript_keeps_last_usage_per_response(self) -> None:
+        def line(mid: str, model: str, out: int, stamp: str, **extra: object) -> str:
+            usage = {"input_tokens": 2, "output_tokens": out, "cache_read_input_tokens": 100,
+                     "cache_creation_input_tokens": 10, "service_tier": "standard"}
+            record = {"type": "assistant", "timestamp": stamp, "sessionId": "s1", "cwd": "/p",
+                      "effort": "xhigh", "message": {"id": mid, "model": model, "usage": usage}}
+            record.update(extra)
+            return json.dumps(record)
+        lines = [
+            json.dumps({"type": "mode", "mode": "normal"}),
+            line("m1", "claude-opus-5", 7, "2026-09-19T11:00:00Z"),      # streamed partial
+            line("m1", "claude-opus-5", 179, "2026-09-19T11:00:01Z"),    # same response, final
+            json.dumps({"type": "user", "message": {"role": "user"}}),
+            line("m2", "claude-fable-5-1", 50, "2026-09-19T11:00:02Z", effort="medium"),
+            "{broken",
+            json.dumps({"type": "cost-state", "totalCostUSD": 1.5,
+                        "modelUsage": {"claude-opus-5": {"costUSD": 1.0}, "claude-fable-5-1": {"costUSD": 0.5}}}),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "d25944ed.jsonl"
+            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            result = run("usage", str(path))
+            self.assertEqual(result.returncode, 0, result.stdout)
+            info = json.loads(result.stdout)
+        self.assertEqual(info["routes"], ["claude-opus-5/xhigh", "claude-fable-5-1/medium"])
+        self.assertEqual(info["responses"], 2)
+        self.assertEqual(info["usage"]["claude-opus-5"],
+                         {"inputTokens": 2, "outputTokens": 179, "cacheReadInputTokens": 100,
+                          "cacheCreationInputTokens": 10})
+        self.assertEqual(info["usage"]["claude-fable-5-1"]["outputTokens"], 50)
+        self.assertEqual((info["id"], info["cwd"], info["last"]), ("s1", "/p", "2026-09-19T11:00:02Z"))
+        self.assertEqual(info["session_cost_state"]["total_cost_usd"], 1.5)
+
+    def test_subagent_transcript_without_cost_state_and_empty_transcript(self) -> None:
+        record = {"type": "assistant", "timestamp": "t", "message": {"id": "a", "model": "claude-fable-5-1",
+                  "usage": {"output_tokens": 3}}}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "agent-a9a9.jsonl"
+            path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+            info = json.loads(run("usage", str(path)).stdout)
+            self.assertEqual(info["routes"], ["claude-fable-5-1/unavailable"])
+            self.assertEqual(info["usage"]["claude-fable-5-1"]["outputTokens"], 3)
+            self.assertNotIn("session_cost_state", info)
+            path.write_text("\n", encoding="utf-8")
+            info = json.loads(run("usage", str(path)).stdout)
+            self.assertEqual((info["routes"], info["usage"]), (["unavailable"], "unavailable"))
+            path.write_text(json.dumps({"type": "assistant", "message": "not a dict"}) + "\n", encoding="utf-8")
+            self.assertEqual(run("usage", str(path)).returncode, 0)
 
     def test_list_matches_session_cwd_only_and_does_not_choose(self) -> None:
         with tempfile.TemporaryDirectory() as home:

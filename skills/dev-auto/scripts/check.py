@@ -3,9 +3,12 @@
 """Read-only helpers the lead runs by hand; nothing here writes, launches or decides.
 
 check [PROJECT]     lint .dev-auto/handoff.md when Status is COMPLETE: placeholder
-                    text in the model/usage fields, and raw evidence tracked by git.
-usage PATH          print model, effort and usage from one Codex rollout (.jsonl)
-                    or one Claude ``--output-format json`` receipt (.json).
+                    text in the model/usage fields, raw evidence tracked by git, and
+                    dispatch rows that skip a work class's first tier without a reason.
+usage PATH          print model, effort and usage from one Codex rollout (.jsonl),
+                    one Claude Code session or subagent transcript (.jsonl under
+                    ~/.claude/projects), or one Claude ``--output-format json``
+                    receipt (.json).
 usage --list PROJECT  list Codex rollouts whose session cwd is PROJECT; choose by hand.
 
 Exit 0 PASS or SKIP (status not COMPLETE), 1 FAIL with one reason per line,
@@ -25,6 +28,10 @@ PLACEHOLDERS = ("to be recorded", "tbd", "placeholder", "pending receipt",
 EMPTY_GAPS = re.compile(r";\s*gaps:\s*$")
 FIELDS = ("Lead host / requested model / observed model", "Observed usage")
 LARGE = 256 * 1024
+# First-tier model per work class, from references/models.md. Rows are
+# `purpose | class | model/effort | receipt | tier`; tier is `first` or `escalated: reason`.
+FIRST_TIER = {"routine": "glm-5.3-flash", "debugging": "glm-5.3",
+              "epic-review": "gpt-6-astra", "project-review": "gpt-6-astra"}
 SESSIONS = Path.home() / ".codex" / "sessions"
 
 
@@ -37,6 +44,42 @@ def find_handoff(start: Path) -> Path | None:
         if (directory / ".git").exists() or directory == Path.home():
             return None
     return None
+
+
+def dispatch_rows(body: str) -> list[str]:
+    """Continuation rows under `- Dispatches:` until the next top-level field."""
+    rows, inside = [], False
+    for line in body.splitlines():
+        if line.startswith("- Dispatches:"):
+            inside = True
+            continue
+        if inside and (line.startswith("- ") or line.startswith("#")):
+            break
+        if inside and line.strip().startswith("- "):
+            rows.append(line.strip()[2:])
+    return rows
+
+
+def lint_dispatches(body: str) -> list[str]:
+    failures = []
+    for row in dispatch_rows(body):
+        parts = [p.strip() for p in row.split("|")]
+        if len(parts) != 5:
+            failures.append(f"dispatch row not in `purpose | class | model/effort | receipt | tier` form: {row[:80]}")
+            continue
+        _, work, route, _, tier = parts
+        model = route.split("/")[0].strip().lower()
+        first = FIRST_TIER.get(work.lower())
+        if first is None:
+            continue  # classes outside the table (lead, scout, consult) are not tiered
+        if tier.lower() == "first" and model != first:
+            failures.append(f"{work} dispatch marked first tier but used {route}; first tier is {first}")
+        elif tier.lower().startswith("escalated"):
+            if not tier.partition(":")[2].strip():
+                failures.append(f"{work} dispatch escalated to {route} without a reason")
+        elif tier.lower() != "first":
+            failures.append(f"dispatch tier must be `first` or `escalated: reason`: {tier[:40]}")
+    return failures
 
 
 def field(body: str, name: str) -> str | None:
@@ -64,6 +107,7 @@ def check(project: Path) -> int:
             failures.append(f"'{name}' is empty")
         elif any(p in value.lower() for p in PLACEHOLDERS) or EMPTY_GAPS.search(value.lower()):
             failures.append(f"'{name}' still holds placeholder text: {value[:80]}")
+    failures.extend(lint_dispatches(body))
     root = handoff.parent.parent
     try:
         out = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--", ".dev-auto"],
@@ -113,6 +157,73 @@ def read_rollout(path: Path) -> dict:
             "total_token_usage": usage or "unavailable"}
 
 
+USAGE_KEYS = {"input_tokens": "inputTokens", "output_tokens": "outputTokens",
+              "cache_read_input_tokens": "cacheReadInputTokens",
+              "cache_creation_input_tokens": "cacheCreationInputTokens"}
+
+
+def is_codex_rollout(path: Path) -> bool:
+    """A Codex rollout starts with a ``session_meta`` record; anything else is not one."""
+    with path.open(encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            try:
+                return json.loads(line).get("type") == "session_meta"
+            except (ValueError, AttributeError):
+                return False
+    return False
+
+
+def read_claude_transcript(path: Path) -> dict:
+    """One API response is written as several assistant lines sharing ``message.id``;
+    the last line per id carries that response's final usage, so keep only that."""
+    last_usage, routes, cost_state, first, last, session, cwd = {}, [], None, None, None, None, None
+    with path.open(encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            try:
+                record = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(record, dict):
+                continue
+            kind = record.get("type")
+            if kind == "cost-state":
+                cost_state = record
+                continue
+            if kind != "assistant":
+                continue
+            message = record.get("message")
+            if not isinstance(message, dict):
+                continue
+            stamp = record.get("timestamp")
+            first, last = first or stamp, stamp or last
+            session, cwd = session or record.get("sessionId"), cwd or record.get("cwd")
+            model = message.get("model") or "unavailable"
+            route = (model, record.get("effort") or "unavailable")
+            if route not in routes:
+                routes.append(route)
+            usage = message.get("usage")
+            if isinstance(usage, dict):
+                last_usage[message.get("id") or record.get("uuid")] = (model, usage)
+    totals: dict = {}
+    for model, usage in last_usage.values():
+        bucket = totals.setdefault(model, {v: 0 for v in USAGE_KEYS.values()})
+        for key, name in USAGE_KEYS.items():
+            value = usage.get(key)
+            if isinstance(value, (int, float)):
+                bucket[name] += value
+    info = {"source": str(path), "id": session, "cwd": cwd, "first": first, "last": last,
+            "routes": [f"{m}/{e}" for m, e in routes] or ["unavailable"],
+            "responses": len(last_usage), "usage": totals or "unavailable"}
+    if isinstance(cost_state, dict):
+        info["session_cost_state"] = {
+            "note": "cumulative for the whole session including native subagents",
+            "total_cost_usd": cost_state.get("totalCostUSD", "unavailable"),
+            "models": list(cost_state.get("modelUsage") or {}) or ["unavailable"]}
+    return info
+
+
 def read_receipt(path: Path) -> dict:
     data = json.loads(path.read_text(encoding="utf-8"))
     models = data.get("modelUsage") or {}
@@ -148,7 +259,12 @@ def usage(args: list[str]) -> int:
         return 2
     path = Path(args[0])
     try:
-        info = read_rollout(path) if path.suffix.lower() == ".jsonl" else read_receipt(path)
+        if path.suffix.lower() != ".jsonl":
+            info = read_receipt(path)
+        elif is_codex_rollout(path):
+            info = read_rollout(path)
+        else:
+            info = read_claude_transcript(path)
     except Exception as exc:  # any unreadable or malformed file is UNABLE, never a traceback
         print(f"UNABLE: cannot read {path}: {exc}")
         return 2

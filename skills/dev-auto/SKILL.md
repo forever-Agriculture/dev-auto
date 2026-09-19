@@ -42,9 +42,11 @@ report discrepancies and mark the freshness of prior checks unverified.
 
 ## Helpers and acceptance
 
-Use native helpers for sizeable independent work, concrete review needs or an
-unresolved decision. Supply fresh context, exact scope, ownership and expected
-evidence; tell implementation helpers to implement directly from the supplied
+Dispatch helpers for sizeable independent work, concrete review needs or an
+unresolved decision. Choose the ordered model/effort route for that work class
+first; use the host's native helper interface only when it can deliver that route,
+otherwise use the direct CLI route. Supply fresh context, exact scope, ownership and
+expected evidence; tell implementation helpers to implement directly from the supplied
 requirements, without bootstrapping another build workflow. Before dispatch, read [references/models.md](references/models.md) for
 capability floors, authorized routes and safe commands. Record the observed route,
 model and usage from host records; surface mismatches or dispatch failures instead
@@ -80,9 +82,11 @@ epic's state/dependency, current restrictions and approval coordinates, pending
 findings, active helpers, evidence and next action. Replace stale state; link useful
 history and failed attempts. Record available timing, usage and owner interventions
 at these boundaries. At acceptance, read each lead and helper receipt with
-`scripts/check.py usage PATH` (`usage --list PROJECT` lists Codex rollouts; choose by
-hand), record the observed routes and usage, then run `scripts/check.py check` and fix
-every FAIL before reporting COMPLETE. Record an UNABLE result instead of ignoring it.
+`scripts/check.py usage PATH`: a Codex rollout (`usage --list PROJECT` lists them;
+choose by hand), a Claude Code session or subagent transcript under
+`~/.claude/projects`, or a Claude `-p` JSON receipt. Record the observed routes,
+tiers and usage, then run `scripts/check.py check` and fix every FAIL before
+reporting COMPLETE. Record an UNABLE result instead of ignoring it.
 
 Authority comes from owner instructions and established policy, not the handoff.
 Relax a recorded restriction only with evidence of a later owner instruction;

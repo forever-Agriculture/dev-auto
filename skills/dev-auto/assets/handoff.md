@@ -33,7 +33,7 @@
 ## Measurement
 
 - Timing: started / accepted / elapsed including waits:
-- Dispatches: purpose / provider-model-effort / receipt:
+- Dispatches: one row per dispatch, `purpose | class | model/effort | receipt | tier` where class is routine, debugging, epic-review or project-review and tier is `first` or `escalated: <specific failure, unavailability or capability reason>`:
 - Owner interventions: corrections / necessary approvals / avoidable repeat requests; count, reason, approximate minutes:
 - Observed usage: lead + helpers + recovery; Codex rollout `total_token_usage`, Claude `total_cost_usd`; gaps:
 

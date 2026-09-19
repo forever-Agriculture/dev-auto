@@ -8,23 +8,32 @@ access.
 
 ## Capability routing
 
-Keep a suitable lead on the work. Dispatch only for a concrete independent task,
-then choose one available route that meets its capability floor. The options in this
-table are unordered: do not walk them as a ladder, pair providers by default, or
-escalate after a sufficient result. Escalate only for a specific failed route,
-unresolved uncertainty, or consequential risk.
+Keep a suitable lead on the work. Dispatch only for a concrete independent task.
+Each row is an ordered tier: start with the first route, and move to the next only
+for a specific failed or unavailable route, a result that leaves the question
+unresolved, or a task the first route cannot do (for example a helper that must
+edit files; the GLM routes below are tools-disabled or one-command test runs). A sufficient result at the
+tier in use ends the dispatch; never run the next tier as a ceremony or pair
+providers by default. Record the tier actually used and the reason for any escalation.
 
-| Work | Capability floor | Suitable routes (unordered) |
+| Work | First route | Escalation, in order |
 | --- | --- | --- |
-| Codex lead | Strong implementation owner | `gpt-5.6-sol`, `xhigh` |
-| Claude Code lead | Strong implementation owner | `opus`, `xhigh` |
-| Routine review, bounded tests, easy isolated work | Reliable bounded worker | `GLM-5.3-Flash`, `max`; `gpt-5.6-luna`, `max`; `sonnet`, `low` or `medium` |
-| Debugging assistance | Strong debugger with the relevant evidence | `GLM-5.3`, `max`; the lead directly |
-| Whole-epic important risks and project alignment | Independent strong reasoner | `gpt-6-astra` or `fable`, `medium`; `low` for a bounded, well-evidenced question |
-| Whole-project final evaluation or critical decision | Independent top-tier reasoner | `gpt-6-astra` or `fable`, `high` |
+| Codex lead | `gpt-5.6-sol`, `xhigh` | Keep the current lead when it is already suitable |
+| Claude Code lead | `opus`, `xhigh` | Keep the current lead when it is already suitable |
+| Routine review, bounded tests, easy isolated work | `GLM-5.3-Flash`, `max`, via the Claude GLM profile | `gpt-5.6-luna`, `max`; then `GLM-5.3`, `max`, via the Claude GLM profile; then `sonnet`, `low` or `medium` |
+| Debugging assistance | `GLM-5.3`, `max`, via the Claude GLM profile | The lead diagnoses directly when dispatch adds no value |
+| Whole-epic important risks and project alignment | `gpt-6-astra`, `medium` | `fable`, `medium`. `gpt-6-astra`, `low` only for a focused follow-up on a well-evidenced question |
+| Whole-project final evaluation or critical decision | `gpt-6-astra`, `high` | `fable`, `high` |
 
 `fable` currently resolves to `claude-fable-5-1`. Codex currently supports Sol at
-`xhigh`, Luna at `max`, and Astra at `low`, `medium`, or `high`.
+`xhigh`, Luna at `max`, and Astra at `low`, `medium`, or `high`. GLM routes run
+through the Claude CLI with the configured GLM profile whichever host leads; that
+is their normal path, not a fallback, and being absent from a host's native model
+list does not make them unavailable. When Claude Code leads, strong reviews use
+the Codex Astra CLI route below, because the native Agent tool cannot set effort;
+Fable follows through the Claude CLI with explicit `--effort` only after the Astra
+route has a recorded reason for escalation. Record requested and observed effort
+separately.
 
 Strong reviewers examine the original requirements, relevant source, raw evidence,
 architecture, cross-story effects, omissions, and drift. Cheap helpers may collect
@@ -33,8 +42,8 @@ acceptance proof.
 
 ## Native delegation
 
-Prefer the host's native helper/task interface when available. Start a fresh bounded
-task; give it exact source coordinates, allowed write scope, prohibited actions,
+Use the host's native helper/task interface when it delivers the chosen route with
+the access the task needs. Start a fresh bounded task; give it exact source coordinates, allowed write scope, prohibited actions,
 expected checks, and a required concise result. Keep overlapping writers serial.
 Native permissions remain authoritative. Do not use bypass-permissions modes or
 claim that prompt restrictions enforce access.
@@ -49,10 +58,13 @@ Codex writes every session, including `codex exec` runs and native helpers, to
 `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, where `turn_context` payloads carry
 `model` and `effort` and the last `token_count` payload carries cumulative
 `total_token_usage`; Claude Code `-p --output-format json` receipts carry `modelUsage`
-and `total_cost_usd`. `scripts/check.py usage PATH` prints these fields from one rollout or receipt; one
-session's cumulative counter is that session's usage, not the epic's total. An
-in-session helper with no receipt of its own is covered by the lead's record; list
-the remainder under gaps. Record `unobservable` only when no
+and `total_cost_usd`. Claude Code writes the lead session and each native helper as separate transcripts
+under `~/.claude/projects/<project>/` (`<session>.jsonl`, `subagents/agent-*.jsonl`).
+`scripts/check.py usage PATH` prints these fields from one rollout, transcript or
+receipt: for a transcript it keeps the final usage of each API response and sums by
+model; one session's counter is that session's usage, not the epic's total. Read
+lead and helper files separately, and never add a session-cumulative cost record to
+the worker costs it already includes. List helpers with no record under gaps. Record `unobservable` only when no
 record exists, and never retry or dispatch another worker merely to discover it.
 
 Wait for a helper with the longest timeout the host accepts (Codex accepted
@@ -61,7 +73,8 @@ re-sends the lead context. Do independent work between waits.
 
 ## Direct CLI routes
 
-Use these only when native delegation is unavailable or unsuitable and the user has
+Use these when the tier's first route is only reachable this way (every GLM route),
+or when native delegation is unavailable or unsuitable, and the user has
 authorized the external provider. Set `PROJECT`, `PROMPT`, and `OUTPUT` to explicit,
 task-specific paths. Use the project directly when its readable scope is appropriate;
 otherwise set `PROJECT` to a prepared workspace containing only the required source
@@ -118,8 +131,9 @@ review is:
 Wait for the terminal receipt: this route can emit an early
 `unrecognized_model` diagnostic and still complete successfully.
 
-For debugging, set `ANTHROPIC_DEFAULT_OPUS_MODEL=GLM-5.3` after sourcing and use
-the `opus` alias at `max`. Do not import legacy the earlier workflow wrappers or agent
+For debugging, or for a review that GLM Flash and Luna left unresolved, set
+`ANTHROPIC_DEFAULT_OPUS_MODEL=GLM-5.3` after sourcing and use the `opus` alias at
+`max` in the same command shape. Do not import legacy the earlier workflow wrappers or agent
 definitions.
 
 ## Browser-enabled review
