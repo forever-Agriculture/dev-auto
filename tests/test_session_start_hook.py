@@ -119,7 +119,7 @@ class SessionStartHookTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             context = context_of(result)
             self.assertIn(str(REPO / "skills" / "dev-auto" / "SKILL.md"), context)
-            self.assertIn(str(REPO / "skills" / "dev-auto" / "references" / "models.md"), context)
+            self.assertIn("before any dispatch, the skill's references/models.md", context)
             self.assertIn(str(self.handoff), context)
             self.assertIn("- Status: ACTIVE", context)
             self.assertIn("never GLM", context)
@@ -175,6 +175,38 @@ class SessionStartHookTests(unittest.TestCase):
         text += "x" * (9_000 - len(text))
         self.write_handoff(text)
         self.assertIn(text, context_of(run_hook({"source": "compact", "cwd": str(self.root)})))
+
+    def test_largest_handoff_fits_both_host_output_ceilings(self) -> None:
+        # ProjectB 2026-09-19: an 8,597-character handoff plus the 1,426-character reminder
+        # made 10,023 characters, and Claude Code injected only a 2 KB preview, after which
+        # the lead skipped the required reread. Claude previews above 10,000 characters
+        # (9,903 arrived whole on 2026-09-20); Codex keeps about 2,500 tokens.
+        nested = self.root / ("p" * (80 - len(str(self.root)) - len("//.dev-auto/handoff.md")))
+        self.handoff = nested / ".dev-auto" / "handoff.md"
+        self.assertEqual(len(str(self.handoff)), 80)
+        head = "- Status: ACTIVE\n"
+        text = head + "x" * (9_000 - len(head))
+        self.write_handoff(text)
+        context = context_of(run_hook({"source": "compact", "cwd": str(nested)}))
+        self.assertIn(text, context, "the reminder must leave room for a 9,000-character handoff")
+        self.assertLessEqual(len(context), 9_950)
+        # An ambiguous status adds its own warning; the budget still holds, with or without
+        # the snapshot.
+        self.write_handoff((head * 2 + "x" * (9_000 - 2 * len(head))))
+        ambiguous = context_of(run_hook({"source": "compact", "cwd": str(nested)}))
+        self.assertLessEqual(len(ambiguous), 9_950)
+        self.assertIn("Status missing or ambiguous", ambiguous)
+
+    def test_output_over_budget_falls_back_to_the_full_read_warning(self) -> None:
+        # A very long project path must never produce a silently host-cut snapshot.
+        nested = self.root / ("d" * 200)
+        self.handoff = nested / ".dev-auto" / "handoff.md"
+        self.write_handoff("- Status: ACTIVE\n" + "x" * 8_900)
+        context = context_of(run_hook({"source": "resume", "cwd": str(nested)}))
+        self.assertNotIn("x" * 50, context)
+        self.assertIn("host budget", context)
+        self.assertIn("Read the complete file before proceeding", context)
+        self.assertLessEqual(len(context), 9_950)
 
     def test_ambiguous_complete_and_explicit_stop_are_not_suppressed(self) -> None:
         for text in ("- Status: ACTIVE\n- Status: COMPLETE\n",
