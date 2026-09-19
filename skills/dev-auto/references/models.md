@@ -30,8 +30,7 @@ providers by default. Record the tier actually used and the reason for any escal
 through the Claude CLI with the configured GLM profile whichever host leads; that
 is their normal path, not a fallback, and being absent from a host's native model
 list does not make them unavailable. When Claude Code leads, strong reviews use
-the Codex Astra CLI route below, because the native Agent tool cannot set effort;
-Fable follows through the Claude CLI with explicit `--effort` only after the Astra
+the Codex Astra CLI route below; Fable follows through the Claude CLI with explicit `--effort` only after the Astra
 route has a recorded reason for escalation. Record requested and observed effort
 separately.
 
@@ -40,18 +39,17 @@ architecture, cross-story effects, omissions, and drift. Cheap helpers may colle
 evidence or run routine checks, but their summaries are navigation aids rather than
 acceptance proof.
 
-## Native delegation
+## Delegation
 
-Use the host's native helper/task interface when it delivers the chosen route with
-the access the task needs. Start a fresh bounded task; give it exact source coordinates, allowed write scope, prohibited actions,
-expected checks, and a required concise result. Keep overlapping writers serial.
-Native permissions remain authoritative. Do not use bypass-permissions modes or
+Start a fresh bounded task; give it exact source coordinates, allowed write scope,
+prohibited actions, expected checks, and a required concise result. Keep overlapping
+writers serial. Host permissions remain authoritative. Do not use bypass-permissions modes or
 claim that prompt restrictions enforce access.
 
 Separate read-only review from implementation and safe test work. A reviewer can
-use native read tools or receive a deliberately prepared source packet. An
-implementation helper uses native, suitably confined tools with only the workspace
-access required by its owned files.
+use read tools or receive a deliberately prepared source packet. An implementation
+helper uses suitably confined tools with only the workspace access required by its
+owned files.
 
 Observe the actual model, effort and usage from host records instead of guessing.
 Codex writes every session, including `codex exec` runs and native helpers, to
@@ -73,9 +71,9 @@ re-sends the lead context. Do independent work between waits.
 
 ## Direct CLI routes
 
-Use these when the tier's first route is only reachable this way (every GLM route),
-or when native delegation is unavailable or unsuitable, and the user has
-authorized the external provider. Set `PROJECT`, `PROMPT`, and `OUTPUT` to explicit,
+Use these when the host's native interface cannot deliver the selected model,
+effort or required access (every GLM route, and cross-provider routes), under
+existing provider authorization. Set `PROJECT`, `PROMPT`, and `OUTPUT` to explicit,
 task-specific paths. Use the project directly when its readable scope is appropriate;
 otherwise set `PROJECT` to a prepared workspace containing only the required source
 and evidence. Exclude credentials and unrelated private data, and keep `OUTPUT`

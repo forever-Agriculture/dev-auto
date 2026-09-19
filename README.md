@@ -97,7 +97,7 @@ corrections, necessary approvals and avoidable repeated requests.
 
 Two mechanical acceptance rules are checked by a read-only helper instead of prose: `skills/dev-auto/scripts/check.py check` fails a COMPLETE handoff that still holds model/usage placeholder text or tracks raw evidence, and `check.py usage PATH` prints model, effort and usage from a Codex rollout, a Claude Code session or subagent transcript, or a Claude JSON receipt. The lead runs both by hand at acceptance; the helper never writes, launches or decides, and it is not a hook.
 
-Reviewers run without tools by default. For a named UI acceptance question the lead may dispatch a browser-enabled review that uses the Playwright MCP against lead-supplied local URLs only; see the browser-enabled variants in the routing reference.
+Reviewers run without a browser by default. For a named UI acceptance question the lead may dispatch a browser-enabled review that uses the Playwright MCP against lead-supplied local URLs only; see the browser-enabled variants in the routing reference.
 
 The lead chooses helpers only for concrete bounded needs, then follows ordered tiers: GLM Flash/max first for routine review and bounded tests, then Luna/max, then GLM/max, then Sonnet; GLM/max first for debugging help; Astra/medium then Fable/medium for whole-epic review; Astra/high then Fable/high for project evaluation. A sufficient result at the tier in use ends the dispatch; escalate only after a specific failure, an unresolved question or a task the first tier cannot do, and never pair providers as a ceremony. See the [routing reference](skills/dev-auto/references/models.md) for exact routes.
 

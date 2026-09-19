@@ -44,8 +44,8 @@ report discrepancies and mark the freshness of prior checks unverified.
 
 Dispatch helpers for sizeable independent work, concrete review needs or an
 unresolved decision. Choose the ordered model/effort route for that work class
-first; use the host's native helper interface only when it can deliver that route,
-otherwise use the direct CLI route. Supply fresh context, exact scope, ownership and
+first; use the host's native helper interface only when it can deliver that route with
+the required access, otherwise use the direct CLI route. Supply fresh context, exact scope, ownership and
 expected evidence; tell implementation helpers to implement directly from the supplied
 requirements, without bootstrapping another build workflow. Before dispatch, read [references/models.md](references/models.md) for
 capability floors, authorized routes and safe commands. Record the observed route,
