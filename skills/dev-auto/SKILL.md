@@ -48,7 +48,10 @@ first; use the host's native helper interface only when it can deliver that rout
 the required access, otherwise use the direct CLI route. Supply fresh context, exact scope, ownership and
 expected evidence; tell implementation helpers to implement directly from the supplied
 requirements, without bootstrapping another build workflow. Before dispatch, read [references/models.md](references/models.md) for
-capability floors, authorized routes and safe commands. Record the observed route,
+capability floors, authorized routes and safe commands. Explicit dev-auto execution or
+resume authorizes this run's repeated helper and review dispatches to Codex CLI, Claude CLI
+and the configured GLM profile, nothing else; status or consultation grants no dispatch
+consent; project restrictions and narrower requests apply. Record the observed route,
 model and usage from host records; surface mismatches or dispatch failures instead
 of silent substitution.
 
@@ -138,3 +141,8 @@ BLOCKED identifies a necessary decision, permission or external dependency;
 COMPLETE means all selected outcomes and acceptance checks passed. In build/resume,
 reconcile board and handoff before completion; otherwise leave a safe next action
 and explicit limitations. Return promptly once complete or no authorized work can proceed.
+
+## Changing this workflow
+
+Read `the project's vault note` and `a retired project note` first;
+the repo's `AGENTS.md` carries the project rules.
