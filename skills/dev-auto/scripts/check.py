@@ -120,7 +120,11 @@ def check(project: Path) -> int:
     if handoff is None:
         print(f"UNABLE: no .dev-auto/handoff.md at or above {project}")
         return 2
-    body = handoff.read_text(encoding="utf-8", errors="replace")
+    try:
+        body = handoff.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        print(f"UNABLE: cannot read {handoff}: {exc}")
+        return 2
     status = (field(body, "Status") or "").upper()
     failures = shape(body)
     if not status.startswith("COMPLETE"):

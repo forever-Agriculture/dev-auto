@@ -69,8 +69,8 @@ review can cover the coincident final epic. Material gaps block acceptance.
 Record the reviewed revision, finding closures, actual checks and unverified
 boundaries. Model approval supports evidence; runtime claims require exercised
 behavior. Keep raw transcripts, screenshots and runtime dumps untracked, in external
-scratch space or an ignored `.dev-auto/evidence/` directory; commit only the handoff,
-which cites receipts and raw evidence by path and hash.
+scratch space or an ignored `.dev-auto/evidence/` directory; commit only the handoff
+and log, which cite receipts and raw evidence by path and hash.
 
 ## Owner cockpit (optional)
 
@@ -98,8 +98,11 @@ permission and blocker changes before dependent work; honor stops immediately an
 record them. Record helper dispatches and review outcomes before other work, and
 update at acceptance and before pausing. Keep every selected
 epic's state/dependency, current restrictions and approval coordinates, pending
-findings, active helpers, evidence and next action. Replace stale state; link useful
-history and failed attempts. Record available timing, usage and owner interventions
+findings, active helpers, evidence and next action. Keep only current effective
+terms in the handoff, each with a source coordinate. Append verbatim owner quotes,
+superseded terms, verbose results and failed attempts to `.dev-auto/log.md`
+(append-only, never injected); never restate log content in `Status` or `Resume`.
+Record available timing, usage and owner interventions
 at these boundaries. At acceptance, read each lead and helper receipt with
 `scripts/check.py usage PATH`: a Codex rollout (`usage --list PROJECT` lists them;
 choose by hand), a Claude Code session or subagent transcript under
@@ -118,13 +121,13 @@ findings, and save the reconciled handoff in build/resume before continuing with
 duplicating completed or active work.
 
 The hook injects the complete handoff up to 12,000 characters; above that it injects
-only a full-read warning and an excerpt of the stop, restriction, status and
-next-action fields. Keep the handoff under the limit: move resolved history and
-verbose results to a linked file, never dropping unresolved information. `Status`
+only a full-read warning. Keep the handoff under the limit: move resolved history and
+verbose results to the log, never dropping unresolved information. `Status`
 holds the state label and a short reason; details belong in their fields. Keep one
 each of the `Status`, `Explicit user stop` and `Next safe action` labels; use `none`
-for an absent stop. Run `scripts/check.py check` after each handoff update: it lints
-size and these fields at any status, and the completion fields at COMPLETE.
+for an absent stop. Run `scripts/check.py check` after each handoff save: it lints
+size and these fields at any status, and the completion fields at COMPLETE. A size
+or shape FAIL before COMPLETE means the next save must fix it, not that work stops.
 The hook finds the nearest handoff in the working directory or its ancestors,
 stopping at the first repository or home boundary. Report recovery unavailable
 when the selected project is outside that search. Recovery uses owner-created wakeups.

@@ -158,51 +158,17 @@ class SessionStartHookTests(unittest.TestCase):
         self.write_handoff(text)
         self.assertIn(text, context_of(run_hook({"source": "resume", "cwd": str(self.root)})))
 
-    def test_oversized_field_is_omitted_whole_never_clipped(self) -> None:
+    def test_oversized_handoff_is_omitted_whole_and_requires_trimming(self) -> None:
+        # ProjectB 2026-09-19: "trim only if useful" left a 38k handoff untrimmed across 4 recoveries.
         text = "- Status: ACTIVE\n" + "x" * 12_000 + "\nNEVER SPEND AGAIN"
         self.write_handoff(text)
         context = context_of(run_hook({"source": "compact", "cwd": str(self.root)}))
         self.assertNotIn("x" * 50, context)
-        self.assertNotIn("NEVER SPEND AGAIN", context)
         self.assertIn("snapshot INCOMPLETE", context)
         self.assertIn("complete file before proceeding", context)
-        self.assertIn("- Status: [omitted whole, 12,035 characters", context)
-        self.assertIn("no field found for: Explicit user stop, Restrictions, Next safe action", context)
-        self.assertLess(len(context), 3_500)
-
-    def test_oversized_handoff_injects_recovery_fields_excerpt(self) -> None:
-        # Reproduces ProjectB 2026-09-19: a 38k handoff gave the recovered lead no content.
-        text = self.filled(**{
-            "Explicit user stop (if any; only a later user instruction clears it)": "stop after arm 6",
-            "Restrictions and authorization boundaries": "no prod writes; cap $3",
-            "Material pending findings": "F1 open\n" + "  - history line\n" * 900,
-            "Next safe action": "rerun P4 offline",
-        })
-        self.assertGreater(len(text), 12_000)
-        self.write_handoff(text)
-        context = context_of(run_hook({"source": "compact", "cwd": str(self.root)}))
-        self.assertIn("snapshot INCOMPLETE", context)
-        self.assertIn(f"{len(text):,} characters", context)
-        self.assertIn("check.py check", context)
-        for kept in ("stop after arm 6", "no prod writes; cap $3", "- Status: ACTIVE", "rerun P4 offline"):
-            self.assertIn(kept, context)
-        self.assertNotIn("history line", context)
-        self.assertLess(context.index("stop after arm 6"), context.index("no prod writes"))
-        self.assertLess(len(context), 3_500)
-
-    def test_excerpt_budget_keeps_stop_first_and_omits_later_fields_whole(self) -> None:
-        text = ("- Restrictions: " + "r" * 5_500 + " NEVER PUSH\n"
-                + "- Status: ACTIVE\n" + "- Log: " + "h" * 7_000 + "\n"
-                + "- Explicit user stop: owner stop " + "s" * 900 + "\n")
-        self.write_handoff(text)
-        context = context_of(run_hook({"source": "resume", "cwd": str(self.root)}))
-        self.assertIn("owner stop " + "s" * 900, context)
-        self.assertIn("- Restrictions: [omitted whole, 5,527 characters", context)
-        self.assertNotIn("r" * 50, context)
-        self.assertNotIn("NEVER PUSH", context)
-        self.assertIn("- Status: ACTIVE", context)
-        self.assertNotIn("h" * 50, context)
-        self.assertLess(len(context), 8_500)
+        self.assertIn("Trimming is required", context)
+        self.assertIn(str(REPO / "skills" / "dev-auto" / "scripts" / "check.py") + " check", context)
+        self.assertLess(len(context), 2_700)
 
     def test_exact_size_boundary_preserves_complete_text(self) -> None:
         text = "- Status: ACTIVE\n"

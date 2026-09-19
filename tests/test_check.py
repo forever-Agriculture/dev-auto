@@ -119,8 +119,8 @@ class CheckTests(unittest.TestCase):
         project = self.project(CLEAN + "#" * (300 * 1024))
         git(project.root, "add", ".dev-auto/handoff.md")
         result = run("check", str(project.root))
-        self.assertNotIn("raw evidence", result.stdout)
-        self.assertIn("307,", result.stdout)  # only the size check fails
+        self.assertEqual(result.stdout.count("\n- "), 1, result.stdout)  # only the size check fails
+        self.assertIn("injects it whole only up to 12,000", result.stdout)
 
     def test_oversized_handoff_fails_at_any_status(self) -> None:
         # Reproduces ProjectB 2026-09-19: an ACTIVE 38k handoff injected no content after compaction.
@@ -155,6 +155,17 @@ class CheckTests(unittest.TestCase):
         result = run("check", str(project.root))
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("SKIP: Status is PAUSED", result.stdout)
+
+    @unittest.skipIf(os.geteuid() == 0, "root reads any file")
+    def test_unreadable_handoff_is_unable_not_a_traceback(self) -> None:
+        project = self.project()
+        handoff = project.root / ".dev-auto" / "handoff.md"
+        handoff.chmod(0)
+        self.addCleanup(handoff.chmod, 0o644)
+        result = run("check", str(project.root))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertTrue(result.stdout.startswith("UNABLE: cannot read"))
+        self.assertNotIn("Traceback", result.stderr)
 
     def test_missing_handoff_is_unable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
