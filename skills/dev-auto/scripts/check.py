@@ -2,16 +2,18 @@
 # MODULE: check.py - read-only acceptance lint and host receipt reader for dev-auto runs
 """Read-only helpers the lead runs by hand; nothing here writes, launches or decides.
 
-check [PROJECT]     lint .dev-auto/handoff.md when Status is COMPLETE: placeholder
-                    text in the model/usage fields, raw evidence tracked by git, and
-                    dispatch rows that skip a work class's first tier without a reason.
+check [PROJECT]     lint .dev-auto/handoff.md. At any status: size within the recovery
+                    hook's 12,000-character snapshot, exactly one Status, Explicit user
+                    stop and Next safe action field, and a short Status. At COMPLETE also:
+                    placeholder text in the model/usage fields, raw evidence tracked by
+                    git, and dispatch rows that skip a work class's first tier without a reason.
 usage PATH          print model, effort and usage from one Codex rollout (.jsonl),
                     one Claude Code session or subagent transcript (.jsonl under
                     ~/.claude/projects), or one Claude ``--output-format json``
                     receipt (.json).
 usage --list PROJECT  list Codex rollouts whose session cwd is PROJECT; choose by hand.
 
-Exit 0 PASS or SKIP (status not COMPLETE), 1 FAIL with one reason per line,
+Exit 0 PASS or SKIP (status not COMPLETE and shape checks pass), 1 FAIL with one reason per line,
 2 UNABLE when a required file or command cannot be read.
 """
 
@@ -33,6 +35,11 @@ LARGE = 256 * 1024
 FIRST_TIER = {"routine": "glm-5.3-flash", "complex": "glm-5.3", "debugging": "glm-5.3",
               "epic-review": "gpt-6-astra", "project-review": "gpt-6-astra"}
 SESSIONS = Path.home() / ".codex" / "sessions"
+SNAPSHOT_LIMIT = 12_000  # hooks/dev-auto-session-start.py injects the whole handoff up to this
+STATUS_LIMIT = 200
+FIELD_BLOCK = re.compile(r"^- ([^:\n]+):([^\n]*(?:\n(?!- |#)[^\n]*)*)", re.MULTILINE)
+REQUIRED = (("Status", "Status"), ("Explicit user stop", r"Explicit user stop[^:\n]*"),
+            ("Next safe action", "Next safe action"))
 
 
 def find_handoff(start: Path) -> Path | None:
@@ -82,6 +89,24 @@ def lint_dispatches(body: str) -> list[str]:
     return failures
 
 
+def shape(body: str) -> list[str]:
+    """Checks that keep compaction recovery usable, whatever the status."""
+    failures = []
+    if len(body) > SNAPSHOT_LIMIT:
+        failures.append(f"handoff is {len(body):,} characters; the recovery hook injects it whole "
+                        f"only up to {SNAPSHOT_LIMIT:,}: move resolved history to a linked file")
+    fields = [(m[1], m[2].strip()) for m in FIELD_BLOCK.finditer(body)]
+    for label, pattern in REQUIRED:
+        count = sum(1 for name, _ in fields if re.fullmatch(pattern, name))
+        if count != 1:
+            failures.append(f"expected one `- {label}:` field, found {count}")
+    for name, value in fields:
+        if name == "Status" and len(value) > STATUS_LIMIT:
+            failures.append(f"Status is {len(value):,} characters; keep the label and a short reason "
+                            f"(at most {STATUS_LIMIT}) and move details to their fields")
+    return failures
+
+
 def field(body: str, name: str) -> str | None:
     prefix = f"- {name}:"
     for line in body.splitlines():
@@ -97,10 +122,15 @@ def check(project: Path) -> int:
         return 2
     body = handoff.read_text(encoding="utf-8", errors="replace")
     status = (field(body, "Status") or "").upper()
+    failures = shape(body)
     if not status.startswith("COMPLETE"):
-        print(f"SKIP: Status is {status or 'missing'}; completion checks apply only to COMPLETE")
-        return 0
-    failures = []
+        if not failures:
+            print(f"SKIP: Status is {status[:60] or 'missing'}; completion checks apply only to COMPLETE")
+            return 0
+        print(f"FAIL: {handoff}")
+        for reason in failures:
+            print(f"- {reason}")
+        return 1
     for name in FIELDS:
         value = field(body, name)
         if not value:

@@ -117,10 +117,14 @@ required files mean BLOCKED. Reconcile helper results and stale state, retain ma
 findings, and save the reconciled handoff in build/resume before continuing without
 duplicating completed or active work.
 
-The hook provides guidance and complete snapshots up to 12,000 characters; larger
-files are omitted with a full-read warning. Move resolved history/verbose receipts
-out at normal handoffs when needed, preserving all unresolved information. Keep
-`Status` and `Explicit user stop` labels stable; use `none` for an absent stop.
+The hook injects the complete handoff up to 12,000 characters; above that it injects
+only a full-read warning and an excerpt of the stop, restriction, status and
+next-action fields. Keep the handoff under the limit: move resolved history and
+verbose results to a linked file, never dropping unresolved information. `Status`
+holds the state label and a short reason; details belong in their fields. Keep one
+each of the `Status`, `Explicit user stop` and `Next safe action` labels; use `none`
+for an absent stop. Run `scripts/check.py check` after each handoff update: it lints
+size and these fields at any status, and the completion fields at COMPLETE.
 The hook finds the nearest handoff in the working directory or its ancestors,
 stopping at the first repository or home boundary. Report recovery unavailable
 when the selected project is outside that search. Recovery uses owner-created wakeups.

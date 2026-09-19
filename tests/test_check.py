@@ -21,6 +21,7 @@ CLEAN = (
     "## Measurement\n\n"
     "- Observed usage: lead 35,585,513 total tokens (rollout 01a0); helpers none\n\n"
     "## Resume\n\n"
+    "- Next safe action: none\n"
     "- Status: COMPLETE\n"
 )
 
@@ -117,7 +118,35 @@ class CheckTests(unittest.TestCase):
     def test_large_handoff_itself_is_not_raw_evidence(self) -> None:
         project = self.project(CLEAN + "#" * (300 * 1024))
         git(project.root, "add", ".dev-auto/handoff.md")
-        self.assertEqual(run("check", str(project.root)).returncode, 0)
+        result = run("check", str(project.root))
+        self.assertNotIn("raw evidence", result.stdout)
+        self.assertIn("307,", result.stdout)  # only the size check fails
+
+    def test_oversized_handoff_fails_at_any_status(self) -> None:
+        # Reproduces ProjectB 2026-09-19: an ACTIVE 38k handoff injected no content after compaction.
+        history = "- Arm result: " + "details " * 1_600 + "\n"
+        for status in ("ACTIVE", "PAUSED (owner stop)", "COMPLETE"):
+            body = CLEAN.replace("- Status: COMPLETE", f"- Status: {status}").replace("## Resume", history + "\n## Resume")
+            result = run("check", str(self.project(body).root))
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn("injects it whole only up to 12,000", result.stdout)
+        body = CLEAN.replace("- Status: COMPLETE", "- Status: ACTIVE")
+        self.assertEqual(run("check", str(self.project(body).root)).returncode, 0)
+
+    def test_long_status_and_missing_or_duplicate_fields_fail_at_any_status(self) -> None:
+        active = CLEAN.replace("- Status: COMPLETE", "- Status: ACTIVE")
+        for body, reason in [
+            (active.replace("- Status: ACTIVE", "- Status: ACTIVE — owner chose " + "terms " * 40), "Status is 2"),
+            (active.replace("- Explicit user stop (if any; only a later user instruction clears it): none\n", ""),
+             "one `- Explicit user stop:` field, found 0"),
+            (active.replace("- Next safe action: none\n", ""), "one `- Next safe action:` field, found 0"),
+            (active + "- Status: COMPLETE\n", "one `- Status:` field, found 2"),
+        ]:
+            result = run("check", str(self.project(body).root))
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn(reason, result.stdout)
+        short = active.replace("- Status: ACTIVE", "- Status: BLOCKED — owner spend decision for arm 6")
+        self.assertEqual(run("check", str(self.project(short).root)).returncode, 0)
 
     def test_non_complete_status_skips_even_with_placeholders(self) -> None:
         body = CLEAN.replace("(rollout 01a0)", "to be recorded").replace(
