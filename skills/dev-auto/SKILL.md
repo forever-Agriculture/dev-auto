@@ -120,7 +120,7 @@ required files mean BLOCKED. Reconcile helper results and stale state, retain ma
 findings, and save the reconciled handoff in build/resume before continuing without
 duplicating completed or active work.
 
-The hook injects the complete handoff up to 12,000 characters; above that it injects
+The hook injects the complete handoff up to 9,000 characters; above that it injects
 only a full-read warning. Keep the handoff under the limit: move resolved history and
 verbose results to the log, never dropping unresolved information. `Status`
 holds the state label and a short reason; details belong in their fields. Keep one

@@ -19,7 +19,11 @@ import re
 import sys
 
 SOURCES = {"compact", "resume"}
-HANDOFF_LIMIT = 12_000
+# Codex keeps about 2,500 tokens of hook output and cuts a visible middle piece from
+# the rest (2026-09-19: an 8,962-character handoff plus 1,426 characters of reminder
+# lost 131 tokens). At 9,000 a handoff is whole in Claude and at most slightly cut in
+# Codex; the reminder's required full read covers the cut.
+HANDOFF_LIMIT = 9_000
 SKILL_DIR = Path(__file__).resolve().parents[1] / "skills" / "dev-auto"
 
 REMINDER = (
@@ -71,7 +75,7 @@ def build_context(cwd: Path) -> str | None:
         return reminder + "\n\nHandoff unavailable; read the file directly before proceeding."
     if len(body) > HANDOFF_LIMIT:
         return reminder + (
-            "\n\nHandoff snapshot INCOMPLETE: exceeds 12,000 characters; omitted in full "
+            f"\n\nHandoff snapshot INCOMPLETE: exceeds {HANDOFF_LIMIT:,} characters; omitted in full "
             "to avoid dropping a restriction. Read the complete file before proceeding. "
             "Trimming is required: at your next handoff update, move resolved history and "
             "verbose results to .dev-auto/log.md until "

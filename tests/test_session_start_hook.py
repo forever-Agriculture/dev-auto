@@ -160,7 +160,7 @@ class SessionStartHookTests(unittest.TestCase):
 
     def test_oversized_handoff_is_omitted_whole_and_requires_trimming(self) -> None:
         # ProjectB 2026-09-19: "trim only if useful" left a 38k handoff untrimmed across 4 recoveries.
-        text = "- Status: ACTIVE\n" + "x" * 12_000 + "\nNEVER SPEND AGAIN"
+        text = "- Status: ACTIVE\n" + "x" * 9_000 + "\nNEVER SPEND AGAIN"
         self.write_handoff(text)
         context = context_of(run_hook({"source": "compact", "cwd": str(self.root)}))
         self.assertNotIn("x" * 50, context)
@@ -172,7 +172,7 @@ class SessionStartHookTests(unittest.TestCase):
 
     def test_exact_size_boundary_preserves_complete_text(self) -> None:
         text = "- Status: ACTIVE\n"
-        text += "x" * (12_000 - len(text))
+        text += "x" * (9_000 - len(text))
         self.write_handoff(text)
         self.assertIn(text, context_of(run_hook({"source": "compact", "cwd": str(self.root)})))
 

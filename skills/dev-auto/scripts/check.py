@@ -3,7 +3,7 @@
 """Read-only helpers the lead runs by hand; nothing here writes, launches or decides.
 
 check [PROJECT]     lint .dev-auto/handoff.md. At any status: size within the recovery
-                    hook's 12,000-character snapshot, exactly one Status, Explicit user
+                    hook's 9,000-character snapshot, exactly one Status, Explicit user
                     stop and Next safe action field, and a short Status. At COMPLETE also:
                     placeholder text in the model/usage fields, raw evidence tracked by
                     git, and dispatch rows that skip a work class's first tier without a reason.
@@ -35,7 +35,7 @@ LARGE = 256 * 1024
 FIRST_TIER = {"routine": "glm-5.3-flash", "complex": "glm-5.3", "debugging": "glm-5.3",
               "epic-review": "gpt-6-astra", "project-review": "gpt-6-astra"}
 SESSIONS = Path.home() / ".codex" / "sessions"
-SNAPSHOT_LIMIT = 12_000  # hooks/dev-auto-session-start.py injects the whole handoff up to this
+SNAPSHOT_LIMIT = 9_000  # hooks/dev-auto-session-start.py injects the whole handoff up to this
 STATUS_LIMIT = 200
 FIELD_BLOCK = re.compile(r"^- ([^:\n]+):([^\n]*(?:\n(?!- |#)[^\n]*)*)", re.MULTILINE)
 REQUIRED = (("Status", "Status"), ("Explicit user stop", r"Explicit user stop[^:\n]*"),

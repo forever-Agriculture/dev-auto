@@ -120,7 +120,7 @@ class CheckTests(unittest.TestCase):
         git(project.root, "add", ".dev-auto/handoff.md")
         result = run("check", str(project.root))
         self.assertEqual(result.stdout.count("\n- "), 1, result.stdout)  # only the size check fails
-        self.assertIn("injects it whole only up to 12,000", result.stdout)
+        self.assertIn("injects it whole only up to 9,000", result.stdout)
 
     def test_oversized_handoff_fails_at_any_status(self) -> None:
         # Reproduces ProjectB 2026-09-19: an ACTIVE 38k handoff injected no content after compaction.
@@ -129,9 +129,14 @@ class CheckTests(unittest.TestCase):
             body = CLEAN.replace("- Status: COMPLETE", f"- Status: {status}").replace("## Resume", history + "\n## Resume")
             result = run("check", str(self.project(body).root))
             self.assertEqual(result.returncode, 1, result.stdout)
-            self.assertIn("injects it whole only up to 12,000", result.stdout)
+            self.assertIn("injects it whole only up to 9,000", result.stdout)
         body = CLEAN.replace("- Status: COMPLETE", "- Status: ACTIVE")
         self.assertEqual(run("check", str(self.project(body).root)).returncode, 0)
+        # Codex middle-truncated a 10,399-character hook output: 9,500 must fail too.
+        mid = body.replace("## Resume", "- Arm result: " + "d" * 9_300 + "\n\n## Resume")
+        self.assertLess(len(mid), 12_000)
+        result = run("check", str(self.project(mid).root))
+        self.assertEqual(result.returncode, 1, result.stdout)
 
     def test_long_status_and_missing_or_duplicate_fields_fail_at_any_status(self) -> None:
         active = CLEAN.replace("- Status: COMPLETE", "- Status: ACTIVE")
