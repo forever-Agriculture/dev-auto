@@ -124,7 +124,10 @@ findings, and save the reconciled handoff in build/resume before continuing with
 duplicating completed or active work.
 
 The hook injects the complete handoff up to 9,000 characters; above that it injects
-only a full-read warning. Keep the handoff under the limit: move resolved history and
+only a full-read warning. It stays silent for a finished run: one `Status: COMPLETE`
+as the last line and stop `none`, each optionally followed by a short note after
+punctuation; a note never reverses its label, so a pending or paused state is its
+own label. Keep the handoff under the limit: move resolved history and
 verbose results to the log, never dropping unresolved information. `Status`
 holds the state label and a short reason; details belong in their fields. Keep one
 each of the `Status`, `Explicit user stop` and `Next safe action` labels; use `none`

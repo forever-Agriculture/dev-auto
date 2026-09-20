@@ -102,6 +102,50 @@ class SessionStartHookTests(unittest.TestCase):
         result = run_hook({"source": "compact", "cwd": str(self.root)})
         self.assertEqual((result.returncode, result.stdout), (0, ""))
 
+    def test_complete_with_reason_and_cleared_stop_is_silent(self) -> None:
+        # BMN Epic 14, 2026-09-20: the skill's own `COMPLETE — reason` and `none — note`
+        # shapes woke an unrelated review session with a 9.8k "run in progress" injection.
+        text = self.filled().replace(
+            "- Status: ACTIVE", "- Status: COMPLETE — Epic 14 accepted at `00f5e38`: all suites green.",
+        ).replace(
+            "- Explicit user stop (if any; only a later user instruction clears it): none",
+            "- Explicit user stop (if any; only a later user instruction clears it): none — the "
+            "13:30 stop was cleared by the owner's `/dev-auto resume` (2026-09-20).",
+        )
+        self.assertIn("none — the", text)
+        self.write_handoff(text)
+        for source in ("compact", "resume"):
+            result = run_hook({"source": source, "cwd": str(self.root)})
+            self.assertEqual((result.returncode, result.stdout), (0, ""))
+
+    def test_oversized_complete_handoff_is_silent(self) -> None:
+        # ProjectB 2026-09-20: a 9,289-character COMPLETE handoff kept injecting the
+        # INCOMPLETE warning into every later compaction in that repository.
+        text = self.filled(**{"Implemented": "x" * 9_500}).replace(
+            "- Status: ACTIVE", "- Status: COMPLETE — Epics 57 and 56 delivered.")
+        self.assertGreater(len(text), 9_000)
+        self.write_handoff(text)
+        result = run_hook({"source": "compact", "cwd": str(self.root)})
+        self.assertEqual((result.returncode, result.stdout), (0, ""))
+
+    def test_file_beyond_read_cap_is_never_judged_complete(self) -> None:
+        # Astra 2026-09-20: a COMPLETE-looking prefix must not hide state past the cap.
+        text = ("- Explicit user stop: none\n- Status: COMPLETE\n" + "x" * 1_000_000
+                + "\n- Status: ACTIVE\n")
+        self.write_handoff(text)
+        context = context_of(run_hook({"source": "compact", "cwd": str(self.root)}))
+        self.assertIn("snapshot INCOMPLETE", context)
+        self.assertIn("exceeds 1,000,000 characters", context)
+        self.assertNotIn("x" * 50, context)
+
+    def test_none_of_is_not_a_cleared_stop(self) -> None:
+        text = self.filled().replace("- Status: ACTIVE", "- Status: COMPLETE").replace(
+            "clears it): none", "clears it): none of the stops was lifted; owner said stop")
+        self.assertIn("none of the stops", text)
+        self.write_handoff(text)
+        context = context_of(run_hook({"source": "compact", "cwd": str(self.root)}))
+        self.assertIn("none of the stops", context)
+
     def test_silent_for_complete_run(self) -> None:
         self.write_handoff(self.filled().replace("- Status: ACTIVE", "- Status: COMPLETE"))
         result = run_hook({"source": "compact", "cwd": str(self.root)})
@@ -212,7 +256,13 @@ class SessionStartHookTests(unittest.TestCase):
         for text in ("- Status: ACTIVE\n- Status: COMPLETE\n",
                      "- Status: COMPLETE\n- Explicit user stop: stop now\n",
                      "- Explicit user stop:\n  owner says stop\n- Status: COMPLETE\n",
-                     "- Status: COMPLETE pending acceptance\n"):
+                     "- Status: COMPLETE pending acceptance\n",
+                     "- Status: COMPLETE\n- Explicit user stop: none\n",  # GLM: Status must be last
+                     "- Explicit user stop: none\n- Status: COMPLETE pending acceptance\n",
+                     "- Explicit user stop: none but owner asked to pause\n- Status: COMPLETE\n",
+                     # Astra 2026-09-20: a continuation line under a cleared stop is a stop.
+                     "- Explicit user stop: none\n  - owner says stop\n- Status: COMPLETE\n",
+                     "- Explicit user stop: none — cleared earlier\n  owner says stop again\n- Status: COMPLETE\n"):
             self.handoff.parent.mkdir(exist_ok=True)
             self.handoff.write_text(text)
             self.assertIn(text, context_of(run_hook({"source": "resume", "cwd": str(self.root)})))
