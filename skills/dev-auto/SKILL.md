@@ -56,7 +56,9 @@ model and usage from host records; surface mismatches or dispatch failures inste
 of silent substitution.
 
 During repair, use focused checks. Before accepting an epic, verify its outcomes,
-affected existing behavior and relevant earlier-epic contracts. New or changed
+affected existing behavior and relevant earlier-epic contracts, and confirm the
+board records each of the epic's stories complete under its existing schema,
+recorded descopes excepted. New or changed
 behavior ships with automated tests that exercise it in the project's existing test
 layers; list any behavior left untested in the handoff. Material regression tests
 must fail on the original defect and pass with the fix; reproduce alleged
@@ -69,11 +71,16 @@ addresses a named unresolved risk or consequential new change/evidence, reusing
 unaffected results. Project scope also gets cross-epic evaluation; a project-level
 review can cover the coincident final epic. Material gaps block acceptance.
 
-Record the reviewed revision, finding closures, actual checks and unverified
-boundaries. Model approval supports evidence; runtime claims require exercised
-behavior. Keep raw transcripts, screenshots and runtime dumps untracked, in external
-scratch space or an ignored `.dev-auto/evidence/` directory; commit only the handoff
-and log, which cite receipts and raw evidence by path and hash.
+Record the baseline and reviewed revisions, actual checks and unverified
+boundaries. Give every material finding from all reviews a disposition against the
+revision being accepted: closed with evidence, rejected with its refutation, or
+unresolved with what would settle it; a finding without a disposition is unresolved
+and, like any material gap, blocks acceptance. Changes made for the selected scope
+sit inside the reviewed revision or carry delta evidence; name any unrelated
+residual change and its reason. Model approval supports evidence; runtime claims
+require exercised behavior. Keep raw transcripts, screenshots and runtime dumps
+untracked, in external scratch space or an ignored `.dev-auto/evidence/` directory;
+commit only the handoff and log, which cite receipts and raw evidence by path and hash.
 
 ## Owner cockpit (optional)
 

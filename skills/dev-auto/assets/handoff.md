@@ -29,7 +29,7 @@
 - Checks run and observed results: concise results; detailed receipt paths
 - Tests: commands run and results; untested behavior (or `none`)
 - Reviewed scope and route:
-- Reviewed revision / material finding closures / recheck or delta evidence:
+- Baseline and reviewed revisions / material finding dispositions / recheck or delta evidence:
 - Unreviewed or unverified areas:
 
 ## Measurement

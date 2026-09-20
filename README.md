@@ -86,7 +86,7 @@ Codex's native skill picker may also expose it. The skill does not switch the cu
 2. Checks the selected epic against the project before implementing it directly.
 3. Maintains the existing `sprint-status.yaml`, preserving unrelated entries and comments.
 4. Uses focused story tests and appropriate project regression/integration checks; checks existing behavior, not just new tests.
-5. Uses one independent whole-epic review, followed only by a focused recheck or evidence-triggered delta when needed; project scope also receives a cross-epic final evaluation.
+5. Uses one independent whole-epic review, followed only by a focused recheck or evidence-triggered delta when needed; project scope also receives a cross-epic final evaluation. Reviewers get the baseline-to-reviewed diff and the [review brief](skills/dev-auto/references/review-brief.md); every material finding ends with a disposition (closed with evidence, rejected with refutation, or unresolved), and acceptance confirms each in-scope story's board completion.
 6. Preserves pending findings, restrictions, routes, evidence and next actions in a short project handoff.
 
 The handoff keeps every selected epic and its dependency visible. At material
