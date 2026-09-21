@@ -40,6 +40,15 @@ STATUS_LIMIT = 200
 FIELD_BLOCK = re.compile(r"^- ([^:\n]+):([^\n]*(?:\n(?!- |#)[^\n]*)*)", re.MULTILINE)
 REQUIRED = (("Status", "Status"), ("Explicit user stop", r"Explicit user stop[^:\n]*"),
             ("Next safe action", "Next safe action"))
+# The recovery hook's silence grammar (hooks/dev-auto-session-start.py): a run is
+# finished only when the single Status is `COMPLETE` plus an optional note after
+# punctuation, the single stop is `none` plus an optional note, and Status is the
+# last line. A looser gate here let `COMPLETE pending acceptance` or a retained stop
+# PASS while the hook kept waking every later session in the repository.
+_NOTE = r"(?:[ \t]*[—–\-;:(.,!][^\n]*)?"
+COMPLETE = re.compile(r"COMPLETE" + _NOTE, re.IGNORECASE)
+NO_STOP = re.compile(r"none" + _NOTE, re.IGNORECASE)
+TERMINAL = re.compile(r"-[ \t]*Status:[ \t]*" + COMPLETE.pattern, re.IGNORECASE)
 
 
 def find_handoff(start: Path) -> Path | None:
@@ -135,6 +144,18 @@ def check(project: Path) -> int:
         for reason in failures:
             print(f"- {reason}")
         return 1
+    fields = [(m[1], m[2].strip()) for m in FIELD_BLOCK.finditer(body)]
+    statuses = [v for n, v in fields if n == "Status"]
+    stops = [v for n, v in fields if re.fullmatch(REQUIRED[1][1], n)]
+    if not (len(statuses) == 1 and COMPLETE.fullmatch(statuses[0])):
+        failures.append("Status starts with COMPLETE but is not `COMPLETE` plus an optional note after "
+                        "punctuation; a pending or paused state is its own label")
+    if not (len(stops) == 1 and NO_STOP.fullmatch(stops[0])):
+        failures.append("Explicit user stop must be `none` (plus an optional note after punctuation) at "
+                        "COMPLETE; move stop history to .dev-auto/log.md")
+    if not TERMINAL.fullmatch(body.rstrip().splitlines()[-1].strip() if body.strip() else ""):
+        failures.append("`- Status: COMPLETE` must be the last line of the handoff so the recovery "
+                        "hook stays silent")
     for name in FIELDS:
         value = field(body, name)
         if not value:
@@ -146,12 +167,15 @@ def check(project: Path) -> int:
     try:
         out = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--", ".dev-auto"],
                              capture_output=True, text=True, check=True).stdout
-    except (OSError, subprocess.CalledProcessError) as exc:
+    except (OSError, ValueError, subprocess.CalledProcessError) as exc:
         print(f"UNABLE: git ls-files failed in {root}: {exc}")
         return 2
     for rel in filter(None, out.split("\0")):
         path = root / rel
-        size = path.stat().st_size if path.exists() else 0
+        try:
+            size = path.stat().st_size
+        except OSError:  # deleted between listing and stat
+            size = 0
         if rel.startswith(".dev-auto/evidence/") or rel.endswith(".jsonl") or (
                 size > LARGE and rel != ".dev-auto/handoff.md"):
             failures.append(f"raw evidence tracked: {rel} ({size} bytes)")
@@ -276,6 +300,8 @@ def list_rollouts(project: Path) -> int:
             with path.open(encoding="utf-8", errors="replace") as handle:
                 head = json.loads(handle.readline() or "{}")
         except (OSError, ValueError):
+            continue
+        if not isinstance(head, dict):
             continue
         payload = head.get("payload") or {}
         if head.get("type") == "session_meta" and payload.get("cwd") == target:

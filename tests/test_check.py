@@ -115,8 +115,37 @@ class CheckTests(unittest.TestCase):
         result = run("check", str(project.root))
         self.assertEqual(result.returncode, 1, result.stdout)
 
+    def test_complete_gate_mirrors_the_hook_silence_grammar(self) -> None:
+        # GLM review 2026-09-21: `COMPLETE pending acceptance`, a retained stop, or a
+        # trailing line after Status all PASSed here while the hook kept waking sessions.
+        for body, reason in (
+            (CLEAN.replace("- Status: COMPLETE", "- Status: COMPLETE pending acceptance"), "not `COMPLETE`"),
+            (CLEAN.replace("- Status: COMPLETE", "- Status: COMPLETELY blocked"), "not `COMPLETE`"),
+            (CLEAN.replace("clears it): none", "clears it): paused 09-14; resumed 09-15"), "must be `none`"),
+            (CLEAN + "- Note: trailing\n", "last line"),
+        ):
+            with self.subTest(reason=reason):
+                result = run("check", str(self.project(body).root))
+                self.assertEqual(result.returncode, 1, result.stdout)
+                self.assertIn(reason, result.stdout)
+        annotated = CLEAN.replace("- Status: COMPLETE", "- Status: COMPLETE — all epics accepted").replace(
+            "clears it): none", "clears it): none (cleared 09-15)")
+        result = run("check", str(self.project(annotated).root))
+        self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_hook_and_check_share_one_terminal_grammar(self) -> None:
+        import importlib.util
+        def load(path: Path):
+            spec = importlib.util.spec_from_file_location(path.stem.replace("-", "_"), path)
+            module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+            return module
+        hook = load(REPO / "hooks" / "dev-auto-session-start.py")
+        check = load(SCRIPT)
+        for name in ("COMPLETE", "NO_STOP", "TERMINAL"):
+            self.assertEqual(getattr(hook, name).pattern, getattr(check, name).pattern, name)
+
     def test_large_handoff_itself_is_not_raw_evidence(self) -> None:
-        project = self.project(CLEAN + "#" * (300 * 1024))
+        project = self.project(CLEAN.replace("## Resume", "#" * (300 * 1024) + "\n\n## Resume"))
         git(project.root, "add", ".dev-auto/handoff.md")
         result = run("check", str(project.root))
         self.assertEqual(result.stdout.count("\n- "), 1, result.stdout)  # only the size check fails
@@ -235,6 +264,16 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(info["routes"], ["gpt-5.6-sol/xhigh"])
         self.assertEqual(info["total_token_usage"], {"total_tokens": 42})
         self.assertEqual((info["id"], info["cwd"], info["last"]), ("abc", "/p", "2026-09-19T10:05:00Z"))
+
+    def test_list_skips_rollout_whose_first_line_is_not_an_object(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            sessions = Path(directory) / "sessions"
+            sessions.mkdir()
+            (sessions / "rollout-bad.jsonl").write_text("5\n", encoding="utf-8")
+            env = dict(os.environ, HOME=directory)
+            result = run("usage", "--list", directory, env=env)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
 
     def test_missing_effort_stays_unavailable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
