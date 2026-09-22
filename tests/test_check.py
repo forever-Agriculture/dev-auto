@@ -246,7 +246,7 @@ class CheckTests(unittest.TestCase):
         self.assertIn("rows are inline", result.stdout)
         template_line = next(line for line in TEMPLATE.read_text(encoding="utf-8").splitlines()
                              if line.startswith("- Dispatches:"))
-        rows = template_line + "\n  - tests | implement | gpt-5.6-luna/max | rollout 01a4 | first\n"
+        rows = template_line + "\n  - tests | implement | GLM-5.3-Flash/max | receipt 01a4 | first\n"
         result = run("check", str(self.project(CLEAN.replace("## Resume", rows + "\n## Resume")).root))
         self.assertEqual(result.returncode, 0, result.stdout)
 
@@ -275,15 +275,19 @@ class CheckTests(unittest.TestCase):
         self.assertIn("first tier is glm-5.3", result.stdout)
 
     def test_implement_classes_have_their_own_first_tier(self) -> None:
-        # BMN and ProjectQ 2026-09-22 marked every editing helper "escalated: GLM cannot edit".
+        # BMN and ProjectQ 2026-09-22 marked every editing helper "escalated: GLM cannot edit";
+        # the owner then set edit-capable GLM as the first tier for both classes.
         def body(row: str) -> str:
             return CLEAN.replace("## Resume", f"- Dispatches:\n  - {row}\n\n## Resume")
-        for green in ("renderer | implement-complex | gpt-6-astra/low | rollout 01a5 | first",
-                      "fixtures | implement | gpt-5.6-luna/max | rollout 01a6 | first"):
+        for green in ("renderer | implement-complex | GLM-5.3/max | receipt 01a5 | first",
+                      "fixtures | implement | GLM-5.3-Flash/max | receipt 01a6 | first",
+                      "fixtures | implement | gpt-5.6-luna/max | rollout 01a7 | escalated: GLM edit failed its test twice"):
             self.assertEqual(run("check", str(self.project(body(green)).root)).returncode, 0, green)
-        result = run("check", str(self.project(body("fixtures | implement | gpt-6-astra/low | r | first")).root))
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("first tier is gpt-5.6-luna", result.stdout)
+        for red, first in (("fixtures | implement | gpt-5.6-luna/max | r | first", "glm-5.3-flash"),
+                           ("renderer | implement-complex | gpt-6-astra/low | r | first", "glm-5.3")):
+            result = run("check", str(self.project(body(red)).root))
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn(f"first tier is {first}", result.stdout)
 
     def test_large_committed_log_is_not_raw_evidence(self) -> None:
         project = self.project()

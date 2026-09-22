@@ -38,7 +38,7 @@ COMMITTED = {".dev-auto/handoff.md", ".dev-auto/log.md"}
 # First-tier model per work class, from references/models.md. Rows are
 # `purpose | class | model/effort | receipt | tier`; tier is `first` or `escalated: reason`.
 FIRST_TIER = {"routine": "glm-5.3-flash", "complex": "glm-5.3", "debugging": "glm-5.3",
-              "implement": "gpt-5.6-luna", "implement-complex": "gpt-6-astra",
+              "implement": "glm-5.3-flash", "implement-complex": "glm-5.3",
               "epic-review": "gpt-6-astra", "project-review": "gpt-6-astra"}
 # The template's own header, however retyped, is not an inline row.
 ROW_SHAPE = re.compile(r"purpose\s*\|\s*class\s*\|\s*model/effort\s*\|\s*receipt\s*\|\s*tier", re.IGNORECASE)

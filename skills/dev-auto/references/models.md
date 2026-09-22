@@ -11,9 +11,9 @@ access.
 Keep a suitable lead on the work. Dispatch only for a concrete independent task.
 Each row is an ordered tier: start with the first route, and move to the next only
 for a specific failed or unavailable route, a result that leaves the question
-unresolved, or a task the first route cannot do. The GLM routes below are
-tools-disabled or one-command test runs, so a helper that must edit files starts
-on an Implement row instead of escalating from them. A sufficient result at the
+unresolved, or a task the first route cannot do. Review and analysis rows use the
+tools-disabled GLM command; Implement rows use the edit-capable GLM command below,
+confined to the helper's project directory. A sufficient result at the
 tier in use ends the dispatch; never run the next tier as a ceremony or pair
 providers by default. Record the tier actually used and the reason for any escalation.
 
@@ -23,8 +23,8 @@ providers by default. Record the tier actually used and the reason for any escal
 | Claude Code lead | `opus`, `xhigh` | Keep the current lead when it is already suitable |
 | Routine: review, bounded tests, read-only analysis (most dispatches) | `GLM-5.3-Flash`, `max`, via the Claude GLM profile | `gpt-5.6-luna`, `max`; then `sonnet`, `low` or `medium` |
 | Complex bounded: debugging, a hard focused review, one consequential boundary short of a whole epic | `GLM-5.3`, `max`, via the Claude GLM profile | `gpt-6-astra`, `low`; or the lead directly when dispatch adds no value |
-| Implement: an easy isolated change that edits files | `gpt-5.6-luna`, `max` | `sonnet`, `medium`; or the lead directly |
-| Implement-complex: a consequential bounded change that edits files | `gpt-6-astra`, `low` | the lead directly |
+| Implement: an easy isolated change that edits files | `GLM-5.3-Flash`, `max`, via the edit-capable GLM route | `gpt-5.6-luna`, `max`; then `sonnet`, `medium`; or the lead directly |
+| Implement-complex: a consequential bounded change that edits files | `GLM-5.3`, `max`, via the edit-capable GLM route | `gpt-6-astra`, `low`; or the lead directly |
 | Whole-epic important risks and project alignment | `gpt-6-astra`, `medium` | `fable`, `medium`. `gpt-6-astra`, `low` only for a focused follow-up on a well-evidenced question |
 | Whole-project final evaluation or critical decision | `gpt-6-astra`, `high` | `fable`, `high` |
 
@@ -136,6 +136,37 @@ For the complex bounded tier (debugging, a hard focused review), set
 `ANTHROPIC_DEFAULT_OPUS_MODEL=GLM-5.3` after sourcing and use the `opus` alias at
 `max` in the same command shape. Do not import legacy the earlier workflow wrappers or agent
 definitions.
+
+Edit-capable GLM implementation (the Implement rows; for Implement-complex use the
+`opus` alias with `ANTHROPIC_DEFAULT_OPUS_MODEL=GLM-5.3`). Set `PROJECT` to the
+directory the helper owns. Scope every file rule: unscoped `Read` or `Write` rules
+reach any path, and on 2026-09-22 both GLM models wrote outside their folder until
+the rules below replaced them. `Edit(...)` also governs `Write`, and `Read(...)`
+also governs `Glob` and `Grep`. Deny the project's secret files explicitly, and
+make the `Bash` rule the exact check the helper may run.
+
+```bash
+(
+  set +x
+  cd "$PROJECT" || exit 1
+  source "$HOME/.claude-glm/env.sh" || exit 1
+  export ANTHROPIC_DEFAULT_SONNET_MODEL=GLM-5.3-Flash
+  claude -p --model sonnet --effort max --output-format json \
+    --safe-mode --tools 'Read,Edit,Write,Glob,Grep,Bash' \
+    --allowedTools 'Read(./**)' 'Edit(./**)' 'Bash(python3 -m unittest -q)' \
+    --disallowedTools 'Read(./**/.env*)' 'Edit(./**/.env*)' \
+    --permission-mode dontAsk --no-session-persistence \
+    --strict-mcp-config --mcp-config '{"mcpServers":{}}' --max-turns 40 \
+    --settings '{"sandbox":{"enabled":true,"failIfUnavailable":true,"allowUnsandboxedCommands":false,"network":{"allowedDomains":[]}}}' \
+    < "$PROMPT" > "$OUTPUT"
+)
+```
+
+Exercised 2026-09-22 on a synthetic project with both GLM models: each fixed the
+defect and ran its test, and writes, reads and greps outside
+`PROJECT` plus reads and edits of its `.env` were denied and listed in the
+receipt's `permission_denials`. Real-project implementation quality is not yet
+measured.
 
 ## Browser-enabled review
 
