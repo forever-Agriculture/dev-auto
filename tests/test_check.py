@@ -236,6 +236,71 @@ class CheckTests(unittest.TestCase):
     def test_no_dispatch_rows_is_not_a_failure(self) -> None:
         self.assertEqual(run("check", str(self.project(CLEAN.replace("## Resume", "- Dispatches: none\n\n## Resume")).root)).returncode, 0)
 
+    def test_inline_dispatch_rows_fail_and_the_template_line_passes(self) -> None:
+        # ProjectB 2026-09-22 wrote every row on the field line; none were parsed, so
+        # eight off-tier or untiered rows passed.
+        inline = CLEAN.replace("## Resume", "- Dispatches: `review | routine | gpt-6-astra/low | log:1 | first`; "
+                               "`judge | routine | GLM-5.3 | r.json | failed EAI_AGAIN`\n\n## Resume")
+        result = run("check", str(self.project(inline).root))
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("rows are inline", result.stdout)
+        template_line = next(line for line in TEMPLATE.read_text(encoding="utf-8").splitlines()
+                             if line.startswith("- Dispatches:"))
+        rows = template_line + "\n  - tests | implement | gpt-5.6-luna/max | rollout 01a4 | first\n"
+        result = run("check", str(self.project(CLEAN.replace("## Resume", rows + "\n## Resume")).root))
+        self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_rows_without_an_indented_bullet_are_still_checked(self) -> None:
+        # Astra review 2026-09-22: a bare or column-0 row parsed as none, so an off-tier row passed.
+        for rows in ("review | routine | gpt-6-astra/low | r | first\n",
+                     "- review | routine | gpt-6-astra/low | r | first\n"):
+            body = CLEAN.replace("## Resume", "- Dispatches:\n" + rows + "\n## Resume")
+            result = run("check", str(self.project(body).root))
+            self.assertEqual(result.returncode, 1, rows + result.stdout)
+            self.assertIn("first tier is glm-5.3-flash", result.stdout)
+
+    def test_second_field_line_retyped_header_and_annotated_class(self) -> None:
+        # GLM review 2026-09-22: only the first `- Dispatches:` line was read, a retyped
+        # header false-FAILed, and "complex (debugging)" skipped tiering.
+        base = CLEAN.replace("## Resume", "- Dispatches: rows below\n  - a | epic-review | gpt-6-astra/medium | r | first\n\n## Resume")
+        second = base.replace("## Resume", "- Dispatches: b | routine | gpt-6-astra/low | r | first\n\n## Resume")
+        result = run("check", str(self.project(second).root))
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("rows are inline", result.stdout)
+        retyped = base.replace("rows below", "`Purpose|Class|Model/Effort|Receipt|Tier` rows below")
+        self.assertEqual(run("check", str(self.project(retyped).root)).returncode, 0)
+        annotated = base.replace("a | epic-review | gpt-6-astra/medium", "a | complex (debugging) | gpt-6-astra/low")
+        result = run("check", str(self.project(annotated).root))
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("first tier is glm-5.3", result.stdout)
+
+    def test_implement_classes_have_their_own_first_tier(self) -> None:
+        # BMN and ProjectQ 2026-09-22 marked every editing helper "escalated: GLM cannot edit".
+        def body(row: str) -> str:
+            return CLEAN.replace("## Resume", f"- Dispatches:\n  - {row}\n\n## Resume")
+        for green in ("renderer | implement-complex | gpt-6-astra/low | rollout 01a5 | first",
+                      "fixtures | implement | gpt-5.6-luna/max | rollout 01a6 | first"):
+            self.assertEqual(run("check", str(self.project(body(green)).root)).returncode, 0, green)
+        result = run("check", str(self.project(body("fixtures | implement | gpt-6-astra/low | r | first")).root))
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("first tier is gpt-5.6-luna", result.stdout)
+
+    def test_large_committed_log_is_not_raw_evidence(self) -> None:
+        project = self.project()
+        project.track(".dev-auto/log.md", size=300 * 1024)
+        self.assertEqual(run("check", str(project.root)).returncode, 0)
+        project.track(".dev-auto/notes.md", size=300 * 1024)
+        result = run("check", str(project.root))
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("notes.md", result.stdout)
+        self.assertNotIn("log.md", result.stdout)
+
+    def test_help_flags_print_help_instead_of_reading_a_path(self) -> None:
+        for args in (("usage", "--help"), ("check", "-h"), ("--help",)):
+            result = run(*args)
+            self.assertEqual(result.returncode, 0, (args, result.stdout))
+            self.assertIn("usage PATH", result.stdout)
+
 
 def rollout_lines(cwd: str, effort: str | None = "xhigh") -> list[str]:
     context = {"model": "gpt-5.6-sol", "cwd": cwd}

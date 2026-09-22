@@ -6,7 +6,8 @@ check [PROJECT]     lint .dev-auto/handoff.md. At any status: size within the re
                     hook's 9,000-character snapshot, exactly one Status, Explicit user
                     stop and Next safe action field, and a short Status. At COMPLETE also:
                     placeholder text in the model/usage fields, raw evidence tracked by
-                    git, and dispatch rows that skip a work class's first tier without a reason.
+                    git, dispatch rows written inline instead of one per line, and rows
+                    that skip a work class's first tier without a reason.
 usage PATH          print model, effort and usage from one Codex rollout (.jsonl),
                     one Claude Code session or subagent transcript (.jsonl under
                     ~/.claude/projects), or one Claude ``--output-format json``
@@ -14,7 +15,7 @@ usage PATH          print model, effort and usage from one Codex rollout (.jsonl
 usage --list PROJECT  list Codex rollouts whose session cwd is PROJECT; choose by hand.
 
 Exit 0 PASS or SKIP (status not COMPLETE and shape checks pass), 1 FAIL with one reason per line,
-2 UNABLE when a required file or command cannot be read.
+2 UNABLE when a required file or command cannot be read. ``-h`` or ``--help`` prints this text.
 """
 
 from __future__ import annotations
@@ -30,10 +31,17 @@ PLACEHOLDERS = ("to be recorded", "tbd", "placeholder", "pending receipt",
 EMPTY_GAPS = re.compile(r";\s*gaps:\s*$")
 FIELDS = ("Lead host / requested model / observed model", "Observed usage")
 LARGE = 256 * 1024
+# The skill commits these two; the handoff has its own size check and the log is
+# append-only history that is never injected (ProjectB 2026-09-22 had to rotate a
+# 262 KB log out of git only to satisfy the raw-evidence size rule).
+COMMITTED = {".dev-auto/handoff.md", ".dev-auto/log.md"}
 # First-tier model per work class, from references/models.md. Rows are
 # `purpose | class | model/effort | receipt | tier`; tier is `first` or `escalated: reason`.
 FIRST_TIER = {"routine": "glm-5.3-flash", "complex": "glm-5.3", "debugging": "glm-5.3",
+              "implement": "gpt-5.6-luna", "implement-complex": "gpt-6-astra",
               "epic-review": "gpt-6-astra", "project-review": "gpt-6-astra"}
+# The template's own header, however retyped, is not an inline row.
+ROW_SHAPE = re.compile(r"purpose\s*\|\s*class\s*\|\s*model/effort\s*\|\s*receipt\s*\|\s*tier", re.IGNORECASE)
 SESSIONS = Path.home() / ".codex" / "sessions"
 SNAPSHOT_LIMIT = 9_000  # hooks/dev-auto-session-start.py injects the whole handoff up to this
 STATUS_LIMIT = 200
@@ -63,21 +71,30 @@ def find_handoff(start: Path) -> Path | None:
 
 
 def dispatch_rows(body: str) -> list[str]:
-    """Continuation rows under `- Dispatches:` until the next top-level field."""
+    """Rows under `- Dispatches:` until the next top-level field: every indented bullet,
+    plus bare or column-0 lines holding `|`, which otherwise escaped the tier check."""
     rows, inside = [], False
     for line in body.splitlines():
         if line.startswith("- Dispatches:"):
             inside = True
             continue
-        if inside and (line.startswith("- ") or line.startswith("#")):
+        text = line.strip()
+        bullet = text.startswith("- ")
+        if inside and (line.startswith("#") or (line.startswith("- ") and "|" not in text.partition(":")[0])):
             break
-        if inside and line.strip().startswith("- "):
-            rows.append(line.strip()[2:])
+        if inside and (bullet or "|" in text):
+            rows.append(text[2:] if bullet else text)
     return rows
 
 
 def lint_dispatches(body: str) -> list[str]:
     failures = []
+    # Rows written on the field line itself parsed as none and escaped the tier check
+    # (ProjectB 2026-09-22: eleven inline rows, eight of them untiered or off-tier).
+    inline = [ROW_SHAPE.sub("", line) for line in body.splitlines() if line.startswith("- Dispatches:")]
+    if any("|" in line for line in inline):
+        failures.append("dispatch rows are inline on the `- Dispatches:` line; write one "
+                        "`purpose | class | model/effort | receipt | tier` row per line below it")
     for row in dispatch_rows(body):
         parts = [p.strip() for p in row.split("|")]
         if len(parts) != 5:
@@ -85,7 +102,7 @@ def lint_dispatches(body: str) -> list[str]:
             continue
         _, work, route, _, tier = parts
         model = route.split("/")[0].strip().lower()
-        first = FIRST_TIER.get(work.lower())
+        first = FIRST_TIER.get(work.split("(")[0].strip().lower())  # "complex (debugging)" too
         if first is None:
             continue  # classes outside the table (lead, scout, consult) are not tiered
         if tier.lower() == "first" and model != first:
@@ -177,7 +194,7 @@ def check(project: Path) -> int:
         except OSError:  # deleted between listing and stat
             size = 0
         if rel.startswith(".dev-auto/evidence/") or rel.endswith(".jsonl") or (
-                size > LARGE and rel != ".dev-auto/handoff.md"):
+                size > LARGE and rel not in COMMITTED):
             failures.append(f"raw evidence tracked: {rel} ({size} bytes)")
     if failures:
         print(f"FAIL: {handoff}")
@@ -333,6 +350,9 @@ def usage(args: list[str]) -> int:
 
 
 def main(argv: list[str]) -> int:
+    if {"-h", "--help"} & set(argv):  # `usage --help` once read as a path, and a lead
+        print((__doc__ or "").strip())  # then recorded usage as unobservable
+        return 0
     if argv[:1] == ["check"] and len(argv) <= 2:
         return check(Path(argv[1]) if len(argv) == 2 else Path.cwd())
     if argv[:1] == ["usage"]:

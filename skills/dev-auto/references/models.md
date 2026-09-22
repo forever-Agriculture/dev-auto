@@ -11,8 +11,9 @@ access.
 Keep a suitable lead on the work. Dispatch only for a concrete independent task.
 Each row is an ordered tier: start with the first route, and move to the next only
 for a specific failed or unavailable route, a result that leaves the question
-unresolved, or a task the first route cannot do (for example a helper that must
-edit files; the GLM routes below are tools-disabled or one-command test runs). A sufficient result at the
+unresolved, or a task the first route cannot do. The GLM routes below are
+tools-disabled or one-command test runs, so a helper that must edit files starts
+on an Implement row instead of escalating from them. A sufficient result at the
 tier in use ends the dispatch; never run the next tier as a ceremony or pair
 providers by default. Record the tier actually used and the reason for any escalation.
 
@@ -20,8 +21,10 @@ providers by default. Record the tier actually used and the reason for any escal
 | --- | --- | --- |
 | Codex lead | `gpt-5.6-sol`, `xhigh` | Keep the current lead when it is already suitable |
 | Claude Code lead | `opus`, `xhigh` | Keep the current lead when it is already suitable |
-| Routine: review, bounded tests, easy isolated work (most dispatches) | `GLM-5.3-Flash`, `max`, via the Claude GLM profile | `gpt-5.6-luna`, `max`; then `sonnet`, `low` or `medium` |
+| Routine: review, bounded tests, read-only analysis (most dispatches) | `GLM-5.3-Flash`, `max`, via the Claude GLM profile | `gpt-5.6-luna`, `max`; then `sonnet`, `low` or `medium` |
 | Complex bounded: debugging, a hard focused review, one consequential boundary short of a whole epic | `GLM-5.3`, `max`, via the Claude GLM profile | `gpt-6-astra`, `low`; or the lead directly when dispatch adds no value |
+| Implement: an easy isolated change that edits files | `gpt-5.6-luna`, `max` | `sonnet`, `medium`; or the lead directly |
+| Implement-complex: a consequential bounded change that edits files | `gpt-6-astra`, `low` | the lead directly |
 | Whole-epic important risks and project alignment | `gpt-6-astra`, `medium` | `fable`, `medium`. `gpt-6-astra`, `low` only for a focused follow-up on a well-evidenced question |
 | Whole-project final evaluation or critical decision | `gpt-6-astra`, `high` | `fable`, `high` |
 

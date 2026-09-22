@@ -35,7 +35,7 @@
 ## Measurement
 
 - Timing: started / accepted / elapsed including waits:
-- Dispatches: one row per dispatch, `purpose | class | model/effort | receipt | tier` where class is routine, complex (debugging or a hard focused review), epic-review or project-review and tier is `first` or `escalated: <specific failure, unavailability or capability reason>`:
+- Dispatches: one row per line below, `purpose | class | model/effort | receipt | tier` where class is routine, complex (debugging or a hard focused review), implement, implement-complex, epic-review or project-review and tier is `first` or `escalated: <specific failure, unavailability or capability reason>`:
 - Owner interventions: corrections / necessary approvals / avoidable repeat requests; count, reason, approximate minutes:
 - Observed usage: lead + helpers + recovery; Codex rollout `total_token_usage`, Claude `total_cost_usd`; gaps:
 

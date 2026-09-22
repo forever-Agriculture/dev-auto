@@ -60,16 +60,29 @@ affected existing behavior and relevant earlier-epic contracts, and confirm the
 board records each of the epic's stories complete under its existing schema,
 recorded descopes excepted. New or changed
 behavior ships with automated tests that exercise it in the project's existing test
-layers; list any behavior left untested in the handoff. Material regression tests
+layers, using synthetic identifiers and data rather than the owner's real records;
+list any behavior left untested in the handoff. Material regression tests
 must fail on the original defect and pass with the fix; reproduce alleged
-pre-existing failures in isolation while preserving working-tree changes.
+pre-existing failures in isolation while preserving working-tree changes. A failure
+you cannot identify is unresolved.
 
 An independent strong reviewer checks each epic against original intent and
 project architecture/goals using [references/review-brief.md](references/review-brief.md).
-Use one full review, consolidated repairs and a focused recheck. Further review
-addresses a named unresolved risk or consequential new change/evidence, reusing
-unaffected results. Project scope also gets cross-epic evaluation; a project-level
-review can cover the coincident final epic. Material gaps block acceptance.
+Use one full review, consolidated repairs and a focused recheck, and leave the
+candidate unedited while a reviewer or gate reads it. Further review addresses a
+named material risk or consequential new change/evidence, reusing unaffected
+results. At one acceptance boundary, if a recheck finds a material defect introduced
+by the previous repair, or a second recheck finds material defects (any review of a
+repaired candidate is a recheck, however labeled), stop repairing: reread the
+original acceptance criteria, substantiate each open finding with a reproduction or
+requirement evidence, and put the design question once to the next strong route or
+report that boundary BLOCKED with options, including removing work the story does
+not ask for. One consolidated repair and recheck may follow its answer; remaining
+material defects block the boundary while independent selected work continues. A
+new reviewer, repair wave or resumed run does not reset this allowance; an
+owner-requested review sits outside it.
+Project scope also gets cross-epic evaluation; a project-level review can cover the
+coincident final epic. Material gaps block acceptance.
 
 Record the baseline and reviewed revisions, actual checks and unverified
 boundaries. Give every material finding from all reviews a disposition against the
