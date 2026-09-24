@@ -217,80 +217,12 @@ class CheckTests(unittest.TestCase):
         result = run("check", cwd=sub)
         self.assertEqual(result.returncode, 0, result.stdout)
 
-    def test_dispatch_rows_enforce_first_tier_or_reason(self) -> None:
-        def body(*rows: str) -> str:
-            return CLEAN.replace("## Resume", "- Dispatches: rows\n" + "".join(f"  - {r}\n" for r in rows) + "\n## Resume")
-        green = body("epic review | epic-review | gpt-6-astra/medium | rollout 01a1 | first",
-                     "tests | routine | gpt-5.6-luna/max | rollout 01a2 | escalated: GLM route returned EAI_AGAIN twice",
-                     "runtime scout | scout | gpt-5.6-luna/max | rollout 01a3 | first")
-        self.assertEqual(run("check", str(self.project(green).root)).returncode, 0)
-        for red, reason in [
-            (body("review | routine | gpt-5.6-luna/max | rollout | first"), "first tier is glm-5.3-flash"),
-            (body("debug | debugging | gpt-6-astra/high | rollout | first"), "first tier is glm-5.3"),
-            (body("race review | complex | gpt-5.6-luna/max | rollout | first"), "first tier is glm-5.3"),
-            (body("review | epic-review | fable/medium | receipt | escalated:"), "without a reason"),
-            (body("full review / native fable / receipt"), "not in"),
-            (body("review | epic-review | gpt-6-astra/medium | rollout | maybe"), "tier must be"),
-        ]:
-            result = run("check", str(self.project(red).root))
-            self.assertEqual(result.returncode, 1, result.stdout)
-            self.assertIn(reason, result.stdout)
-
-    def test_no_dispatch_rows_is_not_a_failure(self) -> None:
-        self.assertEqual(run("check", str(self.project(CLEAN.replace("## Resume", "- Dispatches: none\n\n## Resume")).root)).returncode, 0)
-
-    def test_inline_dispatch_rows_fail_and_the_template_line_passes(self) -> None:
-        # ProjectB 2026-09-22 wrote every row on the field line; none were parsed, so
-        # eight off-tier or untiered rows passed.
-        inline = CLEAN.replace("## Resume", "- Dispatches: `review | routine | gpt-6-astra/low | log:1 | first`; "
-                               "`judge | routine | GLM-5.3 | r.json | failed EAI_AGAIN`\n\n## Resume")
-        result = run("check", str(self.project(inline).root))
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("rows are inline", result.stdout)
-        template_line = next(line for line in TEMPLATE.read_text(encoding="utf-8").splitlines()
-                             if line.startswith("- Dispatches:"))
-        rows = template_line + "\n  - tests | implement | GLM-5.3-Flash/max | receipt 01a4 | first\n"
-        result = run("check", str(self.project(CLEAN.replace("## Resume", rows + "\n## Resume")).root))
-        self.assertEqual(result.returncode, 0, result.stdout)
-
-    def test_rows_without_an_indented_bullet_are_still_checked(self) -> None:
-        # Astra review 2026-09-22: a bare or column-0 row parsed as none, so an off-tier row passed.
-        for rows in ("review | routine | gpt-6-astra/low | r | first\n",
-                     "- review | routine | gpt-6-astra/low | r | first\n"):
-            body = CLEAN.replace("## Resume", "- Dispatches:\n" + rows + "\n## Resume")
-            result = run("check", str(self.project(body).root))
-            self.assertEqual(result.returncode, 1, rows + result.stdout)
-            self.assertIn("first tier is glm-5.3-flash", result.stdout)
-
-    def test_second_field_line_retyped_header_and_annotated_class(self) -> None:
-        # GLM review 2026-09-22: only the first `- Dispatches:` line was read, a retyped
-        # header false-FAILed, and "complex (debugging)" skipped tiering.
-        base = CLEAN.replace("## Resume", "- Dispatches: rows below\n  - a | epic-review | gpt-6-astra/medium | r | first\n\n## Resume")
-        second = base.replace("## Resume", "- Dispatches: b | routine | gpt-6-astra/low | r | first\n\n## Resume")
-        result = run("check", str(self.project(second).root))
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("rows are inline", result.stdout)
-        retyped = base.replace("rows below", "`Purpose|Class|Model/Effort|Receipt|Tier` rows below")
-        self.assertEqual(run("check", str(self.project(retyped).root)).returncode, 0)
-        annotated = base.replace("a | epic-review | gpt-6-astra/medium", "a | complex (debugging) | gpt-6-astra/low")
-        result = run("check", str(self.project(annotated).root))
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("first tier is glm-5.3", result.stdout)
-
-    def test_implement_classes_have_their_own_first_tier(self) -> None:
-        # BMN and ProjectQ 2026-09-22 marked every editing helper "escalated: GLM cannot edit";
-        # the owner then set edit-capable GLM as the first tier for both classes.
-        def body(row: str) -> str:
-            return CLEAN.replace("## Resume", f"- Dispatches:\n  - {row}\n\n## Resume")
-        for green in ("renderer | implement-complex | GLM-5.3/max | receipt 01a5 | first",
-                      "fixtures | implement | GLM-5.3-Flash/max | receipt 01a6 | first",
-                      "fixtures | implement | gpt-5.6-luna/max | rollout 01a7 | escalated: GLM edit failed its test twice"):
-            self.assertEqual(run("check", str(self.project(body(green)).root)).returncode, 0, green)
-        for red, first in (("fixtures | implement | gpt-5.6-luna/max | r | first", "glm-5.3-flash"),
-                           ("renderer | implement-complex | gpt-6-astra/low | r | first", "glm-5.3")):
-            result = run("check", str(self.project(body(red)).root))
-            self.assertEqual(result.returncode, 1, result.stdout)
-            self.assertIn(f"first tier is {first}", result.stdout)
+    def test_dispatch_lines_are_free_text(self) -> None:
+        # Owner 2026-09-24 simplification: the tier lint is gone, so off-tier, inline or
+        # unformatted dispatch notes no longer FAIL a finished handoff.
+        body = CLEAN.replace("## Resume", "- Dispatches: review | routine | gpt-6-astra/low | r | first\n"
+                             "  - GLM pre-review: helper strong, receipt r2; Astra/medium full review\n\n## Resume")
+        self.assertEqual(run("check", str(self.project(body).root)).returncode, 0)
 
     def test_large_committed_log_is_not_raw_evidence(self) -> None:
         project = self.project()

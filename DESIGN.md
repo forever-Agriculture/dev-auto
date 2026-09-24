@@ -112,7 +112,7 @@ Avoid duplicate broad reviews when the final epic and project boundary coincide:
 Consultation briefs reference these instead of reopening them.
 
 - No controller, scheduler, or worker framework; the host's native tools and permissions are the boundary.
-- Reviewer tiers are escalation, not pairing: one strong full review, at most one justified second-family focused check, and focused rechecks within SKILL.md's convergence bound. Escalation does not reset the allowance. (Amended 2026-09-22: the bound replaced a single consolidated recheck that the skill had stopped stating; BMN Epic 15 and ProjectB Epic 65 then looped through 15 and about 37 review dispatches.)
+- Reviewer tiers are escalation, not pairing: one strong full review, at most one justified second-family focused check, and focused rechecks within SKILL.md's convergence bound. A cheap helper pre-review (review plus tests) precedes the full review and sits outside that bound (added 2026-09-24, owner: GLM reviews and tests before Astra/Fable; Astra/Fable stay the epic reviewers). Escalation does not reset the allowance. (Amended 2026-09-22: the bound replaced a single consolidated recheck that the skill had stopped stating; BMN Epic 15 and ProjectB Epic 65 then looped through 15 and about 37 review dispatches.)
 - Compaction recovery is a `SessionStart` hook plus a bounded handoff, not a custom context store; it is guidance, not enforcement, and each host's automatic case must be exercised before it is relied on.
 
 ## Small durable run record

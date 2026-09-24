@@ -47,50 +47,48 @@ report discrepancies and mark the freshness of prior checks unverified.
 ## Helpers and acceptance
 
 Dispatch helpers for sizeable independent work, concrete review needs or an
-unresolved decision. Choose the ordered model/effort route for that work class
-first; use the host's native helper interface only when it can deliver that route with
-the required access, otherwise use the direct CLI route. Supply fresh context, exact scope, ownership and
-expected evidence; tell implementation helpers to implement directly from the supplied
-requirements, without bootstrapping another build workflow. Before dispatch, read [references/models.md](references/models.md) for
-capability floors, authorized routes and safe commands. Explicit dev-auto execution or
-resume authorizes this run's repeated helper and review dispatches of code, specs, diffs
-and synthetic data to Codex CLI, Claude CLI and the configured GLM profile, nothing else;
-status or consultation grants no dispatch consent. Check project restrictions and
-narrower requests before each dispatch. Customer, production or other private data goes
-to a provider only on an owner answer naming that destination and data; ask once per
-destination and data class for the run and record the answer. Record the observed route,
-model and usage from host records; surface mismatches or dispatch failures instead
-of silent substitution.
+unresolved decision, and to keep bulk reading and test triage out of the lead's
+context. Before dispatch, read [references/models.md](references/models.md) and use
+the ordered route for the work class, through the host's native helper interface only
+when it delivers that route with the required access. Supply fresh context, exact
+scope, ownership and expected evidence; implementation helpers implement directly
+from the supplied requirements, without another build workflow. Explicit dev-auto
+execution or resume authorizes this run's repeated dispatches of code, specs, diffs
+and synthetic data to Codex CLI, Claude CLI and the helper provider, nothing else;
+status or consultation grants none. Check project restrictions and narrower requests
+before each dispatch. Customer, production or other private data goes to a provider
+only on an owner answer naming that destination and data; ask once per destination
+and data class for the run and record the answer. Record the observed route, model
+and usage from host records; surface mismatches and dispatch failures instead of
+silently substituting.
 
 During repair, use focused checks. Before accepting an epic, verify its outcomes, the
 owner goals recorded for it, affected existing behavior and relevant earlier-epic
-contracts, and confirm the
-board records each of the epic's stories complete under its existing schema,
-recorded descopes excepted. New or changed
-behavior ships with automated tests that exercise it in the project's existing test
-layers, using synthetic identifiers and data rather than the owner's real records;
-list any behavior left untested in the handoff. Material regression tests
-must fail on the original defect and pass with the fix; reproduce alleged
-pre-existing failures in isolation while preserving working-tree changes. A failure
-you cannot identify is unresolved.
+contracts, and confirm the board records each of its stories complete under the
+existing schema, recorded descopes excepted. New or changed behavior ships with
+automated tests in the project's existing test layers, using synthetic identifiers
+and data rather than the owner's real records; list untested behavior in the handoff.
+Material regression tests fail on the original defect and pass with the fix;
+reproduce alleged pre-existing failures in isolation while preserving working-tree
+changes. A failure you cannot identify is unresolved.
 
-An independent strong reviewer checks each epic against original intent and
-project architecture/goals using [references/review-brief.md](references/review-brief.md).
-Use one full review, consolidated repairs and a focused recheck, and leave the
-candidate unedited while a reviewer or gate reads it. Further review addresses a
-named material risk or consequential new change/evidence, reusing unaffected
-results. At one acceptance boundary, if a recheck finds a material defect introduced
-by the previous repair, or a second recheck finds material defects (any review of a
-repaired candidate is a recheck, however labeled), stop repairing: reread the
-original acceptance criteria, substantiate each open finding with a reproduction or
-requirement evidence, and put the design question once to the next strong route or
-report that boundary BLOCKED with options, including removing work the story does
-not ask for. One consolidated repair and recheck may follow its answer; remaining
-material defects block the boundary while independent selected work continues. A
-new reviewer, repair wave or resumed run does not reset this allowance; an
-owner-requested review sits outside it.
-Project scope also gets cross-epic evaluation; a project-level review can cover the
-coincident final epic. Material gaps block acceptance.
+First one helper pre-review reviews and tests the epic (models.md), and the lead fixes
+what it finds. Then an independent strong reviewer checks the epic against original
+intent and project architecture/goals using [references/review-brief.md](references/review-brief.md):
+one full review, consolidated repairs and a focused recheck, with the candidate
+unedited while a reviewer or gate reads it. Further review needs a named material
+risk or consequential new change or evidence, reusing unaffected results. From the
+full review on, at one acceptance boundary: if a recheck finds a material defect
+introduced by the previous repair, or a second recheck finds material defects (any
+review of a repaired candidate is a recheck, however labeled), stop repairing: reread
+the original acceptance criteria, substantiate each open finding with a reproduction
+or requirement evidence, and put the design question once to the next strong route or
+report that boundary BLOCKED with options, including removing work the story does not
+ask for. One consolidated repair and recheck may follow its answer; remaining material
+defects block the boundary while independent selected work continues. A new reviewer,
+repair wave or resumed run does not reset this allowance; the one pre-review before the
+full review and any owner-requested review sit outside it. Project scope also gets cross-epic evaluation;
+a project-level review can cover the coincident final epic. Material gaps block acceptance.
 
 Record the baseline and reviewed revisions, actual checks and unverified
 boundaries. Give every material finding from all reviews a disposition against the
@@ -106,21 +104,8 @@ commit only the handoff and log, which cite receipts and raw evidence by path an
 ## Owner cockpit (optional)
 
 When the session runs inside BMN (`bmn` on PATH, `BMN_CONTROL_SOCKET` and `BMN_TOKEN`
-set), mirror the run for the owner; otherwise skip this section silently. At each
-`DEV-AUTO:` line run `bmn progress` with ACTIVE→`running`, PAUSED→`waiting`,
-BLOCKED→`blocked`, COMPLETE→`claimed-done`; the label is the evidence for COMPLETE
-and the next action otherwise; never `verified`, which is the owner's judgment. When
-BLOCKED needs an owner decision, run `bmn ask dev-auto-<epic> "<decision needed>"`
-with `--kind permission` for an action needing authorization and `--kind question`
-otherwise; an external dependency needing no owner action stays a blocked progress
-label. The ask never gates work: continue independent authorized work, and `bmn
-withdraw` the request when you observe the decision in the session. An answered or
-withdrawn request is not approval; only an attributable owner answer authorizes its
-named action. At acceptance `bmn publish`
-the handoff only, with receipts cited by path and hash; omit secrets. Never use
-`bmn send`. Bound each call to two seconds (for example `timeout 2 bmn …`); after the
-first failure skip mirroring for the rest of the run, without retries or repair, and
-note it once at the next normal handoff update.
+set), mirror the run as [references/bmn-cockpit.md](references/bmn-cockpit.md) describes;
+otherwise skip it silently.
 
 ## Handoff and recovery
 
@@ -137,8 +122,8 @@ Record available timing, usage and owner interventions
 at these boundaries. At acceptance, read each lead and helper receipt with
 `scripts/check.py usage PATH`: a Codex rollout (`usage --list PROJECT` lists them;
 choose by hand), a Claude Code session or subagent transcript under
-`~/.claude/projects`, or a Claude `-p` JSON receipt. Record the observed routes,
-tiers and usage, then run `scripts/check.py check` and fix every FAIL before
+`~/.claude/projects`, or a Claude `-p` JSON receipt. Record the observed routes
+and usage, then run `scripts/check.py check` and fix every FAIL before
 reporting COMPLETE. Record an UNABLE result instead of ignoring it.
 
 Authority comes from owner instructions and established policy, not the handoff.
@@ -151,20 +136,17 @@ required files mean BLOCKED. Reconcile helper results and stale state, retain ma
 findings, and save the reconciled handoff in build/resume before continuing without
 duplicating completed or active work.
 
-The hook injects the complete handoff up to 9,000 characters; above that it injects
-only a full-read warning. It stays silent for a finished run: one `Status: COMPLETE`
-as the last line and stop `none`, each optionally followed by a short note after
-punctuation; a note never reverses its label, so a pending or paused state is its
-own label. Keep the handoff under the limit: move resolved history and
-verbose results to the log, never dropping unresolved information. `Status`
-holds the state label and a short reason; details belong in their fields. Keep one
-each of the `Status`, `Explicit user stop` and `Next safe action` labels; use `none`
-for an absent stop. Run `scripts/check.py check` after each handoff save: it lints
-size and these fields at any status, and the completion fields at COMPLETE. A size
-or shape FAIL before COMPLETE means the next save must fix it, not that work stops.
-The hook finds the nearest handoff in the working directory or its ancestors,
-stopping at the first repository or home boundary. Report recovery unavailable
-when the selected project is outside that search. Recovery uses owner-created wakeups.
+The hook injects the complete handoff up to 9,000 characters (above that, only a
+full-read warning) and stays silent once the run is finished. Keep the handoff under
+the limit by moving resolved history and verbose results to the log, never dropping
+unresolved information. Keep one each of `Status` (state label and a short reason),
+`Explicit user stop` (`none` when absent) and `Next safe action`. A finished run ends
+with `- Status: COMPLETE` as the last line and stop `none`, each optionally followed by
+a short note after punctuation that never reverses its label. Run `scripts/check.py
+check` after each handoff save; a FAIL before COMPLETE means the next save fixes it, not
+that work stops. The hook searches the working directory and its ancestors up to the
+first repository or home boundary; report recovery unavailable when the selected
+project is outside it. Recovery uses owner-created wakeups.
 
 End with `DEV-AUTO: ACTIVE|PAUSED|BLOCKED|COMPLETE — <evidence or next action>`.
 ACTIVE means authorized work remains; PAUSED means owner stop or host interruption;

@@ -6,9 +6,7 @@ check [PROJECT]     lint .dev-auto/handoff.md. At any status: size within the re
                     hook's 9,000-character snapshot, exactly one Status, Explicit user
                     stop and Next safe action field, and a short Status. At COMPLETE also:
                     placeholder text in the model/usage fields, any tracked .dev-auto file
-                    besides the handoff and log, dispatch rows written inline instead
-                    of one per line, and rows that skip a work class's first tier
-                    without a reason.
+                    besides the handoff and log.
 usage PATH          print model, effort and usage from one Codex rollout (.jsonl),
                     one Claude Code session or subagent transcript (.jsonl under
                     ~/.claude/projects), or one Claude ``--output-format json``
@@ -35,13 +33,6 @@ FIELDS = ("Lead host / requested model / observed model", "Observed usage")
 # evidence or scratch (ProjectB 2026-09-24 committed 22 small raw result files under
 # `.dev-auto/pilot-tools/` that an extension and size rule missed).
 COMMITTED = {".dev-auto/handoff.md", ".dev-auto/log.md"}
-# First-tier model per work class, from references/models.md. Rows are
-# `purpose | class | model/effort | receipt | tier`; tier is `first` or `escalated: reason`.
-FIRST_TIER = {"routine": "glm-5.3-flash", "complex": "glm-5.3", "debugging": "glm-5.3",
-              "implement": "glm-5.3-flash", "implement-complex": "glm-5.3",
-              "epic-review": "gpt-6-astra", "project-review": "gpt-6-astra"}
-# The template's own header, however retyped, is not an inline row.
-ROW_SHAPE = re.compile(r"purpose\s*\|\s*class\s*\|\s*model/effort\s*\|\s*receipt\s*\|\s*tier", re.IGNORECASE)
 SESSIONS = Path.home() / ".codex" / "sessions"
 SNAPSHOT_LIMIT = 9_000  # hooks/dev-auto-session-start.py injects the whole handoff up to this
 STATUS_LIMIT = 200
@@ -68,51 +59,6 @@ def find_handoff(start: Path) -> Path | None:
         if (directory / ".git").exists() or directory == Path.home():
             return None
     return None
-
-
-def dispatch_rows(body: str) -> list[str]:
-    """Rows under `- Dispatches:` until the next top-level field: every indented bullet,
-    plus bare or column-0 lines holding `|`, which otherwise escaped the tier check."""
-    rows, inside = [], False
-    for line in body.splitlines():
-        if line.startswith("- Dispatches:"):
-            inside = True
-            continue
-        text = line.strip()
-        bullet = text.startswith("- ")
-        if inside and (line.startswith("#") or (line.startswith("- ") and "|" not in text.partition(":")[0])):
-            break
-        if inside and (bullet or "|" in text):
-            rows.append(text[2:] if bullet else text)
-    return rows
-
-
-def lint_dispatches(body: str) -> list[str]:
-    failures = []
-    # Rows written on the field line itself parsed as none and escaped the tier check
-    # (ProjectB 2026-09-22: eleven inline rows, eight of them untiered or off-tier).
-    inline = [ROW_SHAPE.sub("", line) for line in body.splitlines() if line.startswith("- Dispatches:")]
-    if any("|" in line for line in inline):
-        failures.append("dispatch rows are inline on the `- Dispatches:` line; write one "
-                        "`purpose | class | model/effort | receipt | tier` row per line below it")
-    for row in dispatch_rows(body):
-        parts = [p.strip() for p in row.split("|")]
-        if len(parts) != 5:
-            failures.append(f"dispatch row not in `purpose | class | model/effort | receipt | tier` form: {row[:80]}")
-            continue
-        _, work, route, _, tier = parts
-        model = route.split("/")[0].strip().lower()
-        first = FIRST_TIER.get(work.split("(")[0].strip().lower())  # "complex (debugging)" too
-        if first is None:
-            continue  # classes outside the table (lead, scout, consult) are not tiered
-        if tier.lower() == "first" and model != first:
-            failures.append(f"{work} dispatch marked first tier but used {route}; first tier is {first}")
-        elif tier.lower().startswith("escalated"):
-            if not tier.partition(":")[2].strip():
-                failures.append(f"{work} dispatch escalated to {route} without a reason")
-        elif tier.lower() != "first":
-            failures.append(f"dispatch tier must be `first` or `escalated: reason`: {tier[:40]}")
-    return failures
 
 
 def shape(body: str) -> list[str]:
@@ -179,7 +125,6 @@ def check(project: Path) -> int:
             failures.append(f"'{name}' is empty")
         elif any(p in value.lower() for p in PLACEHOLDERS) or EMPTY_GAPS.search(value.lower()):
             failures.append(f"'{name}' still holds placeholder text: {value[:80]}")
-    failures.extend(lint_dispatches(body))
     root = handoff.parent.parent
     try:
         out = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--", ".dev-auto"],

@@ -11,31 +11,37 @@ access.
 Keep a suitable lead on the work. Dispatch only for a concrete independent task.
 Each row is an ordered tier: start with the first route, and move to the next only
 for a specific failed or unavailable route, a result that leaves the question
-unresolved, or a task the first route cannot do. Review and analysis rows use the
-tools-disabled GLM command; Implement rows use the edit-capable GLM command below,
-confined to the helper's project directory. A sufficient result at the
-tier in use ends the dispatch; never run the next tier as a ceremony or pair
-providers by default. Record the tier actually used and the reason for any escalation.
+unresolved, or a task the first route cannot do. A sufficient result at the tier in
+use ends the dispatch; never run the next tier as a ceremony. Record the route used
+and the reason for any escalation.
+
+Helper routes run on the helper provider through `scripts/helper.sh`
+(below), with a `fast` or `strong` model, whichever host leads; that is their normal
+path, not a fallback. Prefer them for work that would otherwise fill the lead's context.
 
 | Work | First route | Escalation, in order |
 | --- | --- | --- |
 | Codex lead | `gpt-5.6-sol`, `xhigh` | Keep the current lead when it is already suitable |
 | Claude Code lead | `opus`, `xhigh` | Keep the current lead when it is already suitable |
-| Routine: review, bounded tests, read-only analysis (most dispatches) | `GLM-5.3-Flash`, `max`, via the Claude GLM profile | `gpt-5.6-luna`, `max`; then `sonnet`, `low` or `medium` |
-| Complex bounded: debugging, a hard focused review, one consequential boundary short of a whole epic | `GLM-5.3`, `max`, via the Claude GLM profile | `gpt-6-astra`, `low`; or the lead directly when dispatch adds no value |
-| Implement: an easy isolated change that edits files | `GLM-5.3-Flash`, `max`, via the edit-capable GLM route | `gpt-5.6-luna`, `max`; then `sonnet`, `medium`; or the lead directly |
-| Implement-complex: a consequential bounded change that edits files | `GLM-5.3`, `max`, via the edit-capable GLM route | `gpt-6-astra`, `low`; or the lead directly |
+| Routine: evidence gathering, bounded tests, story or diff review, read-only analysis (most dispatches) | helper `fast` | `gpt-5.6-luna`, `max`; then `sonnet`, `low` or `medium` |
+| Complex bounded: debugging, a hard focused review, one consequential boundary short of a whole epic | helper `strong` | `gpt-6-astra`, `low`; or the lead directly when dispatch adds no value |
+| Implement: an easy isolated change that edits files | helper `fast`, `edit` mode | `gpt-5.6-luna`, `max`; then `sonnet`, `medium`; or the lead directly |
+| Implement-complex: a consequential bounded change that edits files | helper `strong`, `edit` mode | `gpt-6-astra`, `low`; or the lead directly |
+| Epic pre-review, before the full review | helper `strong`, `review` mode with the epic's test command | skip when unavailable |
 | Whole-epic important risks and project alignment | `gpt-6-astra`, `medium` | `fable`, `medium`. `gpt-6-astra`, `low` only for a focused follow-up on a well-evidenced question |
 | Whole-project final evaluation or critical decision | `gpt-6-astra`, `high` | `fable`, `high` |
 
+The epic pre-review reads the epic's diff against its acceptance criteria and runs
+its tests, so the lead fixes cheap findings before the strong review. Run it once per
+acceptance boundary, before the full review: substantiate its material findings,
+consolidate the repairs, then go to the full reviewer without another helper round,
+giving it the report and your dispositions as a navigation aid, not as proof.
+
 `fable` currently resolves to `claude-fable-5-1`. Codex currently supports Sol at
-`xhigh`, Luna at `max`, and Astra at `low`, `medium`, or `high`. GLM routes run
-through the Claude CLI with the configured GLM profile whichever host leads; that
-is their normal path, not a fallback, and being absent from a host's native model
-list does not make them unavailable. When Claude Code leads, strong reviews use
-the Codex Astra CLI route below; Fable follows through the Claude CLI with explicit `--effort` only after the Astra
-route has a recorded reason for escalation. Record requested and observed effort
-separately.
+`xhigh`, Luna at `max`, and Astra at `low`, `medium`, or `high`. When Claude Code
+leads, strong reviews use the Codex Astra CLI route below; Fable follows through the
+Claude CLI with explicit `--effort` only after the Astra route has a recorded reason
+for escalation. Record requested and observed effort separately.
 
 Strong reviewers examine the original requirements, relevant source, raw evidence,
 architecture, cross-story effects, omissions, and drift. Cheap helpers may collect
@@ -77,7 +83,7 @@ independent work between waits.
 ## Direct CLI routes
 
 Use these when the host's native interface cannot deliver the selected model,
-effort or required access (every GLM route, and cross-provider routes), under
+effort or required access (helper and cross-provider routes), under
 existing provider authorization. Set `PROJECT`, `PROMPT`, and `OUTPUT` to explicit,
 task-specific paths. Use the project directly when its readable scope is appropriate;
 otherwise set `PROJECT` to a prepared workspace containing only the required source
@@ -85,10 +91,11 @@ and evidence. Exclude credentials and unrelated private data, and keep `OUTPUT`
 outside the tracked working tree.
 
 A Codex lead's workspace sandbox has no network and blocks some local sockets:
-Claude CLI and GLM routes fail with `EAI_AGAIN`, and test gates using Git, sockets or
+Claude CLI and helper routes fail with `EAI_AGAIN`, and test gates using Git, sockets or
 a browser fail with `EPERM` or hang. Run those commands escalated from the first
 attempt (`sandbox_permissions: "require_escalated"`), with a justification naming the
-destination, the payload class and the owner's dev-auto request. A sandbox failure is
+actual provider (not just the script), the readable payload and the owner's dev-auto
+request. A sandbox failure is
 not a route failure: retry the same tier escalated, not the next tier. When the
 approval reviewer refuses, never work around it; ask the owner as SKILL.md describes.
 
@@ -121,126 +128,28 @@ claude -p --model fable --effort medium --output-format json \
   < "$PROMPT" > "$OUTPUT"
 ```
 
-The configured GLM profile is `~/.claude-glm/env.sh`. It contains credentials: do
-not read, print, copy, or trace it. The CLI accepts these provider model names
-through Claude aliases, so set the non-secret alias values explicitly after sourcing
-the profile and inspect the receipt for the actual model. A tools-disabled routine
-review is:
+Helper routes, where `SKILL_DIR` is this skill's directory:
 
 ```bash
-(
-  set +x
-  source "$HOME/.claude-glm/env.sh" || exit 1
-  export ANTHROPIC_DEFAULT_SONNET_MODEL=GLM-5.3-Flash
-  claude -p --model sonnet --effort max --output-format json \
-    --tools '' --permission-mode dontAsk --safe-mode --no-session-persistence \
-    --strict-mcp-config --mcp-config '{"mcpServers":{}}' \
-  < "$PROMPT" > "$OUTPUT"
-)
+"$SKILL_DIR/scripts/helper.sh" review fast "$PROJECT" "$PROMPT" "$OUTPUT"
+"$SKILL_DIR/scripts/helper.sh" edit strong "$PROJECT" "$PROMPT" "$OUTPUT" 'python3 -m unittest -q'
 ```
 
-Wait for the terminal receipt: this route can emit an early
-`unrecognized_model` diagnostic and still complete successfully.
-
-For the complex bounded tier (debugging, a hard focused review), set
-`ANTHROPIC_DEFAULT_OPUS_MODEL=GLM-5.3` after sourcing and use the `opus` alias at
-`max` in the same command shape. Do not import legacy the earlier workflow wrappers or agent
-definitions.
-
-Edit-capable GLM implementation (the Implement rows; for Implement-complex use the
-`opus` alias with `ANTHROPIC_DEFAULT_OPUS_MODEL=GLM-5.3`). Set `PROJECT` to the
-directory the helper owns. Scope every file rule: unscoped `Read` or `Write` rules
-reach any path, and on 2026-09-22 both GLM models wrote outside their folder until
-the rules below replaced them. `Edit(...)` also governs `Write`, and `Read(...)`
-also governs `Glob` and `Grep`. Deny the project's secret files explicitly, and
-make the `Bash` rule the exact check the helper may run.
-
-```bash
-(
-  set +x
-  cd "$PROJECT" || exit 1
-  source "$HOME/.claude-glm/env.sh" || exit 1
-  export ANTHROPIC_DEFAULT_SONNET_MODEL=GLM-5.3-Flash
-  claude -p --model sonnet --effort max --output-format json \
-    --safe-mode --tools 'Read,Edit,Write,Glob,Grep,Bash' \
-    --allowedTools 'Read(./**)' 'Edit(./**)' 'Bash(python3 -m unittest -q)' \
-    --disallowedTools 'Read(./**/.env*)' 'Edit(./**/.env*)' \
-    --permission-mode dontAsk --no-session-persistence \
-    --strict-mcp-config --mcp-config '{"mcpServers":{}}' --max-turns 40 \
-    --settings '{"sandbox":{"enabled":true,"failIfUnavailable":true,"allowUnsandboxedCommands":false,"network":{"allowedDomains":[]}}}' \
-    < "$PROMPT" > "$OUTPUT"
-)
-```
-
-Exercised 2026-09-22 on a synthetic project with both GLM models: each fixed the
-defect and ran its test, and writes, reads and greps outside
-`PROJECT` plus reads and edits of its `.env` were denied and listed in the
-receipt's `permission_denials`. Real-project implementation quality is not yet
-measured.
+`review` reads, `edit` also edits, and the optional last argument is the one exact
+check command the helper may run. The script confines the file tools to `PROJECT`,
+denies its `.env*` files and allows no other command than the check, which runs as
+written in Claude's sandbox without network. Everything the helper reads reaches the
+provider: set `PROJECT` to the directory the helper may read or own, and to a
+sanitized workspace whenever the project holds data restricted from that provider
+(customer text, production records); if none can be prepared, skip the helper and
+recheck restrictions after a provider switch. Its first lines name the
+provider's credentials file and `fast`/`strong` models (currently
+`~/.claude-glm/env.sh`, GLM-5.3-Flash and GLM-5.3); never read, print, copy or trace
+that file. Switching provider means editing those lines and rerunning the checks
+the script names. Wait for the terminal receipt: the route can print an early
+`unrecognized_model` diagnostic and still complete. Live probes: `docs/verification.md`.
 
 ## Browser-enabled review
 
-Reviews run without a browser by default. Use these variants only for a named UI
-acceptance question with lead-supplied local URLs; the lead starts and stops the
-app. Set `ORIGIN` to that origin (for example `http://127.0.0.1:3000`). Earlier variants
-were exercised on 2026-09-18: the reviewer read a local page and another origin was
-blocked. The subsequent Codex server-clearing change has configuration-only proof;
-its live browser dispatch remains UNVERIFIED (see `docs/verification.md` in the checkout).
-Playwright's origin filter is a
-convenience, not a security boundary: it does not cover redirects, and a local
-page can itself call remote APIs, so never point a reviewer at production and
-supply no production credentials or personal browser profile. Browser actions can
-mutate test data even though the shell stays read-only.
-
-Codex, invocation-local MCP (no global registration; the routine route above stays
-browser-free):
-
-```bash
-codex exec --skip-git-repo-check -C "$PROJECT" \
-  -m gpt-6-astra -c model_reasoning_effort=medium --sandbox read-only --json \
-  -c 'mcp_servers={}' \
-  -c 'mcp_servers.playwright.command="npx"' \
-  -c "mcp_servers.playwright.args=[\"--offline\",\"@playwright/mcp@0.0.75\",\"--headless\",\"--isolated\",\"--allowed-origins\",\"$ORIGIN\"]" \
-  -o "$OUTPUT" - < "$PROMPT"
-```
-
-Under `--sandbox read-only` the shell has no network, but the MCP server runs
-outside the sandbox and can reach the local app. Clear configured servers before
-adding Playwright. On first use or after integration changes, inspect the reviewer's
-available tools, including plugins; only the intended MCP tools should be available.
-
-Claude (`--tools ''` keeps built-ins off but leaves MCP tools available; do not
-add `--safe-mode`, which disables MCP servers):
-
-```bash
-claude -p --model fable --effort medium --output-format json \
-  --tools '' --permission-mode dontAsk --no-session-persistence \
-  --strict-mcp-config --mcp-config "{\"mcpServers\":{\"playwright\":{\"command\":\"npx\",\"args\":[\"--offline\",\"@playwright/mcp@0.0.75\",\"--headless\",\"--isolated\",\"--allowed-origins\",\"$ORIGIN\"]}}}" \
-  --allowedTools 'mcp__playwright__browser_navigate,mcp__playwright__browser_snapshot,mcp__playwright__browser_click,mcp__playwright__browser_type,mcp__playwright__browser_fill_form,mcp__playwright__browser_take_screenshot,mcp__playwright__browser_console_messages,mcp__playwright__browser_close' \
-  < "$PROMPT" > "$OUTPUT"
-```
-
-`--allowedTools` is variadic: keep it before the stdin redirection and never
-follow it with a positional prompt. Inspect the response/receipt for the actual model, effort, errors,
-and limitations, and record those facts in the handoff.
-
-For bounded test work, this route was exercised with a scoped working directory,
-Claude's native sandbox, no network, and one exact allowed command. Keep `PROJECT`,
-`PROMPT`, and `OUTPUT` absolute; change the command only when that different check
-falls within the authorized task, and make `--allowedTools` match it exactly.
-
-```bash
-(
-  set +x
-  cd "$PROJECT" || exit 1
-  source "$HOME/.claude-glm/env.sh" || exit 1
-  export ANTHROPIC_DEFAULT_SONNET_MODEL=GLM-5.3-Flash
-  claude -p --model sonnet --effort max --output-format json \
-    --safe-mode --tools Bash \
-    --allowedTools 'Bash(python3 -m unittest discover -s tests -v)' \
-    --permission-mode dontAsk --no-session-persistence \
-    --strict-mcp-config --mcp-config '{"mcpServers":{}}' --max-turns 8 \
-    --settings '{"sandbox":{"enabled":true,"failIfUnavailable":true,"allowUnsandboxedCommands":false,"network":{"allowedDomains":[]}}}' \
-    < "$PROMPT" > "$OUTPUT"
-)
-```
+Reviews run without a browser by default. For a named UI acceptance question with
+lead-supplied local URLs, use [browser-review.md](browser-review.md).
