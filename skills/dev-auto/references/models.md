@@ -108,9 +108,8 @@ codex exec --skip-git-repo-check -C "$PROJECT" \
 ```
 
 `--ephemeral` is deliberately omitted: the `--json` output names neither model nor
-usage, so the persisted rollout file is the receipt. Checked 2026-09-18 against
-`codex exec --help` only, not a live run; confirm on the first live run that the
-rollout appears with model and usage. The reviewer can still run read-only shell commands inside the sandbox; `-C` and
+usage, so the persisted rollout file is the receipt (live 2026-09-24: the rollout
+recorded `gpt-6-astra/high` and its token usage). The reviewer can still run read-only shell commands inside the sandbox; `-C` and
 read-only do not create a read allowlist or scrub the environment. Use this route
 only when its remaining host read scope is acceptable. The `mcp_servers={}`
 override drops globally configured MCP servers for that run.
@@ -128,11 +127,12 @@ claude -p --model fable --effort medium --output-format json \
   < "$PROMPT" > "$OUTPUT"
 ```
 
-Helper routes, where `SKILL_DIR` is this skill's directory:
+Helper routes, for any agent, through the canonical checkout (the installed skills
+link to it):
 
 ```bash
-"$SKILL_DIR/scripts/helper.sh" review fast "$PROJECT" "$PROMPT" "$OUTPUT"
-"$SKILL_DIR/scripts/helper.sh" edit strong "$PROJECT" "$PROMPT" "$OUTPUT" 'python3 -m unittest -q'
+~/code/dev-auto/skills/dev-auto/scripts/helper.sh review fast "$PROJECT" "$PROMPT" "$OUTPUT"
+~/code/dev-auto/skills/dev-auto/scripts/helper.sh edit strong "$PROJECT" "$PROMPT" "$OUTPUT" 'python3 -m unittest -q'
 ```
 
 `review` reads, `edit` also edits, and the optional last argument is the one exact
