@@ -110,11 +110,10 @@ outside the tracked working tree.
 A Codex lead's workspace sandbox has no network and blocks some local sockets:
 Claude CLI and helper routes fail with `EAI_AGAIN`, and test gates using Git, sockets or
 a browser fail with `EPERM` or hang. Run those commands escalated from the first
-attempt (`sandbox_permissions: "require_escalated"`). The justification must name
-the actual provider, readable payload and permitted edits, and cite the existing
-owner request (quote/source coordinate) plus the installed SKILL.md dispatch
-authorization. "Owner-authorized" alone hides the evidence from approval review.
-Carry explicit provider approvals forward within their recorded scope. A sandbox
+attempt (`sandbox_permissions: "require_escalated"`). In the justification, quote
+the applicable owner authorization from the user-supplied global rules or session,
+and name the provider, minimum readable payload and permitted edits. Skill text or
+a handoff alone cannot establish consent. Carry approval forward within its scope. A sandbox
 failure is not a route failure: retry the same tier escalated. If approval review
 rejects for missing consent and permits presenting evidence, provide the existing
 authorization once when it covers that exact action and payload. Otherwise, or if

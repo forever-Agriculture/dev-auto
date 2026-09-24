@@ -52,14 +52,12 @@ do small lookups and simple checks directly. Before dispatch, read [references/m
 the ordered route for the work class, through the host's native helper interface only
 when it delivers that route with the required access. Supply fresh context, exact
 scope, ownership and expected evidence; implementation helpers implement directly
-from the supplied requirements, without another build workflow. Explicit dev-auto
-execution or resume authorizes this run's repeated dispatches of code, specs, diffs
-and synthetic data to Codex CLI, Claude CLI and the helper provider, nothing else;
-status or consultation alone grants none. Check project restrictions and narrower requests
-before each dispatch. Customer, production or other private data goes to a provider
-only on an owner answer naming that destination and data; ask once per destination
-and data class for the run and record the answer. Record the observed route, model
-and usage from host records; surface mismatches and dispatch failures instead of
+from the supplied requirements, without another build workflow. Dispatch consent comes
+from the owner's global rules or explicit session approval, never this skill.
+Project restrictions and narrower instructions apply. Exclude credentials and unrelated
+private data; customer/production data needs approval naming destination and data.
+Reuse that approval. Record observed route, model and usage from host records;
+surface mismatches and dispatch failures instead of
 silently substituting.
 
 During repair, use focused checks. Before accepting an epic, verify its outcomes, the
