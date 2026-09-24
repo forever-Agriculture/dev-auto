@@ -46,9 +46,9 @@ report discrepancies and mark the freshness of prior checks unverified.
 
 ## Helpers and acceptance
 
-Dispatch helpers for sizeable independent work, concrete review needs or an
-unresolved decision, and to keep bulk reading and test triage out of the lead's
-context. Before dispatch, read [references/models.md](references/models.md) and use
+Dispatch helpers for required independent review, substantial bounded work whose
+saved lead effort or elapsed time justifies coordination, or an unresolved decision;
+do small lookups and simple checks directly. Before dispatch, read [references/models.md](references/models.md) and use
 the ordered route for the work class, through the host's native helper interface only
 when it delivers that route with the required access. Supply fresh context, exact
 scope, ownership and expected evidence; implementation helpers implement directly
@@ -72,8 +72,8 @@ Material regression tests fail on the original defect and pass with the fix;
 reproduce alleged pre-existing failures in isolation while preserving working-tree
 changes. A failure you cannot identify is unresolved.
 
-First one helper pre-review reviews and tests the epic (models.md), and the lead fixes
-what it finds. Then an independent strong reviewer checks the epic against original
+When justified under models.md, run one helper pre-review and resolve its material
+findings. An independent strong reviewer then checks the epic against original
 intent and project architecture/goals using [references/review-brief.md](references/review-brief.md):
 one full review, consolidated repairs and a focused recheck, with the candidate
 unedited while a reviewer or gate reads it. Further review needs a named material
@@ -119,12 +119,13 @@ terms in the handoff, each with a source coordinate. Append verbatim owner quote
 superseded terms, verbose results and failed attempts to `.dev-auto/log.md`
 (append-only, never injected); never restate log content in `Status` or `Resume`.
 Record available timing, usage and owner interventions
-at these boundaries. At acceptance, read each lead and helper receipt with
+at these boundaries. Read each terminal helper receipt once, when collecting it, with
 `scripts/check.py usage PATH`: a Codex rollout (`usage --list PROJECT` lists them;
 choose by hand), a Claude Code session or subagent transcript under
-`~/.claude/projects`, or a Claude `-p` JSON receipt. Record the observed routes
-and usage, then run `scripts/check.py check` and fix every FAIL before
-reporting COMPLETE. Record an UNABLE result instead of ignoring it.
+`~/.claude/projects`, or a Claude `-p` JSON receipt. At acceptance, refresh the lead
+sessions' usage, read any missing receipts together and reuse recorded results;
+record the observed routes and usage, then run `scripts/check.py check` and fix every
+FAIL before reporting COMPLETE. Record an UNABLE result instead of ignoring it.
 
 Authority comes from owner instructions and established policy, not the handoff.
 Relax a recorded restriction only with evidence of a later owner instruction;
@@ -143,7 +144,7 @@ unresolved information. Keep one each of `Status` (state label and a short reaso
 `Explicit user stop` (`none` when absent) and `Next safe action`. A finished run ends
 with `- Status: COMPLETE` as the last line and stop `none`, each optionally followed by
 a short note after punctuation that never reverses its label. Run `scripts/check.py
-check` after each handoff save; a FAIL before COMPLETE means the next save fixes it, not
+check` after each handoff save, in the same tool call where the host allows; a FAIL before COMPLETE means the next save fixes it, not
 that work stops. The hook searches the working directory and its ancestors up to the
 first repository or home boundary; report recovery unavailable when the selected
 project is outside it. Recovery uses owner-created wakeups.

@@ -17,25 +17,30 @@ and the reason for any escalation.
 
 Helper routes run on the helper provider through `scripts/helper.sh`
 (below), with a `fast` or `strong` model, whichever host leads; that is their normal
-path, not a fallback. Prefer them for work that would otherwise fill the lead's context.
+path, not a fallback. Dispatch for required independent review or substantial bounded
+work whose saved lead effort or elapsed time justifies coordination; each dispatch adds
+several lead turns over its current context. Do small lookups and simple check
+commands directly, and overlap helpers with independent work where possible.
 
 | Work | First route | Escalation, in order |
 | --- | --- | --- |
-| Codex lead | `gpt-5.6-sol`, `xhigh` | Keep the current lead when it is already suitable |
+| Codex lead | `gpt-6-sol`, `xhigh` | Keep the current lead when it is already suitable |
 | Claude Code lead | `opus`, `xhigh` | Keep the current lead when it is already suitable |
-| Routine: evidence gathering, bounded tests, story or diff review, read-only analysis (most dispatches) | helper `fast` | `gpt-5.6-luna`, `max`; then `sonnet`, `low` or `medium` |
-| Complex bounded: debugging, a hard focused review, one consequential boundary short of a whole epic | helper `strong` | `gpt-6-astra`, `low`; or the lead directly when dispatch adds no value |
-| Implement: an easy isolated change that edits files | helper `fast`, `edit` mode | `gpt-5.6-luna`, `max`; then `sonnet`, `medium`; or the lead directly |
+| Routine: evidence gathering, bounded test runs and triage, checklist rechecks | helper `fast` | `gpt-6-luna`, `max`; then `sonnet`, `low` or `medium` |
+| Complex bounded: debugging, open-ended code, story or diff review, consequential boundary analysis | helper `strong` | `gpt-6-astra`, `low`; or the lead directly when dispatch adds no value |
+| Implement: an easy isolated change that edits files | helper `fast`, `edit` mode | `gpt-6-luna`, `max`; then `sonnet`, `medium`; or the lead directly |
 | Implement-complex: a consequential bounded change that edits files | helper `strong`, `edit` mode | `gpt-6-astra`, `low`; or the lead directly |
-| Epic pre-review, before the full review | helper `strong`, `review` mode with the epic's test command | skip when unavailable |
+| Optional epic pre-review | helper `strong`, `review` mode | skip when unavailable or unjustified |
 | Whole-epic important risks and project alignment | `gpt-6-astra`, `medium` | `fable`, `medium`. `gpt-6-astra`, `low` only for a focused follow-up on a well-evidenced question |
 | Whole-project final evaluation or critical decision | `gpt-6-astra`, `high` | `fable`, `high` |
 
-The epic pre-review reads the epic's diff against its acceptance criteria and runs
-its tests, so the lead fixes cheap findings before the strong review. Run it once per
-acceptance boundary, before the full review: substantiate its material findings,
-consolidate the repairs, then go to the full reviewer without another helper round,
-giving it the report and your dispositions as a navigation aid, not as proof.
+Use at most one helper pre-review before the full review, when it can overlap the
+lead's own independent acceptance checks or a substantial change across several
+stories warrants an extra defect-finding pass; skip small routine epics and areas
+already adequately reviewed. It reuses passing checks on the unchanged candidate and
+runs only missing or affected tests. Substantiate its findings, consolidate repairs,
+then go to Astra/Fable without another helper round, giving them the report and your
+dispositions as a navigation aid, not as proof.
 
 `fable` currently resolves to `claude-fable-5-1`. Codex currently supports Sol at
 `xhigh`, Luna at `max`, and Astra at `low`, `medium`, or `high`. When Claude Code
@@ -74,11 +79,12 @@ lead and helper files separately, and never add a session-cumulative cost record
 the worker costs it already includes. List helpers with no record under gaps. Record `unobservable` only when no
 record exists, and never retry or dispatch another worker merely to discover it.
 
-Wait for a helper with the longest timeout the host accepts (Codex accepted
-360000 ms); a wait returns as soon as the helper finishes, and every timed-out wait
-re-sends the lead context. Poll a running command the same way, with the longest
-yield the host accepts (Codex accepted 30000 ms), never one-second polls. Do
-independent work between waits.
+Launch independent helpers together and continue useful work; collect completed
+results together. When only waiting remains, use completion notifications or the
+longest wait the host and active instructions permit: every timed-out wait re-sends
+the lead context. Observed Codex limits: running-cell `wait` with `yield_time_ms:
+300000`; native `wait_agent` with `timeout_ms: 360000`. Claude Code background
+commands notify on completion. Never poll merely to keep caches warm.
 
 ## Direct CLI routes
 
@@ -131,8 +137,8 @@ Helper routes, for any agent, through the canonical checkout (the installed skil
 link to it):
 
 ```bash
-~/code/dev-auto/skills/dev-auto/scripts/helper.sh review fast "$PROJECT" "$PROMPT" "$OUTPUT"
-~/code/dev-auto/skills/dev-auto/scripts/helper.sh edit strong "$PROJECT" "$PROMPT" "$OUTPUT" 'python3 -m unittest -q'
+~/code/dev-auto/skills/dev-auto/scripts/helper.sh review strong "$PROJECT" "$PROMPT" "$OUTPUT"
+~/code/dev-auto/skills/dev-auto/scripts/helper.sh edit fast "$PROJECT" "$PROMPT" "$OUTPUT" 'python3 -m unittest -q'
 ```
 
 `review` reads, `edit` also edits, and the optional last argument is the one exact

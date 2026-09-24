@@ -16,7 +16,6 @@
 - Implemented:
 - Associated loop (optional; host and native loop/task ID):
 - Active native helpers (ID, route, scope, ownership, state):
-- Collected terminal helper results:
 
 ## Decisions and findings
 

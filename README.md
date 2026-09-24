@@ -66,7 +66,7 @@ Start Codex in the project with the chosen lead model:
 
 ```bash
 cd /path/to/your-project
-codex -m gpt-5.6-sol -c model_reasoning_effort=xhigh
+codex -m gpt-6-sol -c model_reasoning_effort=xhigh
 ```
 
 Then invoke the shared skill:
@@ -101,7 +101,7 @@ When the session runs inside BMN (the owner's terminal cockpit), the skill mirro
 
 Reviewers run without a browser by default. For a named UI acceptance question the lead may dispatch a browser-enabled review that uses the Playwright MCP against lead-supplied local URLs only; see the [browser review reference](skills/dev-auto/references/browser-review.md).
 
-The lead chooses helpers only for concrete bounded needs and follows ordered routes. Routine work (evidence gathering, bounded tests, story or diff review) and the complex bounded tier (debugging, a hard focused review) start on the helper provider's fast or strong model, then Codex Luna/max or Astra/low; small implementations start there too, in an edit mode confined to the helper's directory. Each epic normally gets one helper pre-review that reviews and runs its tests before the strong full review, which stays Astra/medium then Fable/medium; project evaluation is Astra/high then Fable/high. A sufficient result ends the dispatch; escalate only after a specific failure, an unresolved question or a task the first route cannot do. See the [routing reference](skills/dev-auto/references/models.md) for exact routes.
+The lead dispatches helpers only for required independent review or substantial bounded work that saves it real effort or elapsed time, and does small lookups itself; each dispatch costs the lead several turns over its whole context. Evidence gathering, test runs and checklist rechecks start on the helper provider's fast model; debugging and open-ended code review on its strong model; then Codex Luna/max or Astra/low. Small implementations start there too, in an edit mode confined to the helper's directory. An optional helper pre-review may precede the strong full review of a larger epic, which stays Astra/medium then Fable/medium; project evaluation is Astra/high then Fable/high. A sufficient result ends the dispatch; escalate only after a specific failure, an unresolved question or a task the first route cannot do. See the [routing reference](skills/dev-auto/references/models.md) for exact routes.
 
 Helper routes run through `skills/dev-auto/scripts/helper.sh`, even when Codex is the lead; its first lines name the provider's Claude Code env file and fast/strong models (currently Z.ai GLM-5.3-Flash and GLM-5.3), so switching provider is a three-line change. Credentials are never part of this repository. An unavailable route is reported; no silent model or effort substitution.
 
