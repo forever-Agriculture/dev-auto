@@ -1,10 +1,10 @@
 # Model and dispatch reference
 
 These identifiers, supported effort values, and CLI options were verified locally
-on 2026-09-17 and 2026-09-18. That does not prove every route completed a live call. Recheck
-availability and inspect the actual receipt when practical; never claim a route or
-effort level from the prompt alone. External CLIs require configured, authorized
-access.
+on 2026-09-17 and 2026-09-18, the `gpt-6` IDs on 2026-09-24. That does not prove
+every route completed a live call. Recheck availability and inspect the actual
+receipt when practical; never claim a route or effort level from the prompt alone.
+External CLIs require configured, authorized access.
 
 ## Capability routing
 
@@ -17,10 +17,11 @@ and the reason for any escalation.
 
 Helper routes run on the helper provider through `scripts/helper.sh`
 (below), with a `fast` or `strong` model, whichever host leads; that is their normal
-path, not a fallback. Dispatch for required independent review or substantial bounded
-work whose saved lead effort or elapsed time justifies coordination; each dispatch adds
-several lead turns over its current context. Do small lookups and simple check
-commands directly, and overlap helpers with independent work where possible.
+path, not a fallback. Dispatch for required independent review, substantial bounded
+work whose saved lead effort or elapsed time justifies coordination, or an unresolved
+decision; each dispatch adds several lead turns over its current context. Do small
+lookups and simple check commands directly, and overlap helpers with independent
+work where possible.
 
 | Work | First route | Escalation, in order |
 | --- | --- | --- |
