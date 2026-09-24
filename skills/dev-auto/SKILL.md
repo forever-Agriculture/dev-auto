@@ -55,7 +55,7 @@ scope, ownership and expected evidence; implementation helpers implement directl
 from the supplied requirements, without another build workflow. Explicit dev-auto
 execution or resume authorizes this run's repeated dispatches of code, specs, diffs
 and synthetic data to Codex CLI, Claude CLI and the helper provider, nothing else;
-status or consultation grants none. Check project restrictions and narrower requests
+status or consultation alone grants none. Check project restrictions and narrower requests
 before each dispatch. Customer, production or other private data goes to a provider
 only on an owner answer naming that destination and data; ask once per destination
 and data class for the run and record the answer. Record the observed route, model

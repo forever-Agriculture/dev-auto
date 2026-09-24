@@ -7,7 +7,7 @@ check [PROJECT]     lint .dev-auto/handoff.md. At any status: size within the re
                     stop and Next safe action field, and a short Status. At COMPLETE also:
                     placeholder text in the model/usage fields, any tracked .dev-auto file
                     besides the handoff and log.
-usage PATH          print model, effort and usage from one Codex rollout (.jsonl),
+usage PATH          print model, effort, Codex permission settings and usage from a rollout (.jsonl),
                     one Claude Code session or subagent transcript (.jsonl under
                     ~/.claude/projects), or one Claude ``--output-format json``
                     receipt (.json).
@@ -146,6 +146,7 @@ def check(project: Path) -> int:
 
 def read_rollout(path: Path) -> dict:
     meta, routes, usage, first, last = {}, [], None, None, None
+    permissions = []
     with path.open(encoding="utf-8", errors="replace") as handle:
         for line in handle:
             try:
@@ -164,10 +165,15 @@ def read_rollout(path: Path) -> dict:
                 route = (payload.get("model") or "unavailable", payload.get("effort") or "unavailable")
                 if route not in routes:
                     routes.append(route)
+                policy = {k: payload.get(k) or "unavailable"
+                          for k in ("sandbox_policy", "approval_policy")}
+                if policy not in permissions:
+                    permissions.append(policy)
             elif kind == "event_msg" and payload.get("type") == "token_count":
                 usage = (payload.get("info") or {}).get("total_token_usage") or usage
     return {"source": str(path), **meta, "first": first, "last": last,
             "routes": [f"{m}/{e}" for m, e in routes] or ["unavailable"],
+            "permissions": permissions or ["unavailable"],
             "total_token_usage": usage or "unavailable"}
 
 

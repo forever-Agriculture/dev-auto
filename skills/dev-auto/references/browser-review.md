@@ -18,6 +18,7 @@ stay browser-free):
 ```bash
 codex exec --skip-git-repo-check -C "$PROJECT" \
   -m gpt-6-astra -c model_reasoning_effort=medium --sandbox read-only --json \
+  -c 'approval_policy="never"' \
   -c 'mcp_servers={}' \
   -c 'mcp_servers.playwright.command="npx"' \
   -c "mcp_servers.playwright.args=[\"--offline\",\"@playwright/mcp@0.0.75\",\"--headless\",\"--isolated\",\"--allowed-origins\",\"$ORIGIN\"]" \

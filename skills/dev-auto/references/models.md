@@ -61,10 +61,15 @@ prohibited actions, expected checks, and a required concise result. Keep overlap
 writers serial. Host permissions remain authoritative. Do not use bypass-permissions modes or
 claim that prompt restrictions enforce access.
 
-Separate read-only review from implementation and safe test work. A reviewer can
-use read tools or receive a deliberately prepared source packet. An implementation
-helper uses suitably confined tools with only the workspace access required by its
-owned files.
+Separate read-only review from implementation and safe test work. Native Codex
+helpers inherit the lead's sandbox: a fresh context and a "read-only" prompt do
+not remove write access. Use the CLI `--sandbox read-only` with
+`approval_policy=never` below for reviews unless equivalent native restrictions
+are established. Read-only with `on-request` allowed an `apply_patch` write in the
+2026-09-24 probe; `never` denied it. Check the child receipt's sandbox and approval
+policy along with its model; do not label a writable child
+read-only. An implementation helper needs write access to its assigned workspace;
+file ownership in its brief coordinates writers, it does not enforce an allowlist.
 
 Observe the actual model, effort and usage from host records instead of guessing.
 Codex writes every session, including `codex exec` runs and native helpers, to
@@ -73,7 +78,8 @@ Codex writes every session, including `codex exec` runs and native helpers, to
 `total_token_usage`; Claude Code `-p --output-format json` receipts carry `modelUsage`
 and `total_cost_usd`. Claude Code writes the lead session and each native helper as separate transcripts
 under `~/.claude/projects/<project>/` (`<session>.jsonl`, `subagents/agent-*.jsonl`).
-`scripts/check.py usage PATH` prints these fields from one rollout, transcript or
+`scripts/check.py usage PATH` prints these fields (including Codex permission
+settings) from one rollout, transcript or
 receipt: for a transcript it keeps the final usage of each API response and sums by
 model; one session's counter is that session's usage, not the epic's total. Read
 lead and helper files separately, and never add a session-cumulative cost record to
@@ -81,11 +87,15 @@ the worker costs it already includes. List helpers with no record under gaps. Re
 record exists, and never retry or dispatch another worker merely to discover it.
 
 Launch independent helpers together and continue useful work; collect completed
-results together. When only waiting remains, use completion notifications or the
-longest wait the host and active instructions permit: every timed-out wait re-sends
-the lead context. Observed Codex limits: running-cell `wait` with `yield_time_ms:
-300000`; native `wait_agent` with `timeout_ms: 360000`. Claude Code background
-commands notify on completion. Never poll merely to keep caches warm.
+results together. A short initial yield is useful when independent work remains.
+When only waiting remains, use completion notifications or the longest wait the
+host and active instructions permit. For Codex process sessions, use `write_stdin`
+with empty `chars` and an explicit long `yield_time_ms` (up to 300000, subject to
+any stricter instruction). The 30000 limit on the initial `exec_command` does not
+limit `write_stdin`. If the enclosing `exec` yields a running cell, wait on that
+cell; do not also poll its process. Native helpers use `wait_agent`; Claude Code
+background commands notify on completion. Repeated 1000/30000 process polls when
+a longer wait is permitted waste lead turns; never poll to keep caches warm.
 
 ## Direct CLI routes
 
@@ -100,17 +110,24 @@ outside the tracked working tree.
 A Codex lead's workspace sandbox has no network and blocks some local sockets:
 Claude CLI and helper routes fail with `EAI_AGAIN`, and test gates using Git, sockets or
 a browser fail with `EPERM` or hang. Run those commands escalated from the first
-attempt (`sandbox_permissions: "require_escalated"`), with a justification naming the
-actual provider (not just the script), the readable payload and the owner's dev-auto
-request. A sandbox failure is
-not a route failure: retry the same tier escalated, not the next tier. When the
-approval reviewer refuses, never work around it; ask the owner as SKILL.md describes.
+attempt (`sandbox_permissions: "require_escalated"`). The justification must name
+the actual provider, readable payload and permitted edits, and cite the existing
+owner request (quote/source coordinate) plus the installed SKILL.md dispatch
+authorization. "Owner-authorized" alone hides the evidence from approval review.
+Carry explicit provider approvals forward within their recorded scope. A sandbox
+failure is not a route failure: retry the same tier escalated. If approval review
+rejects for missing consent and permits presenting evidence, provide the existing
+authorization once when it covers that exact action and payload. Otherwise, or if
+still rejected, report the stated reason and request the missing approval; never
+change routes or permissions to evade a refusal. These instructions cannot
+guarantee automatic approval.
 
 Read-only Codex review:
 
 ```bash
 codex exec --skip-git-repo-check -C "$PROJECT" \
   -m gpt-6-astra -c model_reasoning_effort=medium -c 'mcp_servers={}' \
+  -c 'approval_policy="never"' \
   --sandbox read-only --json -o "$OUTPUT" - < "$PROMPT"
 ```
 

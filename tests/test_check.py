@@ -266,8 +266,25 @@ class UsageTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout)
             info = json.loads(result.stdout)
         self.assertEqual(info["routes"], ["gpt-5.6-sol/xhigh"])
+        self.assertEqual(info["permissions"], [{"sandbox_policy": "unavailable", "approval_policy": "unavailable"}])
         self.assertEqual(info["total_token_usage"], {"total_tokens": 42})
         self.assertEqual((info["id"], info["cwd"], info["last"]), ("abc", "/p", "2026-09-19T10:05:00Z"))
+
+    def test_rollout_reports_permission_changes_without_hiding_write_access(self) -> None:
+        policies = [
+            {"sandbox_policy": {"type": "workspace-write", "network_access": False}, "approval_policy": "on-request"},
+            {"sandbox_policy": {"type": "read-only"}, "approval_policy": "on-request"},
+            {"sandbox_policy": {"type": "read-only"}, "approval_policy": "never"},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rollout-x.jsonl"
+            rows = rollout_lines("/p")
+            for policy in [*policies, policies[0]]:
+                rows.append(json.dumps({"type": "turn_context", "payload": policy}))
+            path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+            info = json.loads(run("usage", str(path)).stdout)
+        self.assertEqual(info["permissions"], [
+            {"sandbox_policy": "unavailable", "approval_policy": "unavailable"}, *policies])
 
     def test_list_skips_rollout_whose_first_line_is_not_an_object(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
