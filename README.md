@@ -30,6 +30,11 @@ The hook (`hooks/dev-auto-session-start.py`) runs on `SessionStart` with matcher
 
 Keep the checkout in place. Both links use the same files, so edits stay synchronized. Existing conflicting files/links are preserved rather than overwritten. Start a fresh client session after installation or policy changes; already-loaded instructions may be stale.
 
+The helper wrapper exposes scoped file tools only. GLM can review and
+edit code and tests; the lead runs commands and supplies sanitized results. The old
+optional CHECK argument is rejected: even an exact sandboxed test command could
+read outside the project and expose inherited environment values.
+
 ## Claude Code
 
 Start Claude Code in the project to develop, with the chosen lead model:
@@ -101,7 +106,7 @@ When the session runs inside BMN (the owner's terminal cockpit), the skill mirro
 
 Reviewers run without a browser by default. For a named UI acceptance question the lead may dispatch a browser-enabled review that uses the Playwright MCP against lead-supplied local URLs only; see the [browser review reference](skills/dev-auto/references/browser-review.md).
 
-The lead dispatches helpers only for required independent review or substantial bounded work that saves it real effort or elapsed time, and does small lookups itself; each dispatch costs the lead several turns over its whole context. Evidence gathering, test runs and checklist rechecks start on the helper provider's fast model; debugging and open-ended code review on its strong model; then Codex Luna/max or Astra/low. Small implementations start there too, in an edit mode confined to the helper's directory. When it pays, one optional helper pre-review may precede the strong full review of a larger epic, which stays Astra/medium then Fable/medium; project evaluation is Astra/high then Fable/high. A sufficient result ends the dispatch; escalate only after a specific failure, an unresolved question or a task the first route cannot do. See the [routing reference](skills/dev-auto/references/models.md) for exact routes.
+The lead dispatches helpers only for required independent review or substantial bounded work that saves it real effort or elapsed time, and does small lookups itself; each dispatch costs the lead several turns over its whole context. Evidence gathering, test-result triage and checklist rechecks start on the helper provider's fast model; debugging and open-ended code review on its strong model; then Codex Luna/max or Astra/low. Small implementations start there too, in an edit mode confined to the helper's directory. When it pays, one optional helper pre-review may precede the strong full review of a larger epic, which stays Astra/medium then Fable/medium; project evaluation is Astra/high then Fable/high. A sufficient result ends the dispatch; escalate only after a specific failure, an unresolved question or a task the first route cannot do. See the [routing reference](skills/dev-auto/references/models.md) for exact routes.
 
 Helper routes run through `skills/dev-auto/scripts/helper.sh`, even when Codex is the lead; its first lines name the provider's Claude Code env file and fast/strong models (currently Z.ai GLM-5.3-Flash and GLM-5.3), so switching provider is a three-line change. Credentials are never part of this repository. An unavailable route is reported; no silent model or effort substitution.
 

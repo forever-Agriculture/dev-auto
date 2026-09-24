@@ -27,7 +27,7 @@ work where possible.
 | --- | --- | --- |
 | Codex lead | `gpt-6-sol`, `xhigh` | Keep the current lead when it is already suitable |
 | Claude Code lead | `opus`, `xhigh` | Keep the current lead when it is already suitable |
-| Routine: evidence gathering, bounded test runs and triage, checklist rechecks | helper `fast` | `gpt-6-luna`, `max`; then `sonnet`, `low` or `medium` |
+| Routine: evidence gathering, test-result triage, checklist rechecks | helper `fast` | `gpt-6-luna`, `max`; then `sonnet`, `low` or `medium` |
 | Complex bounded: debugging, open-ended code, story or diff review, consequential boundary analysis | helper `strong` | `gpt-6-astra`, `low`; or the lead directly when dispatch adds no value |
 | Implement: an easy isolated change that edits files | helper `fast`, `edit` mode | `gpt-6-luna`, `max`; then `sonnet`, `medium`; or the lead directly |
 | Implement-complex: a consequential bounded change that edits files | helper `strong`, `edit` mode | `gpt-6-astra`, `low`; or the lead directly |
@@ -39,7 +39,7 @@ Use at most one helper pre-review before the full review, when it can overlap th
 lead's own independent acceptance checks or a substantial change across several
 stories warrants an extra defect-finding pass; skip small routine epics and areas
 already adequately reviewed. It reuses passing checks on the unchanged candidate and
-runs only missing or affected tests. Substantiate its findings, consolidate repairs,
+has the lead run only missing or affected tests. Substantiate its findings, consolidate repairs,
 then go to Astra/Fable without another helper round, giving them the report and your
 dispositions as a navigation aid, not as proof.
 
@@ -51,7 +51,7 @@ for escalation. Record requested and observed effort separately.
 
 Strong reviewers examine the original requirements, relevant source, raw evidence,
 architecture, cross-story effects, omissions, and drift. Cheap helpers may collect
-evidence or run routine checks, but their summaries are navigation aids rather than
+evidence or analyze check results, but their summaries are navigation aids rather than
 acceptance proof.
 
 ## Delegation
@@ -156,13 +156,15 @@ link to it):
 
 ```bash
 ~/code/dev-auto/skills/dev-auto/scripts/helper.sh review strong "$PROJECT" "$PROMPT" "$OUTPUT"
-~/code/dev-auto/skills/dev-auto/scripts/helper.sh edit fast "$PROJECT" "$PROMPT" "$OUTPUT" 'python3 -m unittest -q'
+~/code/dev-auto/skills/dev-auto/scripts/helper.sh edit fast "$PROJECT" "$PROMPT" "$OUTPUT"
 ```
 
-`review` reads, `edit` also edits, and the optional last argument is the one exact
-check command the helper may run. The script confines the file tools to `PROJECT`,
-denies its `.env*` files and allows no other command than the check, which runs as
-written in Claude's sandbox without network. Everything the helper reads reaches the
+`review` reads and `edit` also edits; neither exposes shell execution. The lead runs
+checks and supplies relevant, sanitized results. An exact check in Claude's networkless
+sandbox could read outside `PROJECT` and expose inherited environment values (live
+synthetic probe, 2026-09-24), so the former optional CHECK argument is rejected.
+The script scopes file tools to `PROJECT` and denies its `.env*` files.
+Everything the helper reads reaches the
 provider: set `PROJECT` to the directory the helper may read or own, and to a
 sanitized workspace whenever the project holds data restricted from that provider
 (customer text, production records); if none can be prepared, skip the helper and

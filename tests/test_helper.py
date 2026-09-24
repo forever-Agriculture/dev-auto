@@ -70,25 +70,26 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(self.values(argv, "--permission-mode"), ["dontAsk"])
         self.assertNotIn("--settings", argv)
 
-    def test_edit_with_check_scopes_edits_and_sandboxes_the_one_command(self) -> None:
-        seen = self.call("edit", "strong", "python3 -m unittest -q")
+    def test_edit_scopes_edits_without_shell_execution(self) -> None:
+        seen = self.call("edit", "strong")
         argv = seen["argv"]
         self.assertEqual(self.values(argv, "--model"), ["opus"])
         self.assertEqual(seen["opus"], CONFIG["STRONG"])
-        self.assertEqual(self.values(argv, "--tools"), ["Read,Glob,Grep,Edit,Write,Bash"])
+        self.assertEqual(self.values(argv, "--tools"), ["Read,Glob,Grep,Edit,Write"])
         self.assertEqual(self.values(argv, "--allowedTools"),
-                         ["Read(./**)", "Edit(./**)", "Bash(python3 -m unittest -q)"])
-        sandbox = json.loads(self.values(argv, "--settings")[0])["sandbox"]
-        # Probe 2026-09-24: with automatic approval of sandboxed commands left on,
-        # the helper ran `cat ../outside.txt` although only the check was allowed.
-        self.assertEqual((sandbox["enabled"], sandbox["autoAllowBashIfSandboxed"],
-                          sandbox["allowUnsandboxedCommands"], sandbox["network"]["allowedDomains"]),
-                         (True, False, False, []))
+                         ["Read(./**)", "Edit(./**)"])
+        self.assertNotIn("--settings", argv)
 
-    def test_review_with_check_runs_tests_without_edit_rights(self) -> None:
-        argv = self.call("review", "fast", "pnpm test")["argv"]
-        self.assertEqual(self.values(argv, "--tools"), ["Read,Glob,Grep,Bash"])
-        self.assertEqual(self.values(argv, "--allowedTools"), ["Read(./**)", "Bash(pnpm test)"])
+    def test_check_argument_rejected_before_provider_launch(self) -> None:
+        # A live exact-command probe read ../outside.txt and an inherited environment
+        # marker. Both modes must reject the old route, not silently ignore CHECK.
+        for mode in ("review", "edit"):
+            with self.subTest(mode=mode):
+                output = self.output.with_name(f"{mode}-receipt.json")
+                result = self.run_helper(mode, "fast", str(self.project), str(self.prompt),
+                                         str(output), "python3 -m unittest -q")
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertFalse(output.exists(), "provider was launched")
 
     def test_bad_arguments_never_launch(self) -> None:
         paths = (str(self.project), str(self.prompt), str(self.output))
