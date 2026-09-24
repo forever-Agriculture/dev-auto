@@ -5,9 +5,10 @@
 check [PROJECT]     lint .dev-auto/handoff.md. At any status: size within the recovery
                     hook's 9,000-character snapshot, exactly one Status, Explicit user
                     stop and Next safe action field, and a short Status. At COMPLETE also:
-                    placeholder text in the model/usage fields, raw evidence tracked by
-                    git, dispatch rows written inline instead of one per line, and rows
-                    that skip a work class's first tier without a reason.
+                    placeholder text in the model/usage fields, any tracked .dev-auto file
+                    besides the handoff and log, dispatch rows written inline instead
+                    of one per line, and rows that skip a work class's first tier
+                    without a reason.
 usage PATH          print model, effort and usage from one Codex rollout (.jsonl),
                     one Claude Code session or subagent transcript (.jsonl under
                     ~/.claude/projects), or one Claude ``--output-format json``
@@ -30,10 +31,9 @@ PLACEHOLDERS = ("to be recorded", "tbd", "placeholder", "pending receipt",
                 "from the codex rollout or claude receipt")
 EMPTY_GAPS = re.compile(r";\s*gaps:\s*$")
 FIELDS = ("Lead host / requested model / observed model", "Observed usage")
-LARGE = 256 * 1024
-# The skill commits these two; the handoff has its own size check and the log is
-# append-only history that is never injected (ProjectB 2026-09-22 had to rotate a
-# 262 KB log out of git only to satisfy the raw-evidence size rule).
+# The skill commits only these two; anything else tracked under .dev-auto is raw
+# evidence or scratch (ProjectB 2026-09-24 committed 22 small raw result files under
+# `.dev-auto/pilot-tools/` that an extension and size rule missed).
 COMMITTED = {".dev-auto/handoff.md", ".dev-auto/log.md"}
 # First-tier model per work class, from references/models.md. Rows are
 # `purpose | class | model/effort | receipt | tier`; tier is `first` or `escalated: reason`.
@@ -188,14 +188,8 @@ def check(project: Path) -> int:
         print(f"UNABLE: git ls-files failed in {root}: {exc}")
         return 2
     for rel in filter(None, out.split("\0")):
-        path = root / rel
-        try:
-            size = path.stat().st_size
-        except OSError:  # deleted between listing and stat
-            size = 0
-        if rel.startswith(".dev-auto/evidence/") or rel.endswith(".jsonl") or (
-                size > LARGE and rel not in COMMITTED):
-            failures.append(f"raw evidence tracked: {rel} ({size} bytes)")
+        if rel not in COMMITTED:
+            failures.append(f"raw evidence tracked: {rel}; only the handoff and log belong in git")
     if failures:
         print(f"FAIL: {handoff}")
         for reason in failures:

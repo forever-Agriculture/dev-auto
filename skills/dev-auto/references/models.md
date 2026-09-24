@@ -70,7 +70,9 @@ record exists, and never retry or dispatch another worker merely to discover it.
 
 Wait for a helper with the longest timeout the host accepts (Codex accepted
 360000 ms); a wait returns as soon as the helper finishes, and every timed-out wait
-re-sends the lead context. Do independent work between waits.
+re-sends the lead context. Poll a running command the same way, with the longest
+yield the host accepts (Codex accepted 30000 ms), never one-second polls. Do
+independent work between waits.
 
 ## Direct CLI routes
 
@@ -81,6 +83,14 @@ task-specific paths. Use the project directly when its readable scope is appropr
 otherwise set `PROJECT` to a prepared workspace containing only the required source
 and evidence. Exclude credentials and unrelated private data, and keep `OUTPUT`
 outside the tracked working tree.
+
+A Codex lead's workspace sandbox has no network and blocks some local sockets:
+Claude CLI and GLM routes fail with `EAI_AGAIN`, and test gates using Git, sockets or
+a browser fail with `EPERM` or hang. Run those commands escalated from the first
+attempt (`sandbox_permissions: "require_escalated"`), with a justification naming the
+destination, the payload class and the owner's dev-auto request. A sandbox failure is
+not a route failure: retry the same tier escalated, not the next tier. When the
+approval reviewer refuses, never work around it; ask the owner as SKILL.md describes.
 
 Read-only Codex review:
 

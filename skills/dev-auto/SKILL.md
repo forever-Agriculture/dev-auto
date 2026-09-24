@@ -34,8 +34,12 @@ unfinished active state. A blocker in one epic leaves independent selected work 
 
 Test a representative outcome early when the approach is uncertain. After two
 unsuccessful fixes for the same outcome, compare captured failures, the shared
-boundary and any working equivalent before another repair. Prefer offline replay
-when representative; live attempts retain their spend and stop limits.
+boundary and any working equivalent before another repair. Measure bulk work such
+as fixtures or reference answers early; when its review-and-repair rate cannot finish
+the remaining scope at proportionate cost, change the method or report BLOCKED
+instead of starting another round. Prefer offline replay when representative; live
+attempts retain their spend and stop limits: stop and ask before a paid call that
+could exceed an owner limit or approved estimate, and never raise either yourself.
 
 `status` is read-only reconciliation: leave files, caches and jobs unchanged,
 report discrepancies and mark the freshness of prior checks unverified.
@@ -49,14 +53,18 @@ the required access, otherwise use the direct CLI route. Supply fresh context, e
 expected evidence; tell implementation helpers to implement directly from the supplied
 requirements, without bootstrapping another build workflow. Before dispatch, read [references/models.md](references/models.md) for
 capability floors, authorized routes and safe commands. Explicit dev-auto execution or
-resume authorizes this run's repeated helper and review dispatches to Codex CLI, Claude CLI
-and the configured GLM profile, nothing else; status or consultation grants no dispatch
-consent; project restrictions and narrower requests apply. Record the observed route,
+resume authorizes this run's repeated helper and review dispatches of code, specs, diffs
+and synthetic data to Codex CLI, Claude CLI and the configured GLM profile, nothing else;
+status or consultation grants no dispatch consent. Check project restrictions and
+narrower requests before each dispatch. Customer, production or other private data goes
+to a provider only on an owner answer naming that destination and data; ask once per
+destination and data class for the run and record the answer. Record the observed route,
 model and usage from host records; surface mismatches or dispatch failures instead
 of silent substitution.
 
-During repair, use focused checks. Before accepting an epic, verify its outcomes,
-affected existing behavior and relevant earlier-epic contracts, and confirm the
+During repair, use focused checks. Before accepting an epic, verify its outcomes, the
+owner goals recorded for it, affected existing behavior and relevant earlier-epic
+contracts, and confirm the
 board records each of the epic's stories complete under its existing schema,
 recorded descopes excepted. New or changed
 behavior ships with automated tests that exercise it in the project's existing test

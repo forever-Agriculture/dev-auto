@@ -91,12 +91,15 @@ class CheckTests(unittest.TestCase):
         project.track(".dev-auto/review.jsonl")
         project.track(".dev-auto/evidence/shot.png")
         project.track(".dev-auto/big.md", size=300 * 1024)
+        # ProjectB 2026-09-24: 22 small raw result files under a tracked
+        # `.dev-auto/pilot-tools/` passed the old extension and size rules.
+        project.track(".dev-auto/pilot-tools/judge.json")
         result = run("check", str(project.root))
         self.assertEqual(result.returncode, 1, result.stdout)
-        for name in ("review.jsonl", "evidence/shot.png", "big.md"):
+        for name in ("review.jsonl", "evidence/shot.png", "big.md", "pilot-tools/judge.json"):
             self.assertIn(name, result.stdout)
         git(project.root, "rm", "-q", "--cached", ".dev-auto/review.jsonl",
-            ".dev-auto/evidence/shot.png", ".dev-auto/big.md")
+            ".dev-auto/evidence/shot.png", ".dev-auto/big.md", ".dev-auto/pilot-tools/judge.json")
         result = run("check", str(project.root))
         self.assertEqual(result.returncode, 0, result.stdout)
 
