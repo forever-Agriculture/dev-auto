@@ -92,10 +92,14 @@ When only waiting remains, use completion notifications or the longest wait the
 host and active instructions permit. For Codex process sessions, use `write_stdin`
 with empty `chars` and an explicit long `yield_time_ms` (up to 300000, subject to
 any stricter instruction). The 30000 limit on the initial `exec_command` does not
-limit `write_stdin`. If the enclosing `exec` yields a running cell, wait on that
-cell; do not also poll its process. Native helpers use `wait_agent`; Claude Code
-background commands notify on completion. Repeated 1000/30000 process polls when
-a longer wait is permitted waste lead turns; never poll to keep caches warm.
+limit `write_stdin`. In code mode the enclosing `exec` cell still yields after about
+30 s unless its first line sets it too, `// @exec: {"yield_time_ms": N}` (measured
+2026-09-20–25: 61 of 74 unpragma'd 60 s waits returned at ~31 s; pragma'd 60 s and
+120 s waits held). If the cell yields while running, `wait` on it with an equally
+long `yield_time_ms`; do not also poll its process. Native helpers use `wait_agent`;
+Claude Code background commands notify on completion. Repeated 1000/30000 process
+or cell polls when a longer wait is permitted waste lead turns; never poll to keep
+caches warm.
 
 ## Direct CLI routes
 
