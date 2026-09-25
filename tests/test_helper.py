@@ -31,6 +31,9 @@ class HelperTests(unittest.TestCase):
         profile = Path(CONFIG["PROFILE"].replace("$HOME", str(root / "home")))
         profile.parent.mkdir(parents=True)
         profile.write_text("export FAKE_PROFILE=loaded FAKE_SECRET=s3cr3t-value\n")
+        self.rules = root / "home" / ".claude" / "CLAUDE.md"
+        self.rules.parent.mkdir(parents=True)
+        self.rules.write_text("# Global rules\n- fake rule\n")
         (root / "bin").mkdir()
         claude = root / "bin" / "claude"
         claude.write_text(FAKE_CLAUDE)
@@ -173,6 +176,24 @@ class HelperTests(unittest.TestCase):
                                          str(refused), "http://127.0.0.1:3000")
                 self.assertEqual(result.returncode, 2, result.stderr)
                 self.assertFalse(refused.exists(), "provider was launched")
+
+    def test_every_mode_appends_the_global_rules(self) -> None:
+        # --safe-mode and --restricted skip CLAUDE.md; a live 2026-09-25 probe of every
+        # mode answered NONE when asked to quote a global rule.
+        for mode, extra in (("review", ()), ("edit", ()), ("browse", ("http://127.0.0.1:3000",))):
+            with self.subTest(mode=mode):
+                output = self.output.with_name(f"rules-{mode}.json")
+                result = self.run_helper(mode, "fast", str(self.project), str(self.prompt),
+                                         str(output), *extra)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                argv = json.loads(output.read_text())["argv"]
+                self.assertEqual(argv.count("--append-system-prompt"), 1)
+                self.assertEqual(argv[argv.index("--append-system-prompt") + 1],
+                                 self.rules.read_text().rstrip("\n"))
+        self.rules.unlink()
+        result = self.run_helper("review", "fast", str(self.project), str(self.prompt), str(self.output))
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertFalse(self.output.exists(), "provider was launched without the global rules")
 
     def test_check_argument_rejected_before_provider_launch(self) -> None:
         # A live exact-command probe read ../outside.txt and an inherited environment

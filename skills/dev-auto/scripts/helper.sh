@@ -29,6 +29,10 @@ case $tier in fast) alias=sonnet ;; strong) alias=opus ;; *) fail "tier must be 
 for path in "$project" "$prompt" "$output"; do [[ $path == /* ]] || fail "paths must be absolute: $path"; done
 [[ -d $project && -f $prompt ]] || fail "PROJECT must be a directory and PROMPT a file"
 [[ ! -e $output ]] || fail "OUTPUT already exists; keep earlier receipts: $output"
+# --safe-mode and --restricted skip CLAUDE.md, so pass the owner's global rules
+# explicitly, as Codex helpers read them from AGENTS.md.
+rules=$HOME/.claude/CLAUDE.md
+[[ -r $rules ]] || fail "global rules unreadable: $rules"
 
 # Unscoped Read/Edit rules reach any path: on 2026-09-22 both GLM models wrote into
 # another repository until every rule was scoped to the project and .env denied. A
@@ -59,6 +63,7 @@ set +xu
 set -u
 export ANTHROPIC_DEFAULT_SONNET_MODEL=$FAST ANTHROPIC_DEFAULT_OPUS_MODEL=$STRONG
 exec claude -p --model "$alias" --effort max --output-format json "${isolation[@]}" \
+  --append-system-prompt "$(<"$rules")" \
   --tools "$tools" --allowedTools "${allow[@]}" --disallowedTools "${deny[@]}" \
   --permission-mode dontAsk --no-session-persistence --max-turns 80 \
   < "$prompt" > "$output"
