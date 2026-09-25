@@ -168,11 +168,13 @@ so `--ephemeral` is omitted). The reviewer can still run read-only shell command
 the project directly only when its readable scope is acceptable.
 
 Tools-disabled Fable review from a prepared source packet. `env -i` drops a GLM
-lead's inherited Z.ai settings so the call reaches Claude:
+lead's inherited Z.ai settings so the call reaches Claude; `--safe-mode` skips
+CLAUDE.md, so the global rules are appended:
 
 ```bash
 env -i HOME="$HOME" PATH="$PATH" claude -p --model fable --effort medium --output-format json \
   --tools '' --permission-mode dontAsk --safe-mode --no-session-persistence \
   --strict-mcp-config --mcp-config '{"mcpServers":{}}' \
+  --append-system-prompt "$(<"$HOME/.claude/CLAUDE.md")" \
   < "$PROMPT" > "$OUTPUT"
 ```
