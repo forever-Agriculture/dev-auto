@@ -221,7 +221,7 @@ class CheckTests(unittest.TestCase):
         # Owner 2026-09-24 simplification: the tier lint is gone, so off-tier, inline or
         # unformatted dispatch notes no longer FAIL a finished handoff.
         body = CLEAN.replace("## Resume", "- Dispatches: review | routine | gpt-6-astra/low | r | first\n"
-                             "  - GLM pre-review: helper strong, receipt r2; Astra/medium full review\n\n## Resume")
+                             "  - GLM pre-review: helper strong with final checks, receipt r2; Astra/medium epic review\n\n## Resume")
         self.assertEqual(run("check", str(self.project(body).root)).returncode, 0)
 
     def test_large_committed_log_is_not_raw_evidence(self) -> None:

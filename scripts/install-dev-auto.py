@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-# MODULE: install-dev-auto.py - link both clients to the canonical dev-auto skill and register its recovery hook
+# MODULE: install-dev-auto.py - link every client to the canonical dev-auto skill and register its recovery hook
 """Install or check the dev-auto skill links and its SessionStart recovery hook.
 
 Links: ``~/.agents/skills/dev-auto`` (Codex) and ``~/.claude/skills/dev-auto``
-(Claude Code) point at ``skills/dev-auto`` in this checkout. Existing conflicting
-files or links are never overwritten.
+(Claude Code) point at ``skills/dev-auto`` in this checkout, and so does
+``~/.claude-glm/skills/dev-auto`` when that GLM profile (``claude glm``) exists.
+Existing conflicting files or links are never overwritten.
 
 Hooks (default; skip with ``--links-only``): one ``SessionStart`` group with matcher ``compact|resume``
 running ``hooks/dev-auto-session-start.py`` is appended to
-``~/.claude/settings.json`` and ``~/.codex/hooks.json``. Existing groups, order,
-and unrelated keys are preserved; files are written atomically and read back.
-Codex still requires trusting the new hook through ``/hooks``.
+``~/.claude/settings.json``, ``~/.codex/hooks.json`` and, with the GLM profile,
+``~/.claude-glm/settings.json``, where it also sets ``effortLevel`` to ``max``
+(owner rule: GLM always runs at max effort). Existing groups, order, and unrelated
+keys are preserved; files are written atomically and read back. Codex still
+requires trusting the new hook through ``/hooks``.
 """
 
 from __future__ import annotations
@@ -35,6 +38,9 @@ HOOK_FILES = (
     Path(".claude/settings.json"),
     Path(".codex/hooks.json"),
 )
+# Claude Code on the GLM route keeps its own config directory; it is optional.
+GLM_PROFILE = Path(".claude-glm")
+GLM_EFFORT = "max"
 HOOK_EVENT = "SessionStart"
 HOOK_MATCHER = "compact|resume"
 HOOK_TIMEOUT = 10
@@ -161,6 +167,11 @@ def write_atomic(path: Path, data: dict) -> None:
         raise RuntimeError(f"read-back mismatch: {path}")
 
 
+def glm_effort_is_max(path: Path) -> bool:
+    data = load_json(path)
+    return bool(data) and data.get("effortLevel") == GLM_EFFORT
+
+
 def register_hook(path: Path, script: Path) -> None:
     data = load_json(path)
     assert data is not None
@@ -181,8 +192,15 @@ def main() -> int:
         return 2
 
     root = (args.target_root or Path.home()).expanduser().resolve()
-    destinations = tuple(root / relative for relative in DESTINATIONS)
-    hook_files = tuple(root / relative for relative in HOOK_FILES)
+    destinations = [root / relative for relative in DESTINATIONS]
+    hook_files = [root / relative for relative in HOOK_FILES]
+    glm_profile = root / GLM_PROFILE
+    glm_settings = glm_profile / "settings.json" if glm_profile.is_dir() else None
+    if glm_settings:
+        destinations.append(glm_profile / "skills" / "dev-auto")
+        hook_files.append(glm_settings)
+    else:
+        print(f"SKIPPED: no GLM profile at {glm_profile}")
 
     problems: list[str] = []
     for destination in destinations:
@@ -211,6 +229,10 @@ def main() -> int:
             state = hook_state(hook_file, HOOK_SCRIPT)
             ok = ok and state == "OK"
             print(f"HOOK {state}: {hook_file}")
+        if glm_settings:
+            effort = glm_effort_is_max(glm_settings)
+            ok = ok and effort
+            print(f"GLM EFFORT {'OK' if effort else 'NOT MAX'}: {glm_settings}")
         return 0 if ok else 1
 
     if problems:
@@ -234,6 +256,11 @@ def main() -> int:
                 continue
             register_hook(hook_file, HOOK_SCRIPT)
             print(f"HOOKED: {hook_file} <- {HOOK_EVENT} [{HOOK_MATCHER}] {HOOK_SCRIPT}")
+        if glm_settings and not glm_effort_is_max(glm_settings):
+            data = load_json(glm_settings)
+            data["effortLevel"] = GLM_EFFORT
+            write_atomic(glm_settings, data)
+            print(f"SET: effortLevel {GLM_EFFORT} in {glm_settings}")
         print("Codex: run /hooks in Codex once to review and trust the new hook.")
     return 0
 

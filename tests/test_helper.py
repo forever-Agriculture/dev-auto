@@ -80,6 +80,100 @@ class HelperTests(unittest.TestCase):
                          ["Read(./**)", "Edit(./**)"])
         self.assertNotIn("--settings", argv)
 
+    def test_browse_drives_only_the_loopback_origin(self) -> None:
+        origin = "http://127.0.0.1:4173"
+        argv = self.call("browse", "fast", origin)["argv"]
+        self.assertIn("--restricted", argv)
+        self.assertNotIn("--safe-mode", argv)
+        servers = json.loads(self.values(argv, "--mcp-config")[0])["mcpServers"]
+        self.assertEqual(list(servers), ["playwright"])
+        server = servers["playwright"]
+        self.assertEqual(server["command"], "npx")
+        self.assertNotIn("url", server)  # a remote MCP server would bypass the loopback limit
+        args = server["args"]
+        self.assertEqual(args.count("--allowed-origins"), 1)
+        self.assertEqual(args[args.index("--allowed-origins") + 1], origin)
+        # --offline only resolves a pinned version; a bare @playwright/mcp would hit the network.
+        self.assertTrue({"--headless", "--isolated", "--offline"} <= set(args))
+        self.assertTrue([arg for arg in args if arg.startswith("@playwright/mcp@")], args)
+
+    def test_browse_needs_a_loopback_origin(self) -> None:
+        paths = (str(self.project), str(self.prompt), str(self.output))
+        for origin in ("https://127.0.0.1:3000", "http://example.com:80", "http://127.0.0.1",
+                       "http://127.0.0.1:3000/app", 'http://127.0.0.1:3000"]}}', "http://10.0.0.1:3000",
+                       "HTTP://127.0.0.1:3000", "http://LOCALHOST:3000", "http://127.0.0.1:3000/",
+                       " http://127.0.0.1:3000", "http://127.0.0.1:3000\t", "http://127.0.0.1:",
+                       "http://127.0.0.1:0", "http://127.0.0.1:0300", "http://127.0.0.1:65536",
+                       "http://127.0.0.1:123456", "http://0.0.0.0:3000", "http://127.0.0.2:3000"):
+            with self.subTest(origin=origin):
+                result = self.run_helper("browse", "fast", *paths, origin)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertFalse(self.output.exists(), "provider was launched")
+        result = self.run_helper("browse", "fast", *paths)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertFalse(self.output.exists())
+
+    def test_every_mode_passes_max_effort(self) -> None:
+        # Effort must not depend on mode or tier: fast drafts reason as hard as strong ones.
+        for mode, extra in (("review", ()), ("edit", ()), ("browse", ("http://127.0.0.1:3000",))):
+            for tier in ("fast", "strong"):
+                with self.subTest(mode=mode, tier=tier):
+                    output = self.output.with_name(f"effort-{mode}-{tier}.json")
+                    result = self.run_helper(mode, tier, str(self.project), str(self.prompt),
+                                             str(output), *extra)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    argv = json.loads(output.read_text())["argv"]
+                    self.assertEqual(argv.count("--effort"), 1)
+                    self.assertEqual(self.values(argv, "--effort"), ["max"])
+
+    def test_browse_accepts_every_loopback_host_spelling(self) -> None:
+        # localhost and [::1] are loopback too; ports run 1-65535.
+        for index, origin in enumerate(("http://[::1]:8080", "http://localhost:80",
+                                        "http://127.0.0.1:1", "http://127.0.0.1:65535")):
+            with self.subTest(origin=origin):
+                output = self.output.with_name(f"origin-{index}.json")
+                result = self.run_helper("browse", "strong", str(self.project), str(self.prompt),
+                                         str(output), origin)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                argv = json.loads(output.read_text())["argv"]
+                config = json.loads(self.values(argv, "--mcp-config")[0])
+                args = config["mcpServers"]["playwright"]["args"]
+                self.assertEqual(args[args.index("--allowed-origins") + 1], origin)
+
+    def test_browse_exposes_no_shell_edit_or_code_running_tools(self) -> None:
+        argv = self.call("browse", "strong", "http://127.0.0.1:3000")["argv"]
+        self.assertEqual(self.values(argv, "--tools"), ["Read,Glob,Grep"])
+        allowed = self.values(argv, "--allowedTools")
+        browsing = {"navigate", "navigate_back", "snapshot", "click", "type", "fill_form",
+                    "select_option", "press_key", "hover", "wait_for", "take_screenshot",
+                    "console_messages", "network_requests", "close"}
+        # Exactly the named browser tools plus scoped Read: a wildcard or an added
+        # evaluate/run_code style tool would widen what a hostile page could reach.
+        self.assertEqual({tool for tool in allowed if tool != "Read(./**)"},
+                         {f"mcp__playwright__browser_{tool}" for tool in browsing})
+        self.assertEqual(len(allowed), len(set(allowed)))
+        self.assertEqual(self.values(argv, "--disallowedTools"),
+                         ["Read(./**/.env*)", "Edit(./**/.env*)"])
+
+    def test_review_and_edit_keep_safe_mode_and_reject_the_origin_argument(self) -> None:
+        for mode in ("review", "edit"):
+            with self.subTest(mode=mode):
+                output = self.output.with_name(f"safe-{mode}.json")
+                result = self.run_helper(mode, "fast", str(self.project), str(self.prompt),
+                                         str(output))
+                self.assertEqual(result.returncode, 0, result.stderr)
+                argv = json.loads(output.read_text())["argv"]
+                self.assertIn("--safe-mode", argv)
+                self.assertNotIn("--restricted", argv)
+                self.assertEqual(json.loads(self.values(argv, "--mcp-config")[0]),
+                                 {"mcpServers": {}})
+                # browse's sixth argument must not silently widen the older modes.
+                refused = self.output.with_name(f"safe-{mode}-origin.json")
+                result = self.run_helper(mode, "fast", str(self.project), str(self.prompt),
+                                         str(refused), "http://127.0.0.1:3000")
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertFalse(refused.exists(), "provider was launched")
+
     def test_check_argument_rejected_before_provider_launch(self) -> None:
         # A live exact-command probe read ../outside.txt and an inherited environment
         # marker. Both modes must reject the old route, not silently ignore CHECK.

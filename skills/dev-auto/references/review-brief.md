@@ -1,14 +1,23 @@
 # Independent review brief
 
-Read this before dispatching the strong full review at an epic or project
-boundary. Give a reviewer with read tools this brief by path; otherwise include its
-exact text with the source packet. Supply the original requirements, the baseline
+Read this before dispatching a pre-review or the strong full review at an epic or
+project boundary. Give a reviewer with read tools this brief by path; otherwise
+include its exact text with the source packet. Supply the original requirements, the baseline
 (the revision before this scope's first change) and reviewed revisions or content
 fingerprints with the diff between them (task-owned untracked content included),
 the relevant source and tests, execution evidence, a risk map and test
 instructions. Implementation and test summaries are claims to check, not
 orientation. Exclude credentials and unrelated files. Include the prior review and
 disposition evidence still relevant to this scope.
+
+## Quick pre-review
+
+The pre-review needs the original requirements, the baseline and the diff. Map, do
+not judge exhaustively. Return, in about one page: each story or acceptance criterion
+with the files and tests that implement and cover it; criteria without a test or
+evidence; the changed areas most worth the strong reviewer's attention, and why;
+obvious defects with location and consequence. End with the single line
+`RESULT: done`. The questions below are for the strong review.
 
 ## Questions for the reviewer
 

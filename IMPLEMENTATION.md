@@ -1,6 +1,6 @@
 # dev-auto v0 implementation specification
 
-Status: initial version published and installed; current owner correction removes automatic work deadlines. Earlier review reports describe the version they examined. The owner's latest clarification supersedes the earlier controller-shaped specification: this is almost direct development, with shared instructions for review, tests, sprint tracking and useful delegation. Historical mechanisms are not implementation requirements. [DESIGN.md](DESIGN.md) records policy history; [LESSONS.md](LESSONS.md) informs judgment, not a checklist of machinery to rebuild.
+Status: initial version published and installed; current owner correction removes automatic work deadlines. Earlier review reports describe the version they examined. The owner's latest clarification supersedes the earlier controller-shaped specification: this is almost direct development, with shared instructions for review, tests, sprint tracking and useful delegation. Historical mechanisms are not implementation requirements. [DESIGN.md](DESIGN.md) records policy history; [LESSONS.md](LESSONS.md) informs judgment, not a checklist of machinery to rebuild. Model routing in items 3–5 and the review bound in item 11 are v0 history; the current tiers live in `skills/dev-auto/references/models.md` and the bound in `SKILL.md`.
 
 ## What to build
 

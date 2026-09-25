@@ -91,6 +91,138 @@ class InstallerTests(unittest.TestCase):
             self.assertEqual(again, claude)
             self.assertEqual(self.run_installer(root, "--check").returncode, 0)
 
+    def test_glm_profile_gets_the_skill_and_hook_only_when_present(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            absent = self.run_installer(root)
+            self.assertEqual(absent.returncode, 0, absent.stderr)
+            self.assertIn("SKIPPED: no GLM profile", absent.stdout)
+            self.assertFalse((root / ".claude-glm").exists())
+
+            profile = root / ".claude-glm"
+            profile.mkdir()
+            (profile / "skills").symlink_to(root / ".claude" / "skills")  # the owner's layout
+            settings = profile / "settings.json"
+            settings.write_text(json.dumps({"model": "opus", "effortLevel": "high"}), encoding="utf-8")
+            before = self.run_installer(root, "--check")
+            self.assertEqual(before.returncode, 1, before.stdout)
+            self.assertIn(f"HOOK MISSING: {settings}", before.stdout)
+            self.assertIn(f"GLM EFFORT NOT MAX: {settings}", before.stdout)
+
+            present = self.run_installer(root)
+            self.assertEqual(present.returncode, 0, present.stderr)
+            data = json.loads(settings.read_text(encoding="utf-8"))
+            self.assertEqual((data["model"], data["effortLevel"]), ("opus", "max"))
+            self.assertEqual(len([g for g in data["hooks"]["SessionStart"]
+                                  if HOOK.name in g["hooks"][0]["command"]]), 1)
+            self.assertEqual((profile / "skills" / "dev-auto").resolve(strict=True), SOURCE)
+            after = self.run_installer(root, "--check")
+            self.assertEqual(after.returncode, 0, after.stdout + after.stderr)
+            self.assertIn(f"HOOK OK: {settings}", after.stdout)
+            self.assertIn(f"GLM EFFORT OK: {settings}", after.stdout)
+
+    def test_glm_profile_regular_file_is_skipped_and_left_alone(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            glm = root / ".claude-glm"
+            glm.write_text("profile data\n", encoding="utf-8")
+            result = self.run_installer(root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("SKIPPED: no GLM profile", result.stdout)
+            self.assertFalse(glm.is_symlink() or glm.is_dir())
+            self.assertEqual(glm.read_text(encoding="utf-8"), "profile data\n")
+            for relative in RELATIVE_DESTINATIONS:
+                self.assertTrue((root / relative).is_symlink(), relative)
+
+    def test_malformed_glm_settings_refuses_every_change(self) -> None:
+        for broken in ("{broken", '{"hooks": {"SessionStart": "nope"}}'):
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                settings = root / ".claude-glm" / "settings.json"
+                settings.parent.mkdir(parents=True)
+                settings.write_text(broken, encoding="utf-8")
+                result = self.run_installer(root)
+                self.assertEqual(result.returncode, 2, broken + result.stderr)
+                self.assertIn(f"hook file unreadable: {settings}", result.stderr)
+                self.assertIn("Nothing changed", result.stderr)
+                self.assertEqual(settings.read_text(encoding="utf-8"), broken)
+                self.assertEqual([path.name for path in root.iterdir()], [".claude-glm"])
+                self.assertEqual([path.name for path in settings.parent.iterdir()], ["settings.json"])
+
+    def test_glm_real_skills_directory_gets_link_and_hook(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            skills = root / ".claude-glm" / "skills"
+            skills.mkdir(parents=True)
+            result = self.run_installer(root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            destination = skills / "dev-auto"
+            self.assertTrue(destination.is_symlink())
+            self.assertEqual(destination.resolve(strict=True), SOURCE)
+            self.assertFalse(skills.is_symlink())  # the owner's real directory is kept, not replaced
+            settings = root / ".claude-glm" / "settings.json"
+            groups = json.loads(settings.read_text(encoding="utf-8"))["hooks"]["SessionStart"]
+            self.assertEqual(len([g for g in groups if HOOK.name in g["hooks"][0]["command"]]), 1)
+            checked = self.run_installer(root, "--check")
+            self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+            self.assertIn(f"HOOK OK: {settings}", checked.stdout)
+
+    def test_links_only_leaves_glm_settings_untouched(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            settings = root / ".claude-glm" / "settings.json"
+            settings.parent.mkdir(parents=True)
+            settings.write_text('{"model": "opus"}\n', encoding="utf-8")
+            result = self.run_installer(root, "--links-only")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(settings.read_text(encoding="utf-8"), '{"model": "opus"}\n')
+            self.assertTrue((root / ".claude-glm" / "skills" / "dev-auto").is_symlink())
+            for relative in HOOK_FILES:
+                self.assertFalse((root / relative).exists(), relative)
+            checked = self.run_installer(root, "--check")
+            self.assertEqual(checked.returncode, 1, checked.stdout)
+            self.assertIn(f"HOOK MISSING: {settings}", checked.stdout)
+
+    def test_check_touches_nothing_with_glm_profile_present(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            settings = root / ".claude-glm" / "settings.json"
+            settings.parent.mkdir(parents=True)
+            settings.write_text(json.dumps({"model": "opus"}), encoding="utf-8")
+
+            def snapshot() -> dict:
+                state = {}
+                for path in sorted(root.rglob("*")):
+                    if path.is_symlink():
+                        value = f"link:{path.readlink()}"
+                    elif path.is_dir():
+                        value = "dir"
+                    else:
+                        value = path.read_bytes()
+                    state[str(path.relative_to(root))] = value
+                return state
+
+            before = snapshot()
+            result = self.run_installer(root, "--check")
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn(f"HOOK MISSING: {settings}", result.stdout)
+            self.assertEqual(snapshot(), before)
+
+    def test_conflicting_glm_skill_directory_refuses_the_whole_install(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            conflict = root / ".claude-glm" / "skills" / "dev-auto"
+            conflict.mkdir(parents=True)
+            sentinel = conflict / "keep.txt"
+            sentinel.write_text("user data\n", encoding="utf-8")
+            result = self.run_installer(root)
+            self.assertEqual(result.returncode, 2)
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "user data\n")
+            for relative in RELATIVE_DESTINATIONS:
+                self.assertFalse((root / relative).exists(), relative)
+            self.assertFalse((root / ".claude" / "settings.json").exists())
+            self.assertFalse((root / ".claude-glm" / "settings.json").exists())
+
     def test_links_only_skips_hooks_and_check_reports_them_missing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

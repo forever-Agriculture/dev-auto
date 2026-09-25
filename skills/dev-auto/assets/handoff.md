@@ -15,7 +15,7 @@
 - Sprint board and reconciled state: each selected epic; dependency or blocker
 - Implemented:
 - Associated loop (optional; host and native loop/task ID):
-- Active native helpers (ID, route, scope, ownership, state):
+- Active helpers (ID, route, scope, ownership, state):
 
 ## Decisions and findings
 
@@ -29,12 +29,14 @@
 - Tests: commands run and results; untested behavior (or `none`)
 - Reviewed scope and route:
 - Baseline and reviewed revisions / material finding dispositions / recheck or delta evidence:
+- Review allowance at the current boundary: rechecks used / consultation used / final repair used:
 - Unreviewed or unverified areas:
 
 ## Measurement
 
 - Timing: started / accepted / elapsed including waits:
 - Dispatches: one line each: purpose, model/effort, receipt; the reason when a later route was used:
+- Review yield: pre-review material findings / strong-review material findings (how many the pre-review had flagged) / rechecks / defects later traced to an accepted epic:
 - Owner interventions: corrections / necessary approvals / avoidable repeat requests; count, reason, approximate minutes:
 - Observed usage: lead + helpers + recovery; Codex rollout `total_token_usage`, Claude `total_cost_usd`; gaps:
 

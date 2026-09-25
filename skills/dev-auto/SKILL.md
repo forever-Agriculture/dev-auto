@@ -34,7 +34,8 @@ unfinished active state. A blocker in one epic leaves independent selected work 
 
 Test a representative outcome early when the approach is uncertain. After two
 unsuccessful fixes for the same outcome, compare captured failures, the shared
-boundary and any working equivalent before another repair. Measure bulk work such
+boundary and any working equivalent before another repair; if that leaves it
+unresolved, ask the consultant. Measure bulk work such
 as fixtures or reference answers early; when its review-and-repair rate cannot finish
 the remaining scope at proportionate cost, change the method or report BLOCKED
 instead of starting another round. Prefer offline replay when representative; live
@@ -46,19 +47,19 @@ report discrepancies and mark the freshness of prior checks unverified.
 
 ## Helpers and acceptance
 
-Dispatch helpers for required independent review, substantial bounded work whose
-saved lead effort or elapsed time justifies coordination, or an unresolved decision;
-do small lookups and simple checks directly. Before dispatch, read [references/models.md](references/models.md) and use
-the ordered route for the work class, through the host's native helper interface only
-when it delivers that route with the required access. Supply fresh context, exact
-scope, ownership and expected evidence; implementation helpers implement directly
-from the supplied requirements, without another build workflow. Dispatch consent comes
-from the owner's global rules or explicit session approval, never this skill.
-Project restrictions and narrower instructions apply. Exclude credentials and unrelated
+Read [references/models.md](references/models.md) at start and follow its tables; a
+GLM lead never proceeds where Z.ai may not read the workspace. Dispatch for required
+review, bounded work whose saved lead effort or elapsed time justifies coordination,
+or an unresolved decision, starting at the first route of the work's row, preferably
+while the lead has independent work to do; do small lookups and simple checks
+directly. Use the host's native helper interface only when it delivers that route with
+the required access. Helpers review and gather evidence; the lead writes the code and
+tests. Supply fresh context, exact scope and expected evidence. Dispatch consent comes
+from the owner's global rules or explicit session approval, never this skill. Project
+restrictions and narrower instructions apply. Exclude credentials and unrelated
 private data; customer/production data needs approval naming destination and data.
-Reuse that approval. Record observed route, model and usage from host records;
-surface mismatches and dispatch failures instead of
-silently substituting.
+Reuse that approval. Record observed route, model and usage from host records; surface
+mismatches and dispatch failures instead of silently substituting.
 
 During repair, use focused checks. Before accepting an epic, verify its outcomes, the
 owner goals recorded for it, affected existing behavior and relevant earlier-epic
@@ -70,23 +71,28 @@ Material regression tests fail on the original defect and pass with the fix;
 reproduce alleged pre-existing failures in isolation while preserving working-tree
 changes. A failure you cannot identify is unresolved.
 
-When justified under models.md, run one helper pre-review and resolve its material
-findings. An independent strong reviewer then checks the epic against original
-intent and project architecture/goals using [references/review-brief.md](references/review-brief.md):
-one full review, consolidated repairs and a focused recheck, with the candidate
-unedited while a reviewer or gate reads it. Further review needs a named material
-risk or consequential new change or evidence, reusing unaffected results. From the
-full review on, at one acceptance boundary: if a recheck finds a material defect
-introduced by the previous repair, or a second recheck finds material defects (any
-review of a repaired candidate is a recheck, however labeled), stop repairing: reread
-the original acceptance criteria, substantiate each open finding with a reproduction
-or requirement evidence, and put the design question once to the next strong route or
-report that boundary BLOCKED with options, including removing work the story does not
-ask for. One consolidated repair and recheck may follow its answer; remaining material
-defects block the boundary while independent selected work continues. A new reviewer,
-repair wave or resumed run does not reset this allowance; the one pre-review before the
-full review and any owner-requested review sit outside it. Project scope also gets cross-epic evaluation;
-a project-level review can cover the coincident final epic. Material gaps block acceptance.
+Freeze the candidate and run the quick GLM pre-review from
+[references/review-brief.md](references/review-brief.md) alongside your own final
+acceptance checks so it overlaps them instead of adding a wait; make one consolidated
+repair of its material findings and failing checks and rerun the affected checks,
+without another GLM review. An independent strong reviewer then checks the epic
+against original intent and project architecture and goals using the same brief, given
+the pre-review map and your dispositions as navigation aids, not proof: one full
+review, consolidated repairs and a focused recheck, with the candidate unedited while
+a reviewer or gate reads it. Further review needs a named material risk or
+consequential new change or evidence, reusing unaffected results. From the full review
+on, at one acceptance boundary: if a recheck finds a material defect introduced by the
+previous repair, or a second recheck finds material defects (any review of a repaired
+candidate is a recheck, however labeled), stop repairing: reread the original
+acceptance criteria, substantiate each open finding with a reproduction or requirement
+evidence, and put the design question once to the consultant or report that boundary
+BLOCKED with options, including removing work the story does not ask for. One
+consolidated repair and recheck may follow its answer; remaining material defects
+block the boundary while independent selected work continues. A new reviewer, repair
+wave or resumed run does not reset this allowance; the pre-review and any
+owner-requested review sit outside it. Project scope adds a quick GLM project
+pre-review before the final cross-epic evaluation; a project-level pre-review and
+review can cover the coincident final epic. Material gaps block acceptance.
 
 Record the baseline and reviewed revisions, actual checks and unverified
 boundaries. Give every material finding from all reviews a disposition against the
@@ -116,11 +122,10 @@ findings, active helpers, evidence and next action. Keep only current effective
 terms in the handoff, each with a source coordinate. Append verbatim owner quotes,
 superseded terms, verbose results and failed attempts to `.dev-auto/log.md`
 (append-only, never injected); never restate log content in `Status` or `Resume`.
-Record available timing, usage and owner interventions
-at these boundaries. Read each terminal helper receipt once, when collecting it, with
-`scripts/check.py usage PATH`: a Codex rollout (`usage --list PROJECT` lists them;
-choose by hand), a Claude Code session or subagent transcript under
-`~/.claude/projects`, or a Claude `-p` JSON receipt. At acceptance, refresh the lead
+Record available timing, usage, review yield and owner
+interventions at these boundaries. Read each terminal helper receipt once, when collecting it, with
+`scripts/check.py usage PATH` (models.md names the record types; `usage --list
+PROJECT` lists Codex rollouts). At acceptance, refresh the lead
 sessions' usage, read any missing receipts together and reuse recorded results;
 record the observed routes and usage, then run `scripts/check.py check` and fix every
 FAIL before reporting COMPLETE. Record an UNABLE result instead of ignoring it.

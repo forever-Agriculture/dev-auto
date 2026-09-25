@@ -48,6 +48,8 @@ Use one model registry with concrete model IDs, requested and supported effort, 
 
 ## Model priorities
 
+Superseded on 2026-09-25 by the tier table in `skills/dev-auto/references/models.md` (owner decision). The 2026-09-17 selection below is history.
+
 The owner selected the roles and effort levels below on 2026-09-17. These are task priorities, not a measured pricing ranking. Exact identifiers, supported effort and available launch routes must be validated during implementation; no silent effort downgrade.
 
 | Role | Preferred model / effort | Alternatives and triggers |
@@ -112,7 +114,7 @@ Avoid duplicate broad reviews when the final epic and project boundary coincide:
 Consultation briefs reference these instead of reopening them.
 
 - No controller, scheduler, or worker framework; the host's native tools and permissions are the boundary.
-- Reviewer tiers are escalation, not pairing: one strong full review, at most one justified second-family focused check, and focused rechecks within SKILL.md's convergence bound. An optional helper pre-review may precede the full review of a larger epic and sits outside that bound (added 2026-09-24, owner: GLM reviews and tests before Astra/Fable, dispatched only where it pays; Astra/Fable stay the epic reviewers). Escalation does not reset the allowance. (Amended 2026-09-22: the bound replaced a single consolidated recheck that the skill had stopped stating; BMN Epic 15 and ProjectB Epic 65 then looped through 15 and about 37 review dispatches.)
+- Reviewer tiers are escalation, not pairing: one strong full review, at most one justified second-family focused check, and focused rechecks within SKILL.md's convergence bound. Every epic and project gets a quick GLM pre-review that runs alongside the lead's final checks, one consolidated repair without a recheck round, then the strong review from which the bound counts; the pre-review sits outside it (2026-09-25, owner, replacing the optional pre-review of 2026-09-24). Escalation does not reset the allowance. (Amended 2026-09-22: the bound replaced a single consolidated recheck that the skill had stopped stating; BMN Epic 15 and ProjectB Epic 65 then looped through 15 and about 37 review dispatches.)
 - Compaction recovery is a `SessionStart` hook plus a bounded handoff, not a custom context store; it is guidance, not enforcement, and each host's automatic case must be exercised before it is relied on.
 
 ## Small durable run record

@@ -1,131 +1,159 @@
 # Model and dispatch reference
 
-These identifiers, supported effort values, and CLI options were verified locally
-on 2026-09-17 and 2026-09-18, the `gpt-6` IDs on 2026-09-24. That does not prove
-every route completed a live call. Recheck availability and inspect the actual
-receipt when practical; never claim a route or effort level from the prompt alone.
-External CLIs require configured, authorized access.
+Identifiers, effort values and CLI options were verified locally on 2026-09-17,
+2026-09-18, 2026-09-24 and 2026-09-25. That does not prove every route completed a
+live call: read the actual receipt, and never claim a route or effort from the
+prompt alone. External CLIs require configured, authorized access.
 
-## Capability routing
+Lead cost is turns × context, so the lead does the work in its path and dispatches
+only where saved lead effort or elapsed time exceeds briefing, waiting and
+integration. In ProjectQ Epic 8, requests touching five GLM implementation
+helpers' packets were about 23% of the Codex lead's input tokens.
 
-Keep a suitable lead on the work. Dispatch only for a concrete independent task.
-Each row is an ordered tier: start with the first route, and move to the next only
-for a specific failed or unavailable route, a result that leaves the question
-unresolved, or a task the first route cannot do. A sufficient result at the tier in
-use ends the dispatch; never run the next tier as a ceremony. Record the route used
-and the reason for any escalation.
+## Lead
 
-Helper routes run on the helper provider through `scripts/helper.sh`
-(below), with a `fast` or `strong` model, whichever host leads; that is their normal
-path, not a fallback. Dispatch for required independent review, substantial bounded
-work whose saved lead effort or elapsed time justifies coordination, or an unresolved
-decision; each dispatch adds several lead turns over its current context. Do small
-lookups and simple check commands directly, and overlap helpers with independent
-work where possible.
+The owner picks and starts the lead: Sol `xhigh` (Codex), Opus `xhigh` (Claude Code)
+or GLM-5.3 `max` (`claude glm --model opus --effort max`: Claude Code on the Z.ai plan
+in `~/.claude-glm`, whose `effortLevel` is `max`; transcripts record `xhigh`, which
+Z.ai serves as GLM `max`, measured 2026-08-31). A GLM lead sends everything it reads
+to Z.ai: in a project that restricts Z.ai or holds customer, production or personal
+data it reports BLOCKED and names Sol or Opus instead. When a GLM lead stays stuck
+after the consultant's answer, it reports BLOCKED and recommends a Sol resume from the
+handoff. Decide this before launching a GLM lead: by the time it refuses, it has
+already sent what it read. GLM-5.3 accepts 5 concurrent requests, Flash 50. A quota
+error (429, 1302, 1305) makes GLM unavailable until its window resets.
 
-| Work | First route | Escalation, in order |
-| --- | --- | --- |
-| Codex lead | `gpt-6-sol`, `xhigh` | Keep the current lead when it is already suitable |
-| Claude Code lead | `opus`, `xhigh` | Keep the current lead when it is already suitable |
-| Routine: evidence gathering, test-result triage, checklist rechecks | helper `fast` | `gpt-6-luna`, `max`; then `sonnet`, `low` or `medium` |
-| Complex bounded: debugging, open-ended code, story or diff review, consequential boundary analysis | helper `strong` | `gpt-6-astra`, `low`; or the lead directly when dispatch adds no value |
-| Implement: an easy isolated change that edits files | helper `fast`, `edit` mode | `gpt-6-luna`, `max`; then `sonnet`, `medium`; or the lead directly |
-| Implement-complex: a consequential bounded change that edits files | helper `strong`, `edit` mode | `gpt-6-astra`, `low`; or the lead directly |
-| Optional epic pre-review | helper `strong`, `review` mode | skip when unavailable or unjustified |
-| Whole-epic important risks and project alignment | `gpt-6-astra`, `medium` | `fable`, `medium`. `gpt-6-astra`, `low` only for a focused follow-up on a well-evidenced question |
-| Whole-project final evaluation or critical decision | `gpt-6-astra`, `high` | `fable`, `high` |
+## Helpers and reviewers
 
-Use at most one helper pre-review before the full review, when it can overlap the
-lead's own independent acceptance checks or a substantial change across several
-stories warrants an extra defect-finding pass; skip small routine epics and areas
-already adequately reviewed. It reuses passing checks on the unchanged candidate and
-has the lead run only missing or affected tests. Substantiate its findings, consolidate repairs,
-then go to Astra/Fable without another helper round, giving them the report and your
-dispositions as a navigation aid, not as proof.
+| Work | 1st | 2nd | 3rd |
+| --- | --- | --- | --- |
+| Routine chores | GLM Flash | Luna `max` | lead |
+| Focused review: a bounded area, or a failure the lead is debugging | GLM | Astra `low` | lead |
+| Browser checks | GLM `browse` | lead | |
+| Epic pre-review (quick) | GLM | skip it | |
+| Epic review | Astra `medium` | Fable `medium` | BLOCKED |
+| Recheck a finding | same reviewer, Astra at `low` | | |
+| Project pre-review (quick) | GLM | skip it | |
+| Project final review | Astra `high` | Fable `high` | BLOCKED |
+| Consultant | Astra `medium` or `high` | Fable `medium` or `high` | BLOCKED |
 
-`fable` currently resolves to `claude-fable-5-1`. Codex currently supports Sol at
-`xhigh`, Luna at `max`, and Astra at `low`, `medium`, or `high`. When Claude Code
-leads, strong reviews use the Codex Astra CLI route below; Fable follows through the
-Claude CLI with explicit `--effort` only after the Astra route has a recorded reason
-for escalation. Record requested and observed effort separately.
+- **How to read it.** Start in column 1st. Move right only when that route fails or
+  is unavailable (error, quota, missing access), leaves the question unresolved, or
+  cannot do the task. A good enough answer ends it. Record the route and the reason
+  for any move. GLM goes first because it is the cheapest route; Luna and
+  Astra spend Codex quota, Fable spends Claude quota.
+- **GLM** is GLM-5.3 (`helper.sh ... strong`), **GLM Flash** is GLM-5.3-Flash
+  (`helper.sh ... fast`), both always at `max`; **lead** means the lead does it itself.
+- **Helpers review; the lead writes the code and tests.** **Routine chores**: wide
+  lookups, evidence gathering, log and test-output triage, checklist rechecks.
+  **Focused review**: another model's eyes on a bounded area when the lead wants
+  them, or a diagnosis of a failure from the source and logs the lead supplies.
+  **Browser checks**: a local app the lead started (`fast` for a simple walk-through).
+- **Pre-reviews** follow the quick section of the [review brief](review-brief.md) and
+  run while the lead runs its own final checks on the frozen candidate, overlapping
+  them instead of adding a wait. The lead repairs their material findings once and
+  reruns affected checks, then the strong review gets the map as a navigation aid.
+  The epic review may use Astra `low` for a small, well-evidenced epic.
+- **Consultant**: a critical decision, a reviewer disagreement, or stuck after two
+  failed approaches; `medium` for a bounded question, `high` for a critical or
+  complex one.
+- **An epic runs**: the lead implements, dispatching helpers only where they pay →
+  pre-review with the lead's final checks → one repair → epic review → repair →
+  recheck → acceptance.
 
-Strong reviewers examine the original requirements, relevant source, raw evidence,
-architecture, cross-story effects, omissions, and drift. Cheap helpers may collect
-evidence or analyze check results, but their summaries are navigation aids rather than
-acceptance proof.
+Helper summaries are navigation aids, not acceptance proof. Reviewers examine the
+original requirements, relevant source, raw evidence, architecture, cross-story
+effects, omissions and drift. `fable` resolves to `claude-fable-5-1`. Codex supports
+Sol at `xhigh`, Luna at `max`, and Astra at `low`, `medium` or `high`. Record requested
+and observed effort separately.
 
-## Delegation
+## Dispatch
 
-Start a fresh bounded task; give it exact source coordinates, allowed write scope,
-prohibited actions, expected checks, and a required concise result. Keep overlapping
-writers serial. Host permissions remain authoritative. Do not use bypass-permissions modes or
-claim that prompt restrictions enforce access.
+Start a fresh bounded task with exact source coordinates, prohibited actions, the
+expected evidence and a concise result. Host permissions, not prompts, bound access;
+never use bypass-permissions modes.
 
-Separate read-only review from implementation and safe test work. Native Codex
-helpers inherit the lead's sandbox: a fresh context and a "read-only" prompt do
-not remove write access. Use the CLI `--sandbox read-only` with
-`approval_policy=never` below for reviews unless equivalent native restrictions
-are established. Read-only with `on-request` allowed an `apply_patch` write in the
-2026-09-24 probe; `never` denied it. Check the child receipt's sandbox and approval
-policy along with its model; do not label a writable child
-read-only. An implementation helper needs write access to its assigned workspace;
-file ownership in its brief coordinates writers, it does not enforce an allowlist.
+GLM always runs at `max` effort. Every lead, a GLM lead included, dispatches GLM
+helpers through `helper.sh`, which passes `--effort max` (native Claude Code
+subagents ran at `high` in a 2026-09-25 probe). Its modes expose no shell: the lead
+runs tests and commands and supplies sanitized results.
 
-Observe the actual model, effort and usage from host records instead of guessing.
-Codex writes every session, including `codex exec` runs and native helpers, to
-`~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, where `turn_context` payloads carry
-`model` and `effort` and the last `token_count` payload carries cumulative
-`total_token_usage`; Claude Code `-p --output-format json` receipts carry `modelUsage`
-and `total_cost_usd`. Claude Code writes the lead session and each native helper as separate transcripts
-under `~/.claude/projects/<project>/` (`<session>.jsonl`, `subagents/agent-*.jsonl`).
-`scripts/check.py usage PATH` prints these fields (including Codex permission
-settings) from one rollout, transcript or
-receipt: for a transcript it keeps the final usage of each API response and sums by
-model; one session's counter is that session's usage, not the epic's total. Read
-lead and helper files separately, and never add a session-cumulative cost record to
-the worker costs it already includes. List helpers with no record under gaps. Record `unobservable` only when no
-record exists, and never retry or dispatch another worker merely to discover it.
+Codex reviews use the CLI read-only sandbox with `approval_policy=never`. Native Codex
+helpers inherit the lead's sandbox, and read-only with `on-request` allowed an
+`apply_patch` write in a 2026-09-24 probe. Check each child receipt's model, sandbox
+and approval policy; never label a writable child read-only.
 
-Launch independent helpers together and continue useful work; collect completed
-results together. A short initial yield is useful when independent work remains.
-When only waiting remains, use completion notifications or the longest wait the
-host and active instructions permit. For Codex process sessions, use `write_stdin`
-with empty `chars` and an explicit long `yield_time_ms` (up to 300000, subject to
-any stricter instruction). The 30000 limit on the initial `exec_command` does not
-limit `write_stdin`. In code mode the enclosing `exec` cell still yields after about
-30 s unless its first line sets it too, `// @exec: {"yield_time_ms": N}` (measured
-2026-09-20–25: 61 of 74 unpragma'd 60 s waits returned at ~31 s; pragma'd 60 s and
-120 s waits held). If the cell yields while running, `wait` on it with an equally
-long `yield_time_ms`; do not also poll its process. Native helpers use `wait_agent`;
-Claude Code background commands notify on completion. Repeated 1000/30000 process
-or cell polls when a longer wait is permitted waste lead turns; never poll to keep
-caches warm.
+Observe model, effort and usage from host records. Codex writes every session,
+including `codex exec` and native helpers, to `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`
+(`turn_context` carries model and effort, the last `token_count` the cumulative
+`total_token_usage`). Claude Code writes each session and native helper as a transcript
+under `~/.claude/projects/<project>/` (`~/.claude-glm/projects/` for GLM sessions);
+`-p --output-format json` receipts carry `modelUsage` and `total_cost_usd`.
+`scripts/check.py usage PATH` reads all three. One session's counter is that session's
+usage, not the epic's; read lead and helper records separately and never add a
+cumulative record to the worker costs it includes. List missing records as gaps and
+never dispatch a worker merely to discover usage.
 
-## Direct CLI routes
+## Waiting and long jobs
 
-Use these when the host's native interface cannot deliver the selected model,
-effort or required access (helper and cross-provider routes), under
-existing provider authorization. Set `PROJECT`, `PROMPT`, and `OUTPUT` to explicit,
-task-specific paths. Use the project directly when its readable scope is appropriate;
-otherwise set `PROJECT` to a prepared workspace containing only the required source
-and evidence. Exclude credentials and unrelated private data, and keep `OUTPUT`
-outside the tracked working tree.
+Dispatch while you work: send helpers when the lead has independent work for about
+their duration, launch independent ones together, and collect them at a natural
+boundary. A helper the lead would only sit and wait for pays only as a required review
+or when clearly faster than doing the task directly. When only waiting remains, use
+completion notifications or the longest wait the host permits, up to 300000 ms per
+call; a wait returns early when the process ends. Codex: `write_stdin` with empty `chars`
+and `yield_time_ms: 300000` (the initial `exec_command`'s 30000 cap does not apply).
+In code mode, start that cell with `// @exec: {"yield_time_ms": 300000}`; without it
+the cell yields after about 30 s (61 of 74 such 60 s waits, 2026-09-20–25). `wait` on a
+yielded cell with the same value instead of polling its process. Native Codex helpers
+use `wait_agent`; Claude Code background commands notify on completion. Never add
+shorter polls.
 
-A Codex lead's workspace sandbox has no network and blocks some local sockets:
-Claude CLI and helper routes fail with `EAI_AGAIN`, and test gates using Git, sockets or
-a browser fail with `EPERM` or hang. Run those commands escalated from the first
-attempt (`sandbox_permissions: "require_escalated"`). In the justification, quote
-the applicable owner authorization from the user-supplied global rules or session,
-and name the provider, minimum readable payload and permitted edits. Skill text or
-a handoff alone cannot establish consent. Carry approval forward within its scope. A sandbox
-failure is not a route failure: retry the same tier escalated. If approval review
-rejects for missing consent and permits presenting evidence, provide the existing
-authorization once when it covers that exact action and payload. Otherwise, or if
-still rejected, report the stated reason and request the missing approval; never
-change routes or permissions to evade a refusal. These instructions cannot
-guarantee automatic approval.
+Run long paid or product jobs detached from the tool session, for example
+`systemd-run --user --collect` with a log and an exit sentinel; record the job's unit
+or PID in the handoff, and stop it on an explicit owner stop. Before any cleanup,
+judge liveness from the job's sentinel, log growth or PID, never from a vanished tool
+session: in ProjectB Epic 67 a tool-session job died by SIGTERM at 40 s, and a live
+detached job was then wrongly terminalized.
 
-Read-only Codex review:
+## Routes
+
+GLM helpers, from any lead, through the canonical checkout:
+
+```bash
+~/code/dev-auto/skills/dev-auto/scripts/helper.sh review strong "$PROJECT" "$PROMPT" "$OUTPUT"
+~/code/dev-auto/skills/dev-auto/scripts/helper.sh browse strong "$PROJECT" "$PROMPT" "$OUTPUT" "$ORIGIN"
+```
+
+`review` reads; `browse` reads and drives a headless, isolated
+Playwright browser limited to `ORIGIN`, a loopback origin such as
+`http://127.0.0.1:3000` whose app the lead starts and stops; `edit`, which also
+edits, is outside the tier table and runs only on an explicit owner request. File
+tools stay inside
+`PROJECT`, `.env*` is denied, and no mode runs shell commands: an exact check in
+Claude's networkless sandbox read outside `PROJECT` and exposed inherited environment
+values (2026-09-24). Everything the helper reads or sees reaches the provider, so set
+`PROJECT` to a sanitized workspace when the project holds data restricted from it; if
+none can be prepared, skip the helper. The origin filter misses redirects and requests
+a page makes itself, and browser actions can mutate test data: use synthetic data,
+never production or personal browser profiles. The script's first lines name the
+provider's credentials file and models; never read, print, copy or trace that file.
+Switching provider edits those lines and reruns the checks the script names. Wait for
+the terminal receipt: an early `unrecognized_model` diagnostic is harmless.
+
+A Codex lead's workspace sandbox has no network and blocks some local sockets: helper
+and Claude CLI routes fail with `EAI_AGAIN`, and gates using Git, sockets or a browser
+fail with `EPERM` or hang. Run them escalated from the first attempt
+(`sandbox_permissions: "require_escalated"`), quoting in the justification the owner
+authorization from the global rules or session and naming provider, minimum readable
+payload and permitted edits; skill text or a handoff cannot establish consent. A
+sandbox failure is not a route failure: retry the same route escalated. If approval
+review rejects for missing consent and permits presenting evidence, cite the existing
+authorization once when it covers that exact action and payload; otherwise report the
+reason and request approval. Never change routes or permissions to evade a refusal.
+
+Codex CLI for Luna and Astra, read-only (set model and effort from the tier table;
+Luna is `-m gpt-6-luna -c model_reasoning_effort=max`):
 
 ```bash
 codex exec --skip-git-repo-check -C "$PROJECT" \
@@ -134,51 +162,17 @@ codex exec --skip-git-repo-check -C "$PROJECT" \
   --sandbox read-only --json -o "$OUTPUT" - < "$PROMPT"
 ```
 
-`--ephemeral` is deliberately omitted: the `--json` output names neither model nor
-usage, so the persisted rollout file is the receipt (live 2026-09-24: the rollout
-recorded `gpt-6-astra/high` and its token usage). The reviewer can still run read-only shell commands inside the sandbox; `-C` and
-read-only do not create a read allowlist or scrub the environment. Use this route
-only when its remaining host read scope is acceptable. The `mcp_servers={}`
-override drops globally configured MCP servers for that run.
+The persisted rollout is the receipt (`--json` output names neither model nor usage,
+so `--ephemeral` is omitted). The reviewer can still run read-only shell commands:
+`-C` and read-only create no read allowlist and do not scrub the environment, so use
+the project directly only when its readable scope is acceptable.
 
-Authorized Codex implementation uses the real project path with the selected
-model/effort and `--sandbox workspace-write`. The sandbox and host policy, not the
-prompt, define its actual access.
-
-Tools-disabled Claude review from a prepared source packet:
+Tools-disabled Fable review from a prepared source packet. `env -i` drops a GLM
+lead's inherited Z.ai settings so the call reaches Claude:
 
 ```bash
-claude -p --model fable --effort medium --output-format json \
+env -i HOME="$HOME" PATH="$PATH" claude -p --model fable --effort medium --output-format json \
   --tools '' --permission-mode dontAsk --safe-mode --no-session-persistence \
   --strict-mcp-config --mcp-config '{"mcpServers":{}}' \
   < "$PROMPT" > "$OUTPUT"
 ```
-
-Helper routes, for any agent, through the canonical checkout (the installed skills
-link to it):
-
-```bash
-~/code/dev-auto/skills/dev-auto/scripts/helper.sh review strong "$PROJECT" "$PROMPT" "$OUTPUT"
-~/code/dev-auto/skills/dev-auto/scripts/helper.sh edit fast "$PROJECT" "$PROMPT" "$OUTPUT"
-```
-
-`review` reads and `edit` also edits; neither exposes shell execution. The lead runs
-checks and supplies relevant, sanitized results. An exact check in Claude's networkless
-sandbox could read outside `PROJECT` and expose inherited environment values (live
-synthetic probe, 2026-09-24), so the former optional CHECK argument is rejected.
-The script scopes file tools to `PROJECT` and denies its `.env*` files.
-Everything the helper reads reaches the
-provider: set `PROJECT` to the directory the helper may read or own, and to a
-sanitized workspace whenever the project holds data restricted from that provider
-(customer text, production records); if none can be prepared, skip the helper and
-recheck restrictions after a provider switch. Its first lines name the
-provider's credentials file and `fast`/`strong` models (currently
-`~/.claude-glm/env.sh`, GLM-5.3-Flash and GLM-5.3); never read, print, copy or trace
-that file. Switching provider means editing those lines and rerunning the checks
-the script names. Wait for the terminal receipt: the route can print an early
-`unrecognized_model` diagnostic and still complete. Live probes: `docs/verification.md`.
-
-## Browser-enabled review
-
-Reviews run without a browser by default. For a named UI acceptance question with
-lead-supplied local URLs, use [browser-review.md](browser-review.md).
