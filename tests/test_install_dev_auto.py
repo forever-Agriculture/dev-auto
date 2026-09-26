@@ -13,6 +13,7 @@ import unittest
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "install-dev-auto.py"
 SOURCE = (REPO / "skills" / "dev-auto").resolve()
+PLANNING_SOURCE = (REPO / "skills" / "epic-lead-planning").resolve()
 HOOK = REPO / "hooks" / "dev-auto-session-start.py"
 HOOK_FILES = (
     Path(".claude/settings.json"),
@@ -21,6 +22,10 @@ HOOK_FILES = (
 RELATIVE_DESTINATIONS = (
     Path(".agents/skills/dev-auto"),
     Path(".claude/skills/dev-auto"),
+)
+PLANNING_DESTINATIONS = (
+    Path(".agents/skills/epic-lead-planning"),
+    Path(".claude/skills/epic-lead-planning"),
 )
 
 
@@ -53,6 +58,10 @@ class InstallerTests(unittest.TestCase):
                 destination = root / relative
                 self.assertTrue(destination.is_symlink())
                 self.assertEqual(destination.resolve(strict=True), SOURCE)
+            for relative in PLANNING_DESTINATIONS:
+                destination = root / relative
+                self.assertTrue(destination.is_symlink())
+                self.assertEqual(destination.resolve(strict=True), PLANNING_SOURCE)
 
             checked = self.run_installer(root, "--check")
             self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
@@ -116,6 +125,7 @@ class InstallerTests(unittest.TestCase):
             self.assertEqual(len([g for g in data["hooks"]["SessionStart"]
                                   if HOOK.name in g["hooks"][0]["command"]]), 1)
             self.assertEqual((profile / "skills" / "dev-auto").resolve(strict=True), SOURCE)
+            self.assertEqual((profile / "skills" / "epic-lead-planning").resolve(strict=True), PLANNING_SOURCE)
             after = self.run_installer(root, "--check")
             self.assertEqual(after.returncode, 0, after.stdout + after.stderr)
             self.assertIn(f"HOOK OK: {settings}", after.stdout)
@@ -132,6 +142,8 @@ class InstallerTests(unittest.TestCase):
             self.assertFalse(glm.is_symlink() or glm.is_dir())
             self.assertEqual(glm.read_text(encoding="utf-8"), "profile data\n")
             for relative in RELATIVE_DESTINATIONS:
+                self.assertTrue((root / relative).is_symlink(), relative)
+            for relative in PLANNING_DESTINATIONS:
                 self.assertTrue((root / relative).is_symlink(), relative)
 
     def test_malformed_glm_settings_refuses_every_change(self) -> None:
@@ -159,6 +171,7 @@ class InstallerTests(unittest.TestCase):
             destination = skills / "dev-auto"
             self.assertTrue(destination.is_symlink())
             self.assertEqual(destination.resolve(strict=True), SOURCE)
+            self.assertEqual((skills / "epic-lead-planning").resolve(strict=True), PLANNING_SOURCE)
             self.assertFalse(skills.is_symlink())  # the owner's real directory is kept, not replaced
             settings = root / ".claude-glm" / "settings.json"
             groups = json.loads(settings.read_text(encoding="utf-8"))["hooks"]["SessionStart"]
@@ -220,8 +233,25 @@ class InstallerTests(unittest.TestCase):
             self.assertEqual(sentinel.read_text(encoding="utf-8"), "user data\n")
             for relative in RELATIVE_DESTINATIONS:
                 self.assertFalse((root / relative).exists(), relative)
+            for relative in PLANNING_DESTINATIONS:
+                self.assertFalse((root / relative).exists(), relative)
             self.assertFalse((root / ".claude" / "settings.json").exists())
             self.assertFalse((root / ".claude-glm" / "settings.json").exists())
+
+    def test_conflicting_planning_skill_refuses_all_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            conflict = root / ".agents" / "skills" / "epic-lead-planning"
+            conflict.mkdir(parents=True)
+            (conflict / "keep.txt").write_text("user data\n", encoding="utf-8")
+            result = self.run_installer(root)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("Nothing changed", result.stderr)
+            self.assertEqual((conflict / "keep.txt").read_text(), "user data\n")
+            for relative in RELATIVE_DESTINATIONS + PLANNING_DESTINATIONS:
+                if relative != Path(".agents/skills/epic-lead-planning"):
+                    self.assertFalse((root / relative).exists(), relative)
+            self.assertFalse((root / ".claude" / "settings.json").exists())
 
     def test_links_only_skips_hooks_and_check_reports_them_missing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -1,6 +1,6 @@
 # dev-auto
 
-Direct development from BMAD plans, with project-alignment checks, regression tests, independent reviews and useful model delegation. One shared skill for Codex, Claude Code and Claude Code on the GLM route; no custom orchestration engine.
+Direct development from BMAD plans, with project-alignment checks, regression tests, independent reviews and useful model delegation. Shared skills for Codex, Claude Code and Claude Code on the GLM route; no custom orchestration engine.
 
 Direct Codex/Claude implementation is the foundation. Dev-auto adds a thin layer
 of proportionate quality, security, and recovery checks. Real runs inform the
@@ -21,7 +21,7 @@ python3 scripts/install-dev-auto.py
 python3 scripts/install-dev-auto.py --check
 ```
 
-The installer links every client to `skills/dev-auto` in this checkout and registers the compaction-recovery hook:
+The installer links every client to `skills/dev-auto` and `skills/epic-lead-planning` in this checkout. The planning skill adds an advisory suggested lead while drafting BMAD epics in any project; it does not change implementation routing or need a hook. The installer also registers the dev-auto compaction-recovery hook:
 
 - Codex: `~/.agents/skills/dev-auto`; hook group in `~/.codex/hooks.json`
 - Claude Code: `~/.claude/skills/dev-auto`; hook group in `~/.claude/settings.json`

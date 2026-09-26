@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# MODULE: install-dev-auto.py - link every client to the canonical dev-auto skill and register its recovery hook
-"""Install or check the dev-auto skill links and its SessionStart recovery hook.
+# MODULE: install-dev-auto.py - link shared skills and register the dev-auto recovery hook
+"""Install or check the shared skill links and dev-auto's SessionStart recovery hook.
 
-Links: ``~/.agents/skills/dev-auto`` (Codex) and ``~/.claude/skills/dev-auto``
-(Claude Code) point at ``skills/dev-auto`` in this checkout, and so does
-``~/.claude-glm/skills/dev-auto`` when that GLM profile (``claude glm``) exists.
+Links: Codex and Claude Code share ``skills/dev-auto`` and
+``skills/epic-lead-planning`` from this checkout. The GLM profile (``claude glm``)
+also receives both skills when it exists.
 Existing conflicting files or links are never overwritten.
 
 Hooks (default; skip with ``--links-only``): one ``SessionStart`` group with matcher ``compact|resume``
@@ -29,11 +29,10 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "skills" / "dev-auto"
+PLANNING_SOURCE = ROOT / "skills" / "epic-lead-planning"
+SKILL_SOURCES = {"dev-auto": SOURCE, "epic-lead-planning": PLANNING_SOURCE}
 HOOK_SCRIPT = ROOT / "hooks" / "dev-auto-session-start.py"
-DESTINATIONS = (
-    Path(".agents/skills/dev-auto"),
-    Path(".claude/skills/dev-auto"),
-)
+SKILL_DIRS = (Path(".agents/skills"), Path(".claude/skills"))
 HOOK_FILES = (
     Path(".claude/settings.json"),
     Path(".codex/hooks.json"),
@@ -56,7 +55,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--links-only",
         action="store_true",
-        help="install the skill links but do not register the SessionStart hook",
+        help="install skill links but do not register the SessionStart hook",
     )
     parser.add_argument(
         "--target-root",
@@ -183,28 +182,34 @@ def register_hook(path: Path, script: Path) -> None:
 
 def main() -> int:
     args = parse_args()
-    source = SOURCE.resolve(strict=True)
-    if not (source / "SKILL.md").is_file():
-        print(f"ERROR: canonical skill is incomplete: {source}", file=sys.stderr)
-        return 2
+    for skill_source in SKILL_SOURCES.values():
+        if not (skill_source / "SKILL.md").is_file():
+            print(f"ERROR: canonical skill is incomplete: {skill_source}", file=sys.stderr)
+            return 2
+    sources = {name: path.resolve(strict=True) for name, path in SKILL_SOURCES.items()}
     if not HOOK_SCRIPT.is_file():
         print(f"ERROR: hook script missing: {HOOK_SCRIPT}", file=sys.stderr)
         return 2
 
     root = (args.target_root or Path.home()).expanduser().resolve()
-    destinations = [root / relative for relative in DESTINATIONS]
+    destinations = [
+        (root / skill_dir / name, skill_source)
+        for skill_dir in SKILL_DIRS
+        for name, skill_source in sources.items()
+    ]
     hook_files = [root / relative for relative in HOOK_FILES]
     glm_profile = root / GLM_PROFILE
     glm_settings = glm_profile / "settings.json" if glm_profile.is_dir() else None
     if glm_settings:
-        destinations.append(glm_profile / "skills" / "dev-auto")
+        destinations.extend((glm_profile / "skills" / name, skill_source)
+                            for name, skill_source in sources.items())
         hook_files.append(glm_settings)
     else:
         print(f"SKIPPED: no GLM profile at {glm_profile}")
 
     problems: list[str] = []
-    for destination in destinations:
-        if exists_or_link(destination) and not matches(destination, source):
+    for destination, skill_source in destinations:
+        if exists_or_link(destination) and not matches(destination, skill_source):
             problems.append(f"nonmatching destination exists: {destination}")
         elif not exists_or_link(destination):
             blocker = blocked_parent(destination)
@@ -221,8 +226,8 @@ def main() -> int:
 
     if args.check:
         ok = True
-        for destination in destinations:
-            linked = matches(destination, source)
+        for destination, skill_source in destinations:
+            linked = matches(destination, skill_source)
             ok = ok and linked
             print(f"{'OK' if linked else 'MISSING_OR_CONFLICT'}: {destination}")
         for hook_file in hook_files:
@@ -241,13 +246,13 @@ def main() -> int:
         print("Nothing changed.", file=sys.stderr)
         return 2
 
-    for destination in destinations:
-        if matches(destination, source):
-            print(f"OK: {destination} already links to {source}")
+    for destination, skill_source in destinations:
+        if matches(destination, skill_source):
+            print(f"OK: {destination} already links to {skill_source}")
             continue
         destination.parent.mkdir(parents=True, exist_ok=True)
-        os.symlink(source, destination, target_is_directory=True)
-        print(f"LINKED: {destination} -> {source}")
+        os.symlink(skill_source, destination, target_is_directory=True)
+        print(f"LINKED: {destination} -> {skill_source}")
 
     if not args.links_only:
         for hook_file in hook_files:
