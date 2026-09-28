@@ -10,8 +10,9 @@ Existing conflicting files or links are never overwritten.
 Hooks (default; skip with ``--links-only``): one ``SessionStart`` group with matcher ``compact|resume``
 running ``hooks/dev-auto-session-start.py`` is appended to
 ``~/.claude/settings.json``, ``~/.codex/hooks.json`` and, with the GLM profile,
-``~/.claude-glm/settings.json``, where it also sets ``effortLevel`` to ``max``
-(owner rule: GLM always runs at max effort). Existing groups, order, and unrelated
+``~/.claude-glm/settings.json``, where it also sets ``env.CLAUDE_CODE_EFFORT_LEVEL``
+to ``max`` (owner rule: GLM always runs at max effort; Claude Code keeps a saved
+``max`` for one session only). Existing groups, order, and unrelated
 keys are preserved; files are written atomically and read back. Codex still
 requires trusting the new hook through ``/hooks``.
 """
@@ -40,6 +41,7 @@ HOOK_FILES = (
 # Claude Code on the GLM route keeps its own config directory; it is optional.
 GLM_PROFILE = Path(".claude-glm")
 GLM_EFFORT = "max"
+GLM_EFFORT_VAR = "CLAUDE_CODE_EFFORT_LEVEL"
 HOOK_EVENT = "SessionStart"
 HOOK_MATCHER = "compact|resume"
 HOOK_TIMEOUT = 10
@@ -168,7 +170,8 @@ def write_atomic(path: Path, data: dict) -> None:
 
 def glm_effort_is_max(path: Path) -> bool:
     data = load_json(path)
-    return bool(data) and data.get("effortLevel") == GLM_EFFORT
+    env = data.get("env") if data else None
+    return isinstance(env, dict) and env.get(GLM_EFFORT_VAR) == GLM_EFFORT
 
 
 def register_hook(path: Path, script: Path) -> None:
@@ -223,6 +226,9 @@ def main() -> int:
             state = hook_state(hook_file, HOOK_SCRIPT)
             if state in {"UNREADABLE", "CONFLICT"}:
                 problems.append(f"hook file {state.lower()}: {hook_file}")
+        glm_data = load_json(glm_settings) if glm_settings else None
+        if glm_data and not isinstance(glm_data.get("env", {}), dict):
+            problems.append(f"GLM settings env is not an object: {glm_settings}")
 
     if args.check:
         ok = True
@@ -263,9 +269,9 @@ def main() -> int:
             print(f"HOOKED: {hook_file} <- {HOOK_EVENT} [{HOOK_MATCHER}] {HOOK_SCRIPT}")
         if glm_settings and not glm_effort_is_max(glm_settings):
             data = load_json(glm_settings)
-            data["effortLevel"] = GLM_EFFORT
+            data.setdefault("env", {})[GLM_EFFORT_VAR] = GLM_EFFORT
             write_atomic(glm_settings, data)
-            print(f"SET: effortLevel {GLM_EFFORT} in {glm_settings}")
+            print(f"SET: env {GLM_EFFORT_VAR}={GLM_EFFORT} in {glm_settings}")
         print("Codex: run /hooks in Codex once to review and trust the new hook.")
     return 0
 

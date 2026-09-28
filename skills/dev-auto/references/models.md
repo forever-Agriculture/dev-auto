@@ -14,8 +14,9 @@ helpers' packets were about 23% of the Codex lead's input tokens.
 
 The owner picks and starts the lead: Sol `xhigh` (Codex), Opus `xhigh` (Claude Code)
 or GLM-5.3 `max` (`claude glm --model opus --effort max`: Claude Code on the Z.ai plan
-in `~/.claude-glm`, whose `effortLevel` is `max`; transcripts record `xhigh`, which
-Z.ai serves as GLM `max`, measured 2026-08-31). A GLM lead sends everything it reads
+in `~/.claude-glm`, whose settings set `CLAUDE_CODE_EFFORT_LEVEL=max`: Claude Code keeps
+a saved `max` for one session only and otherwise ran GLM at `xhigh`, probe 2026-09-28).
+A GLM lead sends everything it reads
 to Z.ai: in a project that restricts Z.ai or holds customer, production or personal
 data it reports BLOCKED and names Sol or Opus instead. It never prints environment
 values or credential files (`env`, `printenv`, `set`) and tests a variable with

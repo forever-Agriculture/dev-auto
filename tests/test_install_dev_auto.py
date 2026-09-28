@@ -112,7 +112,9 @@ class InstallerTests(unittest.TestCase):
             profile.mkdir()
             (profile / "skills").symlink_to(root / ".claude" / "skills")  # the owner's layout
             settings = profile / "settings.json"
-            settings.write_text(json.dumps({"model": "opus", "effortLevel": "high"}), encoding="utf-8")
+            # A saved top-level max is not enough: Claude Code keeps it for one session only.
+            settings.write_text(json.dumps({"model": "opus", "effortLevel": "max",
+                                            "env": {"API_TIMEOUT_MS": "1"}}), encoding="utf-8")
             before = self.run_installer(root, "--check")
             self.assertEqual(before.returncode, 1, before.stdout)
             self.assertIn(f"HOOK MISSING: {settings}", before.stdout)
@@ -121,7 +123,8 @@ class InstallerTests(unittest.TestCase):
             present = self.run_installer(root)
             self.assertEqual(present.returncode, 0, present.stderr)
             data = json.loads(settings.read_text(encoding="utf-8"))
-            self.assertEqual((data["model"], data["effortLevel"]), ("opus", "max"))
+            self.assertEqual(data["model"], "opus")
+            self.assertEqual(data["env"], {"API_TIMEOUT_MS": "1", "CLAUDE_CODE_EFFORT_LEVEL": "max"})
             self.assertEqual(len([g for g in data["hooks"]["SessionStart"]
                                   if HOOK.name in g["hooks"][0]["command"]]), 1)
             self.assertEqual((profile / "skills" / "dev-auto").resolve(strict=True), SOURCE)
@@ -160,6 +163,17 @@ class InstallerTests(unittest.TestCase):
                 self.assertEqual(settings.read_text(encoding="utf-8"), broken)
                 self.assertEqual([path.name for path in root.iterdir()], [".claude-glm"])
                 self.assertEqual([path.name for path in settings.parent.iterdir()], ["settings.json"])
+
+    def test_glm_env_that_is_not_an_object_refuses_every_change(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            settings = root / ".claude-glm" / "settings.json"
+            settings.parent.mkdir(parents=True)
+            settings.write_text('{"env": "nope"}', encoding="utf-8")
+            result = self.run_installer(root)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn(f"GLM settings env is not an object: {settings}", result.stderr)
+            self.assertEqual(settings.read_text(encoding="utf-8"), '{"env": "nope"}')
 
     def test_glm_real_skills_directory_gets_link_and_hook(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
