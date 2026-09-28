@@ -1,13 +1,16 @@
 # Owner cockpit (BMN)
 
 Read this only when the session runs inside BMN (`bmn` on PATH, `BMN_CONTROL_SOCKET`
-and `BMN_TOKEN` set); then mirror the run for the owner. At each
+and `BMN_TOKEN` set; test with `[ -n "${BMN_TOKEN:-}" ]`, never print either value);
+then mirror the run for the owner. At each
 `DEV-AUTO:` line run `bmn progress` with ACTIVE→`running`, PAUSED→`waiting`,
 BLOCKED→`blocked`, COMPLETE→`claimed-done`; the label is the evidence for COMPLETE
-and the next action otherwise; never `verified`, which is the owner's judgment. When
-BLOCKED needs an owner decision, run `bmn ask dev-auto-<epic> "<decision needed>"`
-with `--kind permission` for an action needing authorization and `--kind question`
-otherwise; an external dependency needing no owner action stays a blocked progress
+and the next action otherwise; never `verified`, which is the owner's judgment. Ask every
+owner decision in the session itself (AskUserQuestion in Claude Code, a direct question
+in Codex), also right after compaction: a BMN card cannot carry the answer back (BMN
+Epic 28 and ProjectB Epic 69, 2026-09-26). Then mirror it with `bmn ask dev-auto-<epic>
+"<decision needed>"`, `--kind permission` for an action needing authorization and
+`--kind question` otherwise; an external dependency needing no owner action stays a blocked progress
 label. The ask never gates work: continue independent authorized work, and `bmn
 withdraw` the request when you observe the decision in the session. An answered or
 withdrawn request is not approval; only an attributable owner answer authorizes its

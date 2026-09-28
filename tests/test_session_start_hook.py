@@ -282,6 +282,103 @@ class SessionStartHookTests(unittest.TestCase):
             self.handoff.write_text(text)
             self.assertIn(text, context_of(run_hook({"source": "resume", "cwd": str(self.root)})))
 
+    def worktrees(self) -> tuple[Path, Path]:
+        """A main checkout and one linked worktree of the same repository."""
+        main, linked = self.root / "main", self.root / "linked"
+        main.mkdir()
+        def git(*args: str) -> None:
+            subprocess.run(["git", "-C", str(main), *args], check=True, capture_output=True)
+        git("init", "-q")
+        (main / "README").write_text("x", encoding="utf-8")
+        git("add", "README")
+        git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init")
+        git("worktree", "add", "-q", str(linked))
+        return main, linked
+
+    def put(self, checkout: Path, text: str) -> Path:
+        handoff = checkout / ".dev-auto" / "handoff.md"
+        handoff.parent.mkdir(parents=True, exist_ok=True)
+        handoff.write_text(text, encoding="utf-8")
+        return handoff
+
+    def test_unfinished_run_in_another_worktree_is_listed(self) -> None:
+        # ProjectB 2026-09-26: a resume from the main checkout picked up a finished
+        # epic there while the paused Epic 69 run sat in a sibling worktree.
+        main, linked = self.worktrees()
+        self.put(main, self.filled().replace("- Status: ACTIVE", "- Status: COMPLETE"))
+        paused = self.put(linked, self.filled().replace("- Status: ACTIVE", "- Status: PAUSED — owner stop"))
+        context = context_of(run_hook({"source": "compact", "cwd": str(main)}))
+        self.assertIn(f"- {paused} (Status: PAUSED — owner stop)", context)
+        self.assertIn("If this session leads one of them", context)
+        self.assertNotIn("Handoff snapshot", context)  # the list points, it does not inject
+        # From the linked worktree the run is its own; the finished main run stays silent.
+        context = context_of(run_hook({"source": "resume", "cwd": str(linked)}))
+        self.assertIn("PAUSED — owner stop", context)
+        self.assertNotIn("other worktrees", context)
+
+    def test_finished_runs_in_every_worktree_stay_silent(self) -> None:
+        main, linked = self.worktrees()
+        done = self.filled().replace("- Status: ACTIVE", "- Status: COMPLETE")
+        self.put(linked, done)
+        result = run_hook({"source": "compact", "cwd": str(main)})
+        self.assertEqual((result.returncode, result.stdout), (0, ""))
+        self.put(main, done)
+        result = run_hook({"source": "compact", "cwd": str(main)})
+        self.assertEqual((result.returncode, result.stdout), (0, ""))
+
+    def test_own_run_keeps_its_snapshot_and_lists_siblings_within_budget(self) -> None:
+        main, linked = self.worktrees()
+        own = self.put(main, self.filled(**{"Material pending findings": "F1 open"}))
+        other = self.put(linked, self.filled())
+        context = context_of(run_hook({"source": "compact", "cwd": str(main)}))
+        self.assertIn("F1 open", context)
+        self.assertIn(str(own), context)
+        self.assertIn(f"- {other} (Status: ACTIVE)", context)
+        # A handoff too large for reminder, snapshot and list is never cut: the full-read
+        # warning replaces it, and the list shrinks to a count.
+        self.put(main, "- Status: ACTIVE\n" + "x" * 8_900)
+        context = context_of(run_hook({"source": "compact", "cwd": str(main)}))
+        self.assertNotIn("x" * 50, context)
+        self.assertIn("Read the complete file before proceeding", context)
+        self.assertIn("1 unfinished dev-auto run(s)", context)
+        self.assertLessEqual(len(context), 9_950)
+
+    def test_own_snapshot_outranks_the_sibling_list(self) -> None:
+        # Fable 2026-09-28: with a sibling listed, a handoff check.py passes (<= 9,000) was
+        # omitted. Now the list shrinks to a count line before the snapshot is dropped.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("hook", HOOK)
+        hook = importlib.util.module_from_spec(spec); spec.loader.exec_module(hook)
+        main, _ = self.worktrees()
+        far = self.root / ("w" * 200)
+        subprocess.run(["git", "-C", str(main), "worktree", "add", "-q", str(far)],
+                       check=True, capture_output=True)
+        self.put(far, self.filled())
+        own = main / ".dev-auto" / "handoff.md"
+        head = len(hook.REMINDER.format(skill=hook.SKILL_DIR / "SKILL.md", handoff=own)) + len(
+            "\n\nHandoff snapshot:\n")
+        body = "- Status: ACTIVE\n" + "x" * (hook.OUTPUT_LIMIT - head - 250 - 17)
+        self.assertLessEqual(len(body), 9_000)
+        self.put(main, body)
+        context = context_of(run_hook({"source": "compact", "cwd": str(main)}))
+        self.assertIn(body, context)
+        self.assertNotIn(str(far), context)
+        self.assertIn("1 unfinished dev-auto run(s)", context)
+        self.assertLessEqual(len(context), 9_950)
+
+    def test_sibling_list_is_bounded_and_counts_what_it_drops(self) -> None:
+        main, linked = self.worktrees()
+        subprocess.run(["git", "-C", str(main), "worktree", "remove", str(linked)], check=True)
+        for index in range(8):
+            other = self.root / f"wt{index}"
+            subprocess.run(["git", "-C", str(main), "worktree", "add", "-q", str(other)],
+                           check=True, capture_output=True)
+            self.put(other, self.filled())
+        context = context_of(run_hook({"source": "compact", "cwd": str(main)}))
+        self.assertEqual(context.count("(Status: ACTIVE)"), 6)
+        self.assertIn("…and 2 more; list them with `git worktree list`", context)
+        self.assertLessEqual(len(context), 9_950)
+
     def test_bad_input_fails_open(self) -> None:
         result = run_hook("{not json")
         self.assertEqual((result.returncode, result.stdout), (0, ""))

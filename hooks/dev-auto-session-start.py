@@ -5,9 +5,10 @@
 Registered as a ``SessionStart`` hook (matcher ``compact|resume``) in Claude Code
 and Codex. Reads the hook event from stdin, looks for ``.dev-auto/handoff.md``
 in the working directory or its ancestors within the repository, and prints a bounded JSON
-``additionalContext`` with the fixed reminder plus a complete, bounded handoff.
-Silent when no run is recorded there or the run is COMPLETE. Fail-open: any
-unexpected error produces no output and exit code 0. Never writes files.
+``additionalContext`` with the fixed reminder plus a complete, bounded handoff. It also
+lists unfinished runs in the repository's other git worktrees. Silent when no unfinished
+run is recorded there. Fail-open: any unexpected error produces no output and exit code 0.
+Never writes files.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 SOURCES = {"compact", "resume"}
@@ -51,6 +53,20 @@ REMINDER = (
     "action; never redo completed or accepted work or duplicate an active helper. This starts "
     "no work and changes no role. An explicit user stop holds until the user resumes."
 )
+# Run state is per checkout, so a session can sit in one worktree while its run lives in
+# another (ProjectB 2026-09-26: a resume from the main checkout picked up a finished
+# epic and committed on its branch while the paused one sat in a sibling worktree).
+SIBLINGS = ("Unfinished dev-auto runs in this repository's other worktrees; if this session "
+            "leads one of them, read that handoff instead:")
+NOTICE = (
+    "[dev-auto recovery hook, owner-installed: hooks/dev-auto-session-start.py] No unfinished "
+    "dev-auto run in this checkout; the repository's other worktrees hold these:\n{runs}\nIf "
+    "this session leads one of them, first read {skill} and that complete handoff and stay "
+    "read-only until both are read; otherwise ignore this note. This starts no work; an "
+    "explicit user stop holds until the user resumes."
+)
+MAX_SIBLINGS = 6
+SIBLING_BUDGET = 2_000  # keeps every output path, the no-own-run notice included, in budget
 
 
 def find_handoff(cwd: Path) -> Path | None:
@@ -66,15 +82,74 @@ def find_handoff(cwd: Path) -> Path | None:
     return None
 
 
-def build_context(cwd: Path) -> str | None:
-    handoff = find_handoff(cwd)
-    if handoff is None:
-        return None
-    reminder = REMINDER.format(skill=SKILL_DIR / "SKILL.md", handoff=handoff)
+def read_body(handoff: Path) -> str | None:
     try:
         with handoff.open(encoding="utf-8", errors="replace") as handle:
-            body = handle.read(READ_LIMIT + 1)
+            return handle.read(READ_LIMIT + 1)
     except OSError:
+        return None
+
+
+def status_fields(body: str) -> tuple[list[str], list[str]]:
+    # Preserve continuation lines and duplicates when checking terminal state.
+    fields = list(re.finditer(
+        r"^- (Status|Explicit user stop[^:\n]*):([^\n]*(?:\n(?!- |#)[^\n]*)*)",
+        body, re.MULTILINE,
+    ))
+    statuses = [match[2].strip() for match in fields if match[1] == "Status"]
+    stops = [match[2].strip() for match in fields if match[1] != "Status"]
+    return statuses, stops
+
+
+def finished(body: str) -> bool:
+    """Ambiguous/duplicate state must not suppress the recovery reminder; a single
+    COMPLETE status on the last line with no stop is finished whatever its size."""
+    if len(body) > READ_LIMIT:  # a prefix cannot prove completion
+        return False
+    statuses, stops = status_fields(body)
+    terminal_line = body.rstrip().splitlines()[-1] if body.strip() else ""
+    return bool(len(statuses) == 1 and COMPLETE.fullmatch(statuses[0])
+                and len(stops) == 1 and NO_STOP.fullmatch(stops[0])
+                and TERMINAL.fullmatch(terminal_line.strip()))
+
+
+def sibling_runs(cwd: Path, own: Path | None) -> list[str]:
+    """One line per unfinished handoff at the root of another worktree of this repository."""
+    try:
+        listing = subprocess.run(["git", "-C", str(cwd), "worktree", "list", "--porcelain", "-z"],
+                                 capture_output=True, text=True, timeout=3, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    runs = []
+    for line in listing.stdout.split("\0") if listing.returncode == 0 else []:
+        if not line.startswith("worktree "):
+            continue
+        handoff = Path(line[len("worktree "):]) / ".dev-auto" / "handoff.md"
+        if not handoff.is_file() or (own is not None and handoff.resolve() == own.resolve()):
+            continue
+        body = read_body(handoff)
+        if body is None or finished(body):
+            continue
+        statuses = status_fields(body)[0]
+        label = " ".join(statuses[0].split())[:120] if len(statuses) == 1 else "missing or ambiguous"
+        runs.append(f"- {handoff} (Status: {label})")
+    shown: list[str] = []
+    for run in runs:
+        if len(shown) == MAX_SIBLINGS or sum(map(len, shown)) + len(run) > SIBLING_BUDGET:
+            break
+        shown.append(run)
+    if len(shown) < len(runs):  # a dropped run must stay visible as a count
+        shown.append(f"- …and {len(runs) - len(shown)} more; list them with `git worktree list`")
+    return shown
+
+
+def own_context(handoff: Path, room: int = 0) -> str | None:
+    """Reminder plus the complete handoff, or None when that run is finished. ``room``
+    reserves characters for the sibling list inside the host budget."""
+    limit = OUTPUT_LIMIT - room
+    reminder = REMINDER.format(skill=SKILL_DIR / "SKILL.md", handoff=handoff)
+    body = read_body(handoff)
+    if body is None:
         return reminder + "\n\nHandoff unavailable; read the file directly before proceeding."
 
     def omitted(reason: str) -> str:
@@ -88,30 +163,46 @@ def build_context(cwd: Path) -> str | None:
             "keeping every unresolved restriction, stop, finding and next action."
         )
 
-    if len(body) > READ_LIMIT:  # a prefix cannot prove completion
+    if len(body) > READ_LIMIT:
         return omitted(f"exceeds {READ_LIMIT:,} characters")
-    # Preserve continuation lines and duplicates when checking terminal state.
-    fields = list(re.finditer(
-        r"^- (Status|Explicit user stop[^:\n]*):([^\n]*(?:\n(?!- |#)[^\n]*)*)",
-        body, re.MULTILINE,
-    ))
-    statuses = [match[2].strip() for match in fields if match[1] == "Status"]
-    stops = [match[2].strip() for match in fields if match[1] != "Status"]
-    # Ambiguous/duplicate state must not suppress the recovery reminder; a single
-    # COMPLETE status on the last line with no stop is finished whatever its size.
-    terminal_line = body.rstrip().splitlines()[-1] if body.strip() else ""
-    if (len(statuses) == 1 and COMPLETE.fullmatch(statuses[0])
-            and len(stops) == 1 and NO_STOP.fullmatch(stops[0])
-            and TERMINAL.fullmatch(terminal_line.strip())):
+    if finished(body):
         return None
     if len(body) > HANDOFF_LIMIT:
         return omitted(f"exceeds {HANDOFF_LIMIT:,} characters")
+    statuses = status_fields(body)[0]
     warning = "" if len(statuses) == 1 else "\nStatus missing or ambiguous; reconcile before proceeding."
     context = f"{reminder}{warning}\n\nHandoff snapshot:\n{body}"
-    if len(context) > OUTPUT_LIMIT:
+    if len(context) > limit:
         return omitted(
             f"reminder and handoff exceed the {OUTPUT_LIMIT:,}-character host budget") + warning
     return context
+
+
+def build_context(cwd: Path) -> str | None:
+    handoff = find_handoff(cwd)
+    try:
+        siblings = sibling_runs(cwd, handoff)
+    except Exception:  # noqa: BLE001 - the optional list must never silence the own reminder
+        siblings = []
+    context = None if handoff is None else own_context(handoff)
+    if context is None:
+        if not siblings:
+            return None
+        return NOTICE.format(runs="\n".join(siblings), skill=SKILL_DIR / "SKILL.md")
+    if not siblings:
+        return context
+    block = "\n\n" + SIBLINGS + "\n" + "\n".join(siblings)
+    if len(context) + len(block) > OUTPUT_LIMIT:
+        # The own snapshot outranks the list: shrink the list to a count first, and only
+        # then fall back to the full-read warning. Never cut the handoff.
+        runs = sum(1 for line in siblings if "(Status: " in line) + sum(
+            int(line.split()[1]) for line in siblings if line.startswith("- …and "))
+        block = (f"\n\n{runs} unfinished dev-auto run(s) in this repository's other worktrees; "
+                 "if this session leads one of them, list them with `git worktree list` and "
+                 "read that handoff instead.")
+        if len(context) + len(block) > OUTPUT_LIMIT:
+            context = own_context(handoff, room=len(block))
+    return context + block
 
 
 def main() -> int:

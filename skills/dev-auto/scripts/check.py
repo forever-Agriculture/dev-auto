@@ -4,13 +4,14 @@
 
 check [PROJECT]     lint .dev-auto/handoff.md. At any status: size within the recovery
                     hook's 9,000-character snapshot, exactly one Status, Explicit user
-                    stop and Next safe action field, and a short Status. At COMPLETE also:
-                    placeholder text in the model/usage fields, any tracked .dev-auto file
-                    besides the handoff and log.
-usage PATH          print model, effort, Codex permission settings and usage from a rollout (.jsonl),
-                    one Claude Code session or subagent transcript (.jsonl under
-                    ~/.claude/projects), or one Claude ``--output-format json``
-                    receipt (.json).
+                    stop and Next safe action field, a short Status, and `.dev-auto/`
+                    ignored by git. At COMPLETE also: placeholder text in the observed
+                    model and lead session fields. Tracked `.dev-auto` files are a NOTE:
+                    removing them needs a repository change the owner approves.
+usage PATH          print model, effort, Codex permission settings, timestamps, usage and
+                    owner prompts from a rollout (.jsonl), one Claude Code session or
+                    subagent transcript (.jsonl under ~/.claude/projects), or one Claude
+                    ``--output-format json`` receipt (.json).
 usage --list PROJECT  list Codex rollouts whose session cwd is PROJECT; choose by hand.
 
 Exit 0 PASS or SKIP (status not COMPLETE and shape checks pass), 1 FAIL with one reason per line,
@@ -20,6 +21,7 @@ Exit 0 PASS or SKIP (status not COMPLETE and shape checks pass), 1 FAIL with one
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -28,11 +30,14 @@ import sys
 PLACEHOLDERS = ("to be recorded", "tbd", "placeholder", "pending receipt",
                 "from the codex rollout or claude receipt")
 EMPTY_GAPS = re.compile(r";\s*gaps:\s*$")
-FIELDS = ("Lead host / requested model / observed model", "Observed usage")
-# The skill commits only these two; anything else tracked under .dev-auto is raw
-# evidence or scratch (ProjectB 2026-09-24 committed 22 small raw result files under
-# `.dev-auto/pilot-tools/` that an extension and size rule missed).
-COMMITTED = {".dev-auto/handoff.md", ".dev-auto/log.md"}
+FIELDS = ("Lead host / requested model / observed model", "Lead sessions")
+# Run state is local to each checkout or worktree. Tracked state conflicted on every
+# ProjectB epic PR, carried a stale handoff into main (2026-09-26..28) and put raw
+# results in a company repository; old tracked files are a NOTE because a lead cannot
+# remove them without a repository change (ProjectB 66 and 69 reported COMPLETE over a
+# FAIL it could not fix). The exclude file is local and shared by every worktree.
+EXCLUDE_HINT = 'echo .dev-auto/ >> "$(git rev-parse --git-path info/exclude)"'
+GIT_ENV = {**os.environ, "LC_ALL": "C"}  # the not-a-repository test reads git's message
 SESSIONS = Path.home() / ".codex" / "sessions"
 SNAPSHOT_LIMIT = 9_000  # hooks/dev-auto-session-start.py injects the whole handoff up to this
 STATUS_LIMIT = 200
@@ -87,6 +92,41 @@ def field(body: str, name: str) -> str | None:
     return None
 
 
+def git_state(root: Path) -> tuple[list[str], list[str]] | None:
+    """Failures and notes about run state in git; None when git cannot answer."""
+    try:
+        ignored = subprocess.run(["git", "-C", str(root), "check-ignore", "-q", "--no-index",
+                                  ".dev-auto/handoff.md"], capture_output=True, text=True, env=GIT_ENV)
+        if ignored.returncode == 128 and "not a git repository" in ignored.stderr:
+            return [], []  # nothing here can be committed
+        if ignored.returncode not in (0, 1):
+            return None  # a broken repository or missing git is UNABLE, never a pass
+        tracked = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--", ".dev-auto"],
+                                 capture_output=True, text=True, check=True, env=GIT_ENV).stdout
+        staged = subprocess.run(["git", "-C", str(root), "diff", "--cached", "--name-only", "-z",
+                                 "--diff-filter=d", "--", ".dev-auto"], capture_output=True,
+                                text=True, check=True, env=GIT_ENV).stdout  # untracking is fine
+    except (OSError, ValueError, subprocess.CalledProcessError):
+        return None
+    failures = [] if ignored.returncode == 0 else [
+        f"`.dev-auto/` is not ignored by git; run state stays local: {EXCLUDE_HINT}"]
+    if staged.strip("\0"):  # `git add -A` or `commit -a` still stage files already tracked
+        failures.append("run state is staged for commit: `git restore --staged -- .dev-auto`")
+    names = list(filter(None, tracked.split("\0")))
+    notes = [f"{len(names)} tracked .dev-auto file(s), e.g. {', '.join(names[:3])}: stage none of "
+             "your changes to them; removing them needs a repository change the owner approves"] if names else []
+    return failures, notes
+
+
+def report(verdict: str, handoff: Path, failures: list[str], notes: list[str]) -> int:
+    print(f"FAIL: {handoff}" if failures else verdict)
+    for reason in failures:
+        print(f"- {reason}")
+    for note in notes:
+        print(f"NOTE: {note}")
+    return 1 if failures else 0
+
+
 def check(project: Path) -> int:
     handoff = find_handoff(project)
     if handoff is None:
@@ -99,14 +139,14 @@ def check(project: Path) -> int:
         return 2
     status = (field(body, "Status") or "").upper()
     failures = shape(body)
+    state = git_state(handoff.parent.parent)
+    if state is None:
+        print(f"UNABLE: git cannot report on {handoff.parent}")
+        return 2
+    failures += state[0]
     if not status.startswith("COMPLETE"):
-        if not failures:
-            print(f"SKIP: Status is {status[:60] or 'missing'}; completion checks apply only to COMPLETE")
-            return 0
-        print(f"FAIL: {handoff}")
-        for reason in failures:
-            print(f"- {reason}")
-        return 1
+        return report(f"SKIP: Status is {status[:60] or 'missing'}; completion checks apply only to "
+                      "COMPLETE", handoff, failures, state[1])
     fields = [(m[1], m[2].strip()) for m in FIELD_BLOCK.finditer(body)]
     statuses = [v for n, v in fields if n == "Status"]
     stops = [v for n, v in fields if re.fullmatch(REQUIRED[1][1], n)]
@@ -121,32 +161,18 @@ def check(project: Path) -> int:
                         "hook stays silent")
     for name in FIELDS:
         value = field(body, name)
-        if not value:
+        if value is None:
+            failures.append(f"'{name}' is missing; add `- {name}:` with its value")
+        elif not value:
             failures.append(f"'{name}' is empty")
         elif any(p in value.lower() for p in PLACEHOLDERS) or EMPTY_GAPS.search(value.lower()):
             failures.append(f"'{name}' still holds placeholder text: {value[:80]}")
-    root = handoff.parent.parent
-    try:
-        out = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--", ".dev-auto"],
-                             capture_output=True, text=True, check=True).stdout
-    except (OSError, ValueError, subprocess.CalledProcessError) as exc:
-        print(f"UNABLE: git ls-files failed in {root}: {exc}")
-        return 2
-    for rel in filter(None, out.split("\0")):
-        if rel not in COMMITTED:
-            failures.append(f"raw evidence tracked: {rel}; only the handoff and log belong in git")
-    if failures:
-        print(f"FAIL: {handoff}")
-        for reason in failures:
-            print(f"- {reason}")
-        return 1
-    print(f"PASS: {handoff}")
-    return 0
+    return report(f"PASS: {handoff}", handoff, failures, state[1])
 
 
 def read_rollout(path: Path) -> dict:
     meta, routes, usage, first, last = {}, [], None, None, None
-    permissions = []
+    permissions, turns = [], 0
     with path.open(encoding="utf-8", errors="replace") as handle:
         for line in handle:
             try:
@@ -171,10 +197,14 @@ def read_rollout(path: Path) -> dict:
                     permissions.append(policy)
             elif kind == "event_msg" and payload.get("type") == "token_count":
                 usage = (payload.get("info") or {}).get("total_token_usage") or usage
+            elif kind == "event_msg" and payload.get("type") == "task_started":
+                turns += 1
     return {"source": str(path), **meta, "first": first, "last": last,
             "routes": [f"{m}/{e}" for m, e in routes] or ["unavailable"],
             "permissions": permissions or ["unavailable"],
-            "total_token_usage": usage or "unavailable"}
+            "total_token_usage": usage or "unavailable",
+            "owner_turns": {"count": turns, "note": "turns started in this session; for an "
+                            "interactive lead, about one per owner prompt"}}
 
 
 USAGE_KEYS = {"input_tokens": "inputTokens", "output_tokens": "outputTokens",
@@ -195,10 +225,26 @@ def is_codex_rollout(path: Path) -> bool:
     return False
 
 
+def human(record: dict) -> bool:
+    """Claude Code marks owner-typed messages `origin.kind: human`, both direct prompts and
+    ones queued mid-turn; tool results, hook text and task notifications carry other marks.
+    Handoffs undercounted owner touches in every run audited on 2026-09-28 (14 vs 3)."""
+    kind = record.get("type")
+    if kind == "attachment":
+        record = record.get("attachment") or {}
+        if record.get("type") != "queued_command":
+            return False
+    elif kind != "user":
+        return False
+    origin = record.get("origin")
+    return isinstance(origin, dict) and origin.get("kind") == "human"
+
+
 def read_claude_transcript(path: Path) -> dict:
     """One API response is written as several assistant lines sharing ``message.id``;
     the last line per id carries that response's final usage, so keep only that."""
     last_usage, routes, cost_state, first, last, session, cwd = {}, [], None, None, None, None, None
+    prompts = 0
     with path.open(encoding="utf-8", errors="replace") as handle:
         for line in handle:
             try:
@@ -210,6 +256,9 @@ def read_claude_transcript(path: Path) -> dict:
             kind = record.get("type")
             if kind == "cost-state":
                 cost_state = record
+                continue
+            if human(record):
+                prompts += 1
                 continue
             if kind != "assistant":
                 continue
@@ -235,7 +284,9 @@ def read_claude_transcript(path: Path) -> dict:
                 bucket[name] += value
     info = {"source": str(path), "id": session, "cwd": cwd, "first": first, "last": last,
             "routes": [f"{m}/{e}" for m, e in routes] or ["unavailable"],
-            "responses": len(last_usage), "usage": totals or "unavailable"}
+            "responses": len(last_usage), "usage": totals or "unavailable",
+            "owner_prompts": {"count": prompts, "note": "messages the host marked as typed by a "
+                              "human, queued ones included; older transcripts may lack the mark"}}
     if isinstance(cost_state, dict):
         info["session_cost_state"] = {
             "note": "cumulative for the whole session including native subagents",

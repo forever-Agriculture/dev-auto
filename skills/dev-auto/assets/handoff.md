@@ -34,11 +34,8 @@
 
 ## Measurement
 
-- Timing: started / accepted / elapsed including waits:
-- Dispatches: one line each: purpose, model/effort, receipt; the reason when a later route was used:
-- Review yield: pre-review material findings / strong-review material findings (how many the pre-review had flagged) / rechecks / defects later traced to an accepted epic:
-- Owner interventions: corrections / necessary approvals / avoidable repeat requests; count, reason, approximate minutes:
-- Observed usage: lead + helpers + recovery; Codex rollout `total_token_usage`, Claude `total_cost_usd`; gaps:
+- Dispatches: one line each: purpose, observed model/effort, receipt path; the reason when a later route was used:
+- Lead sessions: each lead session's ID or transcript path, one per lead or resume:
 
 ## Resume
 

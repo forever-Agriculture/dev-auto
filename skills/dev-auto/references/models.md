@@ -17,7 +17,10 @@ or GLM-5.3 `max` (`claude glm --model opus --effort max`: Claude Code on the Z.a
 in `~/.claude-glm`, whose `effortLevel` is `max`; transcripts record `xhigh`, which
 Z.ai serves as GLM `max`, measured 2026-08-31). A GLM lead sends everything it reads
 to Z.ai: in a project that restricts Z.ai or holds customer, production or personal
-data it reports BLOCKED and names Sol or Opus instead. When a GLM lead stays stuck
+data it reports BLOCKED and names Sol or Opus instead. It never prints environment
+values or credential files (`env`, `printenv`, `set`) and tests a variable with
+`[ -n "${NAME:-}" ]` (BMN Epic 29 ran `env | grep '^BMN_'`, which would have sent
+`BMN_TOKEN`; the owner interrupted it). When a GLM lead stays stuck
 after the consultant's answer, it reports BLOCKED and recommends a Sol resume from the
 handoff. Decide this before launching a GLM lead: by the time it refuses, it has
 already sent what it read. GLM-5.3 accepts 5 concurrent requests, Flash 50. A quota
@@ -110,8 +113,9 @@ use `wait_agent`; Claude Code background commands notify on completion. Never ad
 shorter polls.
 
 Run long paid or product jobs detached from the tool session, for example
-`systemd-run --user --collect` with a log and an exit sentinel; record the job's unit
-or PID in the handoff, and stop it on an explicit owner stop. Before any cleanup,
+`systemd-run --user --collect` with a log and an exit sentinel; the unit starts without
+the shell profile, so give absolute executable paths or `--setenv=PATH="$PATH"` (a bare
+`codex` failed eight times, 2026-09-25–27). Record the job's unit or PID in the handoff, and stop it on an explicit owner stop. Before any cleanup,
 judge liveness from the job's sentinel, log growth or PID, never from a vanished tool
 session: in ProjectB Epic 67 a tool-session job died by SIGTERM at 40 s, and a live
 detached job was then wrongly terminalized.

@@ -19,7 +19,7 @@ CLEAN = (
     "- Lead host / requested model / observed model: Codex; gpt-5.6-sol/xhigh; gpt-5.6-sol/xhigh (rollout 01a0)\n"
     "- Explicit user stop (if any; only a later user instruction clears it): none\n\n"
     "## Measurement\n\n"
-    "- Observed usage: lead 35,585,513 total tokens (rollout 01a0); helpers none\n\n"
+    "- Lead sessions: rollout 01a0 (lead); helpers none\n\n"
     "## Resume\n\n"
     "- Next safe action: none\n"
     "- Status: COMPLETE\n"
@@ -35,27 +35,41 @@ def git(root: Path, *args: str) -> None:
     subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
 
 
+def exclude_run_state(root: Path) -> None:
+    """What check.py's hint tells the lead to run: the shared, local exclude file."""
+    path = subprocess.run(["git", "-C", str(root), "rev-parse", "--git-path", "info/exclude"],
+                          check=True, capture_output=True, text=True).stdout.strip()
+    path = Path(path) if Path(path).is_absolute() else root / path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(".dev-auto/\n")
+
+
 class Project:
-    def __init__(self, body: str = CLEAN) -> None:
+    def __init__(self, body: str = CLEAN, excluded: bool = True) -> None:
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name) / "proj"
         (self.root / ".dev-auto").mkdir(parents=True)
         git(self.root, "init", "-q")
+        if excluded:
+            exclude_run_state(self.root)
         self.write(body)
 
     def write(self, body: str) -> None:
         (self.root / ".dev-auto" / "handoff.md").write_text(body, encoding="utf-8")
 
     def track(self, rel: str, size: int = 10) -> None:
+        """Commit a file under .dev-auto, as earlier work did."""
         path = self.root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"x" * size)
         git(self.root, "add", "-f", rel)
+        git(self.root, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", rel)
 
 
 class CheckTests(unittest.TestCase):
-    def project(self, body: str = CLEAN) -> Project:
-        project = Project(body)
+    def project(self, body: str = CLEAN, excluded: bool = True) -> Project:
+        project = Project(body, excluded)
         self.addCleanup(project.tmp.cleanup)
         return project
 
@@ -81,27 +95,91 @@ class CheckTests(unittest.TestCase):
         result = run("check", str(project.root))
         self.assertEqual(result.returncode, 1, result.stdout)
         self.assertIn("observed model' still holds placeholder", result.stdout)
-        project.write(CLEAN.replace("lead 35,585,513 total tokens (rollout 01a0); helpers none", ""))
+        project.write(CLEAN.replace("rollout 01a0 (lead); helpers none", ""))
         result = run("check", str(project.root))
         self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("'Observed usage' is empty", result.stdout)
+        self.assertIn("'Lead sessions' is empty", result.stdout)
+        project.write(CLEAN.replace("- Lead sessions: rollout 01a0 (lead); helpers none\n", ""))
+        result = run("check", str(project.root))
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("'Lead sessions' is missing; add `- Lead sessions:`", result.stdout)
 
-    def test_tracked_raw_evidence_fails_and_untracked_passes(self) -> None:
+    def test_tracked_run_state_is_a_note_not_a_fail(self) -> None:
+        # ProjectB 66 and 69 (2026-09-24, 09-28) reported COMPLETE over a FAIL for 70
+        # files earlier epics had committed: a lead cannot remove them without a
+        # repository change, so the gate named a condition nobody in the run could fix.
         project = self.project()
-        project.track(".dev-auto/review.jsonl")
-        project.track(".dev-auto/evidence/shot.png")
+        for rel in (".dev-auto/log.md", ".dev-auto/review.jsonl", ".dev-auto/pilot-tools/judge.json"):
+            project.track(rel)
         project.track(".dev-auto/big.md", size=300 * 1024)
-        # ProjectB 2026-09-24: 22 small raw result files under a tracked
-        # `.dev-auto/pilot-tools/` passed the old extension and size rules.
-        project.track(".dev-auto/pilot-tools/judge.json")
-        result = run("check", str(project.root))
-        self.assertEqual(result.returncode, 1, result.stdout)
-        for name in ("review.jsonl", "evidence/shot.png", "big.md", "pilot-tools/judge.json"):
-            self.assertIn(name, result.stdout)
-        git(project.root, "rm", "-q", "--cached", ".dev-auto/review.jsonl",
-            ".dev-auto/evidence/shot.png", ".dev-auto/big.md", ".dev-auto/pilot-tools/judge.json")
+        for status in ("COMPLETE", "ACTIVE"):
+            body = CLEAN.replace("- Status: COMPLETE", f"- Status: {status}")
+            project.write(body)
+            result = run("check", str(project.root))
+            self.assertEqual(result.returncode, 0, result.stdout)
+            self.assertIn("NOTE: 4 tracked .dev-auto file(s)", result.stdout)
+            self.assertIn("stage none of your changes", result.stdout)
+        git(project.root, "rm", "-q", "--cached", "-r", ".dev-auto")
         result = run("check", str(project.root))
         self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertNotIn("NOTE", result.stdout)
+
+    def test_staged_run_state_fails_and_untracking_does_not(self) -> None:
+        # `git add -A` and `commit -a` still stage files earlier work committed.
+        project = self.project()
+        project.track(".dev-auto/log.md")
+        (project.root / ".dev-auto" / "log.md").write_text("new entry", encoding="utf-8")
+        git(project.root, "add", "-u")
+        result = run("check", str(project.root))
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("run state is staged for commit: `git restore --staged -- .dev-auto`", result.stdout)
+        git(project.root, "restore", "--staged", "--", ".dev-auto")
+        self.assertEqual(run("check", str(project.root)).returncode, 0)
+        git(project.root, "rm", "-q", "--cached", ".dev-auto/log.md")  # the cleanup itself
+        self.assertEqual(run("check", str(project.root)).returncode, 0)
+
+    def test_run_state_must_be_ignored_at_any_status(self) -> None:
+        # ProjectB 2026-09-26..28: tracked handoffs and logs conflicted on every epic PR
+        # across parallel worktrees and carried a stale handoff into main.
+        for status in ("ACTIVE", "COMPLETE"):
+            project = self.project(CLEAN.replace("- Status: COMPLETE", f"- Status: {status}"),
+                                   excluded=False)
+            result = run("check", str(project.root))
+            self.assertEqual(result.returncode, 1, (status, result.stdout))
+            self.assertIn("`.dev-auto/` is not ignored by git", result.stdout)
+            self.assertIn("rev-parse --git-path info/exclude", result.stdout)
+            exclude_run_state(project.root)
+            self.assertEqual(run("check", str(project.root)).returncode, 0, status)
+
+    def test_one_exclude_line_covers_every_worktree(self) -> None:
+        project = self.project(excluded=False)
+        (project.root / "README").write_text("x", encoding="utf-8")
+        git(project.root, "add", "README")
+        git(project.root, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init")
+        linked = Path(project.tmp.name) / "linked"
+        git(project.root, "worktree", "add", "-q", str(linked))
+        (linked / ".dev-auto").mkdir()
+        (linked / ".dev-auto" / "handoff.md").write_text(CLEAN, encoding="utf-8")
+        self.assertEqual(run("check", str(linked)).returncode, 1)
+        exclude_run_state(linked)  # run from the linked worktree, as a lead would
+        self.assertEqual(run("check", str(linked)).returncode, 0)
+        self.assertEqual(run("check", str(project.root)).returncode, 0)
+
+    def test_missing_git_is_unable_not_a_pass(self) -> None:
+        project = self.project()
+        env = dict(os.environ, PATH=str(Path(project.tmp.name) / "no-bin"))
+        result = run("check", str(project.root), env=env)
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertTrue(result.stdout.startswith("UNABLE: git cannot report"), result.stdout)
+
+    def test_outside_a_repository_nothing_can_be_committed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / ".dev-auto").mkdir()
+            (Path(tmp) / ".dev-auto" / "handoff.md").write_text(CLEAN, encoding="utf-8")
+            env = dict(os.environ, GIT_CEILING_DIRECTORIES=str(Path(tmp).parent))
+            result = run("check", tmp, env=env)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertTrue(result.stdout.startswith("PASS"), result.stdout)
 
     def test_gaps_clause_filled_passes_and_empty_fails(self) -> None:
         project = self.project(CLEAN.replace("helpers none", "helpers none; gaps: none"))
@@ -109,7 +187,7 @@ class CheckTests(unittest.TestCase):
         project.write(CLEAN.replace("helpers none", "helpers none; gaps:"))
         result = run("check", str(project.root))
         self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("'Observed usage' still holds placeholder", result.stdout)
+        self.assertIn("'Lead sessions' still holds placeholder", result.stdout)
 
     def test_annotated_complete_status_is_linted(self) -> None:
         body = CLEAN.replace("(rollout 01a0)", "to be recorded").replace(
@@ -149,7 +227,7 @@ class CheckTests(unittest.TestCase):
 
     def test_large_handoff_itself_is_not_raw_evidence(self) -> None:
         project = self.project(CLEAN.replace("## Resume", "#" * (300 * 1024) + "\n\n## Resume"))
-        git(project.root, "add", ".dev-auto/handoff.md")
+        project.track(".dev-auto/other.md")
         result = run("check", str(project.root))
         self.assertEqual(result.stdout.count("\n- "), 1, result.stdout)  # only the size check fails
         self.assertIn("injects it whole only up to 9,000", result.stdout)
@@ -224,16 +302,6 @@ class CheckTests(unittest.TestCase):
                              "  - GLM pre-review: helper strong with final checks, receipt r2; Astra/medium epic review\n\n## Resume")
         self.assertEqual(run("check", str(self.project(body).root)).returncode, 0)
 
-    def test_large_committed_log_is_not_raw_evidence(self) -> None:
-        project = self.project()
-        project.track(".dev-auto/log.md", size=300 * 1024)
-        self.assertEqual(run("check", str(project.root)).returncode, 0)
-        project.track(".dev-auto/notes.md", size=300 * 1024)
-        result = run("check", str(project.root))
-        self.assertEqual(result.returncode, 1, result.stdout)
-        self.assertIn("notes.md", result.stdout)
-        self.assertNotIn("log.md", result.stdout)
-
     def test_help_flags_print_help_instead_of_reading_a_path(self) -> None:
         for args in (("usage", "--help"), ("check", "-h"), ("--help",)):
             result = run(*args)
@@ -269,6 +337,12 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(info["permissions"], [{"sandbox_policy": "unavailable", "approval_policy": "unavailable"}])
         self.assertEqual(info["total_token_usage"], {"total_tokens": 42})
         self.assertEqual((info["id"], info["cwd"], info["last"]), ("abc", "/p", "2026-09-19T10:05:00Z"))
+        self.assertEqual(info["owner_turns"]["count"], 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rollout-x.jsonl"
+            turn = json.dumps({"type": "event_msg", "payload": {"type": "task_started"}})
+            path.write_text("\n".join([*rollout_lines("/p"), turn, turn]) + "\n", encoding="utf-8")
+            self.assertEqual(json.loads(run("usage", str(path)).stdout)["owner_turns"]["count"], 2)
 
     def test_rollout_reports_permission_changes_without_hiding_write_access(self) -> None:
         policies = [
@@ -350,6 +424,14 @@ class UsageTests(unittest.TestCase):
             line("m1", "claude-opus-5", 7, "2026-09-19T11:00:00Z"),      # streamed partial
             line("m1", "claude-opus-5", 179, "2026-09-19T11:00:01Z"),    # same response, final
             json.dumps({"type": "user", "message": {"role": "user"}}),
+            # Owner prompts: one typed, one queued mid-turn; a tool result, a task
+            # notification and a queued notification are not the owner.
+            json.dumps({"type": "user", "origin": {"kind": "human"}, "message": {"content": "go"}}),
+            json.dumps({"type": "attachment", "attachment": {"type": "queued_command", "prompt": "also",
+                                                             "origin": {"kind": "human"}}}),
+            json.dumps({"type": "user", "message": {"content": [{"type": "tool_result"}]}}),
+            json.dumps({"type": "user", "origin": {"kind": "task-notification"}, "message": {"content": "t"}}),
+            json.dumps({"type": "attachment", "attachment": {"type": "queued_command", "prompt": "n"}}),
             line("m2", "claude-fable-5-1", 50, "2026-09-19T11:00:02Z", effort="medium"),
             "{broken",
             json.dumps({"type": "cost-state", "totalCostUSD": 1.5,
@@ -369,6 +451,7 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(info["usage"]["claude-fable-5-1"]["outputTokens"], 50)
         self.assertEqual((info["id"], info["cwd"], info["last"]), ("s1", "/p", "2026-09-19T11:00:02Z"))
         self.assertEqual(info["session_cost_state"]["total_cost_usd"], 1.5)
+        self.assertEqual(info["owner_prompts"]["count"], 2)
 
     def test_subagent_transcript_without_cost_state_and_empty_transcript(self) -> None:
         record = {"type": "assistant", "timestamp": "t", "message": {"id": "a", "model": "claude-fable-5-1",

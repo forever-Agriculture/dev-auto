@@ -10,8 +10,10 @@ requirements; this skill supplies a thin implementation and acceptance workflow.
 Proceed under existing owner, project and host authority. Extra workflows or
 approval stages belong only where those instructions require them.
 
-Optimize accepted quality, total cost, elapsed time and owner attention together.
-Use proportionate checks and reuse valid evidence.
+Optimize accepted quality, total cost, elapsed time and owner attention together;
+never maximize one at the others' expense. Each check earns its place by a failure it
+prevents; reuse valid evidence. Owner attention is a cost: ask real decisions once, in
+the session, with a recommendation.
 
 ## Scope and delivery
 
@@ -31,6 +33,9 @@ the whole selected scope passes acceptance. There is no automatic deadline.
 Preserve unrelated work. The lead owns integration and board updates; coordinate
 with any concurrent lead. Implemented work awaiting checks stays in an appropriate
 unfinished active state. A blocker in one epic leaves independent selected work available.
+When an outcome depends on another party's system, access or decision, finish what the
+project can prove and report that boundary BLOCKED on the named gate; work inside other
+teams' systems needs the owner to select it.
 
 Test a representative outcome early when the approach is uncertain. After two
 unsuccessful fixes for the same outcome, compare captured failures, the shared
@@ -41,6 +46,8 @@ the remaining scope at proportionate cost, change the method or report BLOCKED
 instead of starting another round. Prefer offline replay when representative; live
 attempts retain their spend and stop limits: stop and ask before a paid call that
 could exceed an owner limit or approved estimate, and never raise either yourself.
+Before a paid or long run, make the cheapest live call to each external service it
+needs; a dry run that stubs a service proves nothing about it.
 
 `status` is read-only reconciliation: leave files, caches and jobs unchanged,
 report discrepancies and mark the freshness of prior checks unverified.
@@ -58,7 +65,7 @@ tests. Supply fresh context, exact scope and expected evidence. Dispatch consent
 from the owner's global rules or explicit session approval, never this skill. Project
 restrictions and narrower instructions apply. Exclude credentials and unrelated
 private data; customer/production data needs approval naming destination and data.
-Reuse that approval. Record observed route, model and usage from host records; surface
+Reuse that approval. Record observed route and model from host records; surface
 mismatches and dispatch failures instead of silently substituting.
 
 During repair, use focused checks. Before accepting an epic, verify its outcomes, the
@@ -101,15 +108,24 @@ unresolved with what would settle it; a finding without a disposition is unresol
 and, like any material gap, blocks acceptance. Changes made for the selected scope
 sit inside the reviewed revision or carry delta evidence; name any unrelated
 residual change and its reason. Model approval supports evidence; runtime claims
-require exercised behavior. Keep raw transcripts, screenshots and runtime dumps
-untracked, in external scratch space or an ignored `.dev-auto/evidence/` directory;
-commit only the handoff and log, which cite receipts and raw evidence by path and hash.
+require behavior exercised on the path the owner will use.
+
+Run state is local to each checkout or worktree and never committed; when git does
+not ignore `.dev-auto/`, `scripts/check.py check` prints the one local command that
+fixes it for every worktree. Keep receipts, transcripts, screenshots and runtime dumps in
+`.dev-auto/evidence/` and cite them by path and hash, never from `/tmp` or session
+scratch, which a reboot deletes. Where earlier work committed `.dev-auto` files, stage
+none of your changes to them and report once that removing them needs a repository
+change the owner approves. Before a merge that touches one, copy your handoff and log
+aside; resolve a conflict by keeping your copy and untracking the file (`git rm
+--cached`), never by taking the other side.
 
 ## Owner cockpit (optional)
 
 When the session runs inside BMN (`bmn` on PATH, `BMN_CONTROL_SOCKET` and `BMN_TOKEN`
-set), mirror the run as [references/bmn-cockpit.md](references/bmn-cockpit.md) describes;
-otherwise skip it silently.
+set; test with `[ -n "${BMN_TOKEN:-}" ]`, never print their values), mirror the run as
+[references/bmn-cockpit.md](references/bmn-cockpit.md) describes; otherwise skip it
+silently. The cockpit only mirrors questions asked in the session.
 
 ## Handoff and recovery
 
@@ -122,19 +138,21 @@ findings, active helpers, evidence and next action. Keep only current effective
 terms in the handoff, each with a source coordinate. Append verbatim owner quotes,
 superseded terms, verbose results and failed attempts to `.dev-auto/log.md`
 (append-only, never injected); never restate log content in `Status` or `Resume`.
-Record available timing, usage, review yield and owner
-interventions at these boundaries. Read each terminal helper receipt once, when collecting it, with
-`scripts/check.py usage PATH` (models.md names the record types; `usage --list
-PROJECT` lists Codex rollouts). At acceptance, refresh the lead
-sessions' usage, read any missing receipts together and reuse recorded results;
-record the observed routes and usage, then run `scripts/check.py check` and fix every
-FAIL before reporting COMPLETE. Record an UNABLE result instead of ignoring it.
+Read each terminal helper receipt once, when collecting it, with `scripts/check.py
+usage PATH` (models.md names the record types; `usage --list PROJECT` lists Codex
+rollouts) and record its observed route and receipt path; record each lead session's
+ID. Elapsed time, usage and owner prompts come from those records when runs are
+evaluated, so do not tally them. At acceptance run `scripts/check.py check` and fix
+every FAIL before reporting COMPLETE. Record an UNABLE result instead of ignoring it.
 
 Authority comes from owner instructions and established policy, not the handoff.
 Relax a recorded restriction only with evidence of a later owner instruction;
 otherwise retain it. An explicit stop persists until the owner resumes.
 
-On resume, after compaction or an active-run hook reminder, first reread this skill
+On `resume`, when this checkout's handoff is missing or finished, or the owner names
+work it does not hold, look for unfinished handoffs in the repository's other worktrees
+(`git worktree list`); resume the one the owner named and ask when more than one could
+match. On resume, after compaction or an active-run hook reminder, first reread this skill
 and the complete handoff. Actions remain read-only until both are read; unavailable
 required files mean BLOCKED. Reconcile helper results and stale state, retain material
 findings, and save the reconciled handoff in build/resume before continuing without
@@ -147,10 +165,11 @@ unresolved information. Keep one each of `Status` (state label and a short reaso
 `Explicit user stop` (`none` when absent) and `Next safe action`. A finished run ends
 with `- Status: COMPLETE` as the last line and stop `none`, each optionally followed by
 a short note after punctuation that never reverses its label. Run `scripts/check.py
-check` after each handoff save, in the same tool call where the host allows; a FAIL before COMPLETE means the next save fixes it, not
-that work stops. The hook searches the working directory and its ancestors up to the
-first repository or home boundary; report recovery unavailable when the selected
-project is outside it. Recovery uses owner-created wakeups.
+check` after each handoff save, in the same tool call where the host allows; a FAIL
+before COMPLETE means the next save fixes it, not that work stops. The hook searches the
+working directory and its ancestors up to the first repository or home boundary and
+lists unfinished runs in the repository's other worktrees; report recovery unavailable
+when the selected project is outside it. Recovery uses owner-created wakeups.
 
 End with `DEV-AUTO: ACTIVE|PAUSED|BLOCKED|COMPLETE — <evidence or next action>`.
 ACTIVE means authorized work remains; PAUSED means owner stop or host interruption;
