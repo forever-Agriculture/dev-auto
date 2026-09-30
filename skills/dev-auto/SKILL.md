@@ -55,7 +55,7 @@ report discrepancies and mark the freshness of prior checks unverified.
 ## Helpers and acceptance
 
 Read [references/models.md](references/models.md) at start and follow its tables; a
-GLM lead never proceeds where Z.ai may not read the workspace. Dispatch for required
+lead never proceeds where its own provider may not read the workspace. Dispatch for required
 review, bounded work whose saved lead effort or elapsed time justifies coordination,
 or an unresolved decision, starting at the first route of the work's row, preferably
 while the lead has independent work to do; do small lookups and simple checks
@@ -80,11 +80,11 @@ Material regression tests fail on the original defect and pass with the fix;
 reproduce alleged pre-existing failures in isolation while preserving working-tree
 changes. A failure you cannot identify is unresolved.
 
-Freeze the candidate and run the quick GLM pre-review from
+Freeze the candidate and run the quick pre-review from
 [references/review-brief.md](references/review-brief.md) alongside your own final
 acceptance checks so it overlaps them instead of adding a wait; make one consolidated
 repair of its material findings and failing checks and rerun the affected checks,
-without another GLM review. An independent strong reviewer then checks the epic
+without another pre-review. An independent strong reviewer then checks the epic
 against original intent and project architecture and goals using the same brief, given
 the pre-review map and your dispositions as navigation aids, not proof: one full
 review, consolidated repairs and a focused recheck, with the candidate unedited while
@@ -99,7 +99,7 @@ BLOCKED with options, including removing work the story does not ask for. One
 consolidated repair and recheck may follow its answer; remaining material defects
 block the boundary while independent selected work continues. A new reviewer, repair
 wave or resumed run does not reset this allowance; the pre-review and any
-owner-requested review sit outside it. Project scope adds a quick GLM project
+owner-requested review sit outside it. Project scope adds a quick project
 pre-review before the final cross-epic evaluation; a project-level pre-review and
 review can cover the coincident final epic. Material gaps block acceptance.
 

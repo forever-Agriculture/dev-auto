@@ -1,6 +1,6 @@
 # dev-auto
 
-Direct development from BMAD plans, with project-alignment checks, regression tests, independent reviews and useful model delegation. Shared skills for Codex, Claude Code and Claude Code on the GLM route; no custom orchestration engine.
+Direct development from BMAD plans, with project-alignment checks, regression tests, independent reviews and useful model delegation. Shared skills for Codex, Claude Code and Claude Code on the GLM route (deactivated since 2026-09-30); no custom orchestration engine.
 
 Direct Codex/Claude implementation is the foundation. Dev-auto adds a thin layer
 of proportionate quality, security, and recovery checks. Real runs inform the
@@ -31,7 +31,7 @@ The hook (`hooks/dev-auto-session-start.py`) runs on `SessionStart` with matcher
 
 Keep the checkout in place. All links use the same files, so edits stay synchronized. Existing conflicting files/links are preserved rather than overwritten. Start a fresh client session after installation or policy changes; already-loaded instructions may be stale.
 
-The helper wrapper exposes scoped file tools only. GLM reviews code and
+The helper wrapper (GLM, deactivated) exposes scoped file tools only. It reviews code and
 drives a browser against a local app; the lead writes the code and tests, runs
 commands and supplies sanitized results. The old optional CHECK argument is rejected: even an
 exact sandboxed test command could read outside the project and expose inherited
@@ -69,7 +69,7 @@ Claude documents skill composition with `/loop` in [scheduled tasks](https://cod
 
 ## Claude Code on GLM
 
-Routine, well-specified epics can run on the GLM route:
+Deactivated since 2026-09-30; kept for reactivation. While active, routine, well-specified epics can run on the GLM route:
 
 ```bash
 cd /path/to/your-project
@@ -107,7 +107,7 @@ Codex's native skill picker may also expose it. The skill does not switch the cu
 2. Checks the selected epic against the project before implementing it directly.
 3. Maintains the existing `sprint-status.yaml`, preserving unrelated entries and comments.
 4. Uses focused story tests and appropriate project regression/integration checks; checks existing behavior, not just new tests.
-5. Runs a quick GLM pre-review of the frozen epic alongside its own final checks, repairs once, then one independent Astra whole-epic review with a focused recheck, never editing a candidate while a reviewer reads it. Repair loops are bounded (see [SKILL.md](skills/dev-auto/SKILL.md)); every material finding ends with a disposition, and acceptance confirms each in-scope story's board completion.
+5. Runs a quick Luna pre-review of the frozen epic alongside its own final checks, repairs once, then one independent Astra whole-epic review with a focused recheck, never editing a candidate while a reviewer reads it. Repair loops are bounded (see [SKILL.md](skills/dev-auto/SKILL.md)); every material finding ends with a disposition, and acceptance confirms each in-scope story's board completion.
 6. Preserves pending findings, restrictions, routes, evidence and next actions in a short project handoff.
 
 The handoff keeps every selected epic and its dependency visible. At material
@@ -119,9 +119,9 @@ Mechanical handoff rules are checked by a read-only helper instead of prose. `sk
 
 Inside BMN, native hooks manage question/permission cards and BMN resumes conversations. Dev-auto reports meaningful progress changes and keeps manual question mirroring unless existing current-run evidence establishes native handling. Questions use selectable cards; unavailable card routes remain unresolved. It publishes the handoff at acceptance. Owner answers must reach the session; task recovery and acceptance remain dev-auto's responsibility. Outside BMN this is skipped. Manual calls are bounded to two seconds and skipped after one failure. Never report `verified` or use `bmn send`. See [BMN integration](skills/dev-auto/references/bmn-cockpit.md).
 
-The [model table](skills/dev-auto/references/models.md#helpers-and-reviewers) gives every helper and review job an ordered tier (helpers review; the lead writes the code and tests): GLM Flash or GLM first, then Luna or Astra, then the lead itself, moving right only after a failure, an unresolved result or a task the route cannot do. GLM pre-reviews each epic and project quickly; Astra then Fable run the epic and project reviews and consultations on critical or stuck questions. Each dispatch costs the lead several turns over its whole context, so the lead dispatches only where it pays and does small lookups itself.
+The [model table](skills/dev-auto/references/models.md#helpers-and-reviewers) gives every helper and review job an ordered tier (helpers review; the lead writes the code and tests): Luna first (Luna or Astra for focused review), then the lead itself, moving right only after a failure, an unresolved result or a task the route cannot do. Luna pre-reviews each epic and project quickly and runs browser checks through the Codex CLI with a loopback-limited Playwright browser; Astra then Fable run the epic and project reviews and consultations on critical or stuck questions. Each dispatch costs the lead several turns over its whole context, so the lead dispatches only where it pays and does small lookups itself.
 
-Helper routes run through `skills/dev-auto/scripts/helper.sh` from any lead, always at max effort; its first lines name the provider's Claude Code env file and fast/strong models (currently Z.ai GLM-5.3-Flash and GLM-5.3), so switching provider is a three-line change. Credentials are never part of this repository. An unavailable route is reported; no silent model or effort substitution.
+While GLM was active, its helper routes ran through `skills/dev-auto/scripts/helper.sh` from any lead, always at max effort; its first lines name the provider's Claude Code env file and fast/strong models (Z.ai GLM-5.3-Flash and GLM-5.3), so switching provider is a three-line change. GLM is deactivated since 2026-09-30 and Luna holds its rows. Credentials are never part of this repository. An unavailable route is reported; no silent model or effort substitution.
 
 ## Completion, permissions and limits
 

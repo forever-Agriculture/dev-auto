@@ -1,8 +1,8 @@
 # Independent review brief
 
 Read this before dispatching a pre-review or the strong full review at an epic or
-project boundary. Give a reviewer that can read this file its path; `helper.sh`
-reviewers read only inside their PROJECT, so include its exact text for them and for
+project boundary. Give a reviewer that can read this file its path; project-confined
+reviewers (GLM `helper.sh`) read only inside their PROJECT, so include its exact text for them and for
 reviewers without tools. Supply the original requirements, the baseline
 (the revision before this scope's first change) and reviewed revisions or content
 fingerprints with the diff between them (task-owned untracked content included),

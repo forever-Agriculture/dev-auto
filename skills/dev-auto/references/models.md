@@ -8,45 +8,36 @@ only where saved lead effort or elapsed time exceeds briefing, waiting and integ
 
 ## Lead
 
-The owner picks and starts the lead: Sol `xhigh` (Codex), Opus `xhigh` (Claude Code)
-or GLM-5.3 `max` (`claude glm --model opus --effort max`: Claude Code on the Z.ai plan
-in `~/.claude-glm`, whose settings set `CLAUDE_CODE_EFFORT_LEVEL=max` persistently).
-A GLM lead sends everything it reads
-to Z.ai: in a project that restricts Z.ai or holds customer, production or personal
-data it reports BLOCKED and names Sol or Opus instead. It never prints environment
-values or credential files (`env`, `printenv`, `set`) and tests a variable with
-`[ -n "${NAME:-}" ]`. When a GLM lead stays stuck
-after the consultant's answer, it reports BLOCKED and recommends a Sol resume from the
-handoff. Decide this before launching a GLM lead: by the time it refuses, it has
-already sent what it read. GLM-5.3 accepts 5 concurrent requests, Flash 50. A quota
-error (429, 1302, 1305) makes GLM unavailable until its window resets.
+The owner picks and starts the lead: Sol `xhigh` (Codex) or Opus `xhigh` (Claude Code).
+GLM is deactivated (owner, 2026-09-30): no GLM lead or helper
+until the owner reactivates it; [GLM (deactivated)](#glm-deactivated) keeps its rules.
 
 ## Helpers and reviewers
 
 | Work | 1st | 2nd | 3rd |
 | --- | --- | --- | --- |
-| Routine chores | GLM Flash | Luna `max` | lead |
-| Focused review: a bounded area, or a failure the lead is debugging | GLM | Astra `low` | lead |
-| Browser checks | GLM `browse` | lead | |
-| Epic pre-review (quick) | GLM | skip it | |
+| Routine chores | Luna `max` | lead | |
+| Focused review: a bounded area, or a failure the lead is debugging | Luna `max` | Astra `low` | lead |
+| Browser checks | Luna `max` browse | lead | |
+| Epic pre-review (quick) | Luna `max` | skip it | |
 | Epic review | Astra `medium` | Fable `medium` | BLOCKED |
 | Recheck a finding | same reviewer, Astra at `low` | | |
-| Project pre-review (quick) | GLM | skip it | |
+| Project pre-review (quick) | Luna `max` | skip it | |
 | Project final review | Astra `high` | Fable `high` | BLOCKED |
 | Consultant | Astra `medium` or `high` | Fable `medium` or `high` | BLOCKED |
 
 - **How to read it.** Start in column 1st. Move right only when that route fails or
   is unavailable (error, quota, missing access), leaves the question unresolved, or
   cannot do the task. A good enough answer ends it. Record the route and the reason
-  for any move. GLM goes first because it is the cheapest route; Luna and
-  Astra spend Codex quota, Fable spends Claude quota.
-- **GLM** is GLM-5.3 (`helper.sh ... strong`), **GLM Flash** is GLM-5.3-Flash
-  (`helper.sh ... fast`), both always at `max`; **lead** means the lead does it itself.
+  for any move. Luna goes first as the lightest Codex model; Luna and Astra spend
+  Codex quota, Fable spends Claude quota.
+- **Luna** is `gpt-6-luna` at `max` through the Codex CLI [routes](#routes), read-only;
+  **lead** means the lead does it itself.
 - **Helpers review; the lead writes the code and tests.** **Routine chores**: wide
   lookups, evidence gathering, log and test-output triage, checklist rechecks.
   **Focused review**: another model's eyes on a bounded area when the lead wants
   them, or a diagnosis of a failure from the source and logs the lead supplies.
-  **Browser checks**: a local app the lead started (`fast` for a simple walk-through).
+  **Browser checks**: a local app the lead started.
 - **Pre-reviews** follow the quick section of the [review brief](review-brief.md) and
   run while the lead runs its own final checks on the frozen candidate, overlapping
   them instead of adding a wait. The lead repairs their material findings once and
@@ -71,10 +62,6 @@ Start a fresh bounded task with exact source coordinates, prohibited actions, th
 expected evidence and a concise result. Host permissions, not prompts, bound access;
 never use bypass-permissions modes.
 
-GLM always runs at `max` effort. Every lead, a GLM lead included, dispatches GLM
-helpers through `helper.sh`, which passes `--effort max`. Its modes expose no shell: the lead
-runs tests and commands and supplies sanitized results.
-
 Codex reviews use the CLI read-only sandbox with `approval_policy=never`. Native
 helpers inherit the lead's sandbox; read-only with approvals enabled may still permit
 writes. Check each child's model, sandbox and approval policy from its receipt.
@@ -87,7 +74,7 @@ Observe model, effort and usage from host records. Codex writes every session,
 including `codex exec` and native helpers, to `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`
 (`turn_context` carries model and effort, the last `token_count` the cumulative
 `total_token_usage`). Claude Code writes each session and native helper as a transcript
-under `~/.claude/projects/<project>/` (`~/.claude-glm/projects/` for GLM sessions);
+under `~/.claude/projects/<project>/`;
 `-p --output-format json` receipts carry `modelUsage` and `total_cost_usd`.
 `scripts/check.py usage PATH` reads all three. One session's counter is that session's
 usage, not the epic's; read lead and helper records separately and never add a
@@ -126,28 +113,11 @@ vanished tool session.
 
 ## Routes
 
-GLM helpers, from any lead, through the canonical checkout:
+Everything a helper reads or sees reaches its provider, so set `PROJECT` to a
+sanitized workspace when the project holds data restricted from it; if none can be
+prepared, skip the helper.
 
-```bash
-~/code/dev-auto/skills/dev-auto/scripts/helper.sh review strong "$PROJECT" "$PROMPT" "$OUTPUT"
-~/code/dev-auto/skills/dev-auto/scripts/helper.sh browse strong "$PROJECT" "$PROMPT" "$OUTPUT" "$ORIGIN"
-```
-
-`review` reads; `browse` reads and drives a headless, isolated
-Playwright browser limited to `ORIGIN`, a loopback origin such as
-`http://127.0.0.1:3000` whose app the lead starts and stops; `edit`, which also
-edits, is outside the tier table and runs only on an explicit owner request. File
-tools stay inside `PROJECT`, `.env*` is denied, and shell tools are unavailable.
-Everything the helper reads or sees reaches the provider, so set
-`PROJECT` to a sanitized workspace when the project holds data restricted from it; if
-none can be prepared, skip the helper. The origin filter misses redirects and requests
-a page makes itself, and browser actions can mutate test data: use synthetic data,
-never production or personal browser profiles. The script's first lines name the
-provider's credentials file and models; never read, print, copy or trace that file.
-Switching provider edits those lines and reruns the checks the script names. Wait for
-the terminal receipt: an early `unrecognized_model` diagnostic is harmless.
-
-A Codex lead's workspace sandbox has no network and blocks some local sockets: helper
+A Codex lead's workspace sandbox has no network and blocks some local sockets: Codex
 and Claude CLI routes fail with `EAI_AGAIN`, and gates using Git, sockets or a browser
 fail with `EPERM` or hang. Run them escalated from the first attempt
 (`sandbox_permissions: "require_escalated"`), quoting in the justification the owner
@@ -175,9 +145,27 @@ while prohibiting writes, network, tests and installs. Forbidding all commands p
 review. `-C` and read-only create no read allowlist and do not scrub the environment,
 so use the project directly only when its readable scope is acceptable.
 
-Tools-disabled Fable review from a prepared source packet. `env -i` drops a GLM
-lead's inherited Z.ai settings so the call reaches Claude; `--safe-mode` skips
-CLAUDE.md, so the global rules are appended:
+Luna browser checks add a headless, isolated Playwright browser limited to `ORIGIN`, a
+loopback origin such as `http://127.0.0.1:3000` whose app the lead starts and stops:
+
+```bash
+[[ $ORIGIN =~ ^http://(127\.0\.0\.1|localhost|\[::1\]):[1-9][0-9]{0,4}$ ]] || exit 2
+tools='"browser_navigate","browser_navigate_back","browser_snapshot","browser_click","browser_type","browser_fill_form","browser_select_option","browser_press_key","browser_hover","browser_wait_for","browser_take_screenshot","browser_console_messages","browser_network_requests","browser_close"'
+codex exec --skip-git-repo-check -C "$PROJECT" -m gpt-6-luna -c model_reasoning_effort=max \
+  -c "mcp_servers={playwright={command=\"npx\",args=[\"--offline\",\"@playwright/mcp@0.0.75\",\"--headless\",\"--isolated\",\"--allowed-origins\",\"$ORIGIN\"],enabled_tools=[$tools],default_tools_approval_mode=\"approve\"}}" \
+  -c 'approval_policy="never"' \
+  --sandbox read-only --json -o "$OUTPUT" - < "$PROMPT"
+```
+
+The pattern keeps quotes out of the inline TOML. Only the listed tools exist (no
+script evaluation or file upload), pre-approved because `approval_policy="never"`
+otherwise refuses every MCP call. The origin filter misses redirects and requests a
+page makes itself, and browser actions can mutate test data: use synthetic data,
+never production or personal browser profiles.
+
+Tools-disabled Fable review from a prepared source packet. `env -i` drops inherited
+provider settings (a GLM lead's Z.ai variables) so the call reaches Claude;
+`--safe-mode` skips CLAUDE.md, so the global rules are appended:
 
 ```bash
 env -i HOME="$HOME" PATH="$PATH" claude -p --model fable --effort medium --output-format json \
@@ -186,3 +174,35 @@ env -i HOME="$HOME" PATH="$PATH" claude -p --model fable --effort medium --outpu
   --append-system-prompt "$(<"$HOME/.claude/CLAUDE.md")" \
   < "$PROMPT" > "$OUTPUT"
 ```
+
+## GLM (deactivated)
+
+Deactivated since 2026-09-30; the owner may reactivate it.
+Until then Luna holds its rows and nothing dispatches GLM. On reactivation the owner
+names the rows it takes back, and these rules apply again.
+
+A GLM lead (`claude glm --model opus --effort max`, profile `~/.claude-glm`, whose
+settings set `CLAUDE_CODE_EFFORT_LEVEL=max`) sends everything it reads to Z.ai: in a
+project that restricts Z.ai or holds customer, production or personal data it reports
+BLOCKED and names Sol or Opus instead; decide before launching, because by the time it
+refuses it has already sent what it read. It never prints environment values or
+credential files (`env`, `printenv`, `set`) and tests a variable with
+`[ -n "${NAME:-}" ]`. Stuck after the consultant's answer, it reports BLOCKED and
+recommends a Sol resume from the handoff. Its transcripts live under
+`~/.claude-glm/projects/`. GLM-5.3 accepts 5 concurrent requests, Flash 50; a quota
+error (429, 1302, 1305) makes GLM unavailable until its window resets.
+
+GLM helpers always run at `max` through the canonical checkout's `helper.sh`:
+
+```bash
+~/code/dev-auto/skills/dev-auto/scripts/helper.sh review strong "$PROJECT" "$PROMPT" "$OUTPUT"
+~/code/dev-auto/skills/dev-auto/scripts/helper.sh browse strong "$PROJECT" "$PROMPT" "$OUTPUT" "$ORIGIN"
+```
+
+`review` reads; `browse` also drives the same loopback-limited browser; `edit` runs
+only on an explicit owner request. File tools stay inside `PROJECT`, `.env*` is
+denied, and no mode has a shell: the lead runs tests and commands and supplies
+sanitized results. The script's first lines name the provider's credentials file and
+models; never read, print, copy or trace that file. Switching provider edits those
+lines and reruns the checks the script names. An early `unrecognized_model`
+diagnostic is harmless; wait for the terminal receipt.
