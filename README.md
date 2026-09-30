@@ -67,20 +67,6 @@ Start the initial dev-auto run first. The loop is a recovery wakeup if the agent
 
 Claude documents skill composition with `/loop` in [scheduled tasks](https://code.claude.com/docs/en/scheduled-tasks). This skill provides no independent scheduler or hard timeout.
 
-## Claude Code on GLM
-
-Deactivated since 2026-09-30; kept for reactivation. While active, routine, well-specified epics can run on the GLM route:
-
-```bash
-cd /path/to/your-project
-claude glm --model opus --effort max
-```
-
-Then use the same `/dev-auto` commands. A GLM lead sends everything it reads to
-Z.ai, so decide before launching: never start it in a project whose instructions
-restrict Z.ai or whose workspace holds customer, production or personal data; use a
-Sol or Opus lead there.
-
 ## Codex
 
 Start Codex in the project with the chosen lead model:
@@ -119,9 +105,9 @@ Mechanical handoff rules are checked by a read-only helper instead of prose. `sk
 
 Inside BMN, native hooks manage question/permission cards and BMN resumes conversations. Dev-auto reports meaningful progress changes and keeps manual question mirroring unless existing current-run evidence establishes native handling. Questions use selectable cards; unavailable card routes remain unresolved. It publishes the handoff at acceptance. Owner answers must reach the session; task recovery and acceptance remain dev-auto's responsibility. Outside BMN this is skipped. Manual calls are bounded to two seconds and skipped after one failure. Never report `verified` or use `bmn send`. See [BMN integration](skills/dev-auto/references/bmn-cockpit.md).
 
-The [model table](skills/dev-auto/references/models.md#helpers-and-reviewers) gives every helper and review job an ordered tier (helpers review; the lead writes the code and tests): Luna first (Luna or Astra for focused review), then the lead itself, moving right only after a failure, an unresolved result or a task the route cannot do. Luna pre-reviews each epic and project quickly and runs browser checks through the Codex CLI with a loopback-limited Playwright browser; Astra then Fable run the epic and project reviews and consultations on critical or stuck questions. Each dispatch costs the lead several turns over its whole context, so the lead dispatches only where it pays and does small lookups itself.
+The [model table](skills/dev-auto/references/models.md#helpers-and-reviewers) defines helper and reviewer routing.
 
-While GLM was active, its helper routes ran through `skills/dev-auto/scripts/helper.sh` from any lead, always at max effort; its first lines name the provider's Claude Code env file and fast/strong models (Z.ai GLM-5.3-Flash and GLM-5.3), so switching provider is a three-line change. GLM is deactivated since 2026-09-30 and Luna holds its rows. Credentials are never part of this repository. An unavailable route is reported; no silent model or effort substitution.
+Credentials are never part of this repository. An unavailable route is reported; no silent model or effort substitution.
 
 ## Completion, permissions and limits
 

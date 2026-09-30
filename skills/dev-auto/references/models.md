@@ -157,7 +157,7 @@ codex exec --skip-git-repo-check -C "$PROJECT" -m gpt-6-luna -c model_reasoning_
   --sandbox read-only --json -o "$OUTPUT" - < "$PROMPT"
 ```
 
-The pattern keeps quotes out of the inline TOML. Only the listed tools exist (no
+The pattern keeps quotes out of the inline TOML. Only the listed Playwright tools are exposed (no
 script evaluation or file upload), pre-approved because `approval_policy="never"`
 otherwise refuses every MCP call. The origin filter misses redirects and requests a
 page makes itself, and browser actions can mutate test data: use synthetic data,
@@ -177,32 +177,5 @@ env -i HOME="$HOME" PATH="$PATH" claude -p --model fable --effort medium --outpu
 
 ## GLM (deactivated)
 
-Deactivated since 2026-09-30; the owner may reactivate it.
-Until then Luna holds its rows and nothing dispatches GLM. On reactivation the owner
-names the rows it takes back, and these rules apply again.
-
-A GLM lead (`claude glm --model opus --effort max`, profile `~/.claude-glm`, whose
-settings set `CLAUDE_CODE_EFFORT_LEVEL=max`) sends everything it reads to Z.ai: in a
-project that restricts Z.ai or holds customer, production or personal data it reports
-BLOCKED and names Sol or Opus instead; decide before launching, because by the time it
-refuses it has already sent what it read. It never prints environment values or
-credential files (`env`, `printenv`, `set`) and tests a variable with
-`[ -n "${NAME:-}" ]`. Stuck after the consultant's answer, it reports BLOCKED and
-recommends a Sol resume from the handoff. Its transcripts live under
-`~/.claude-glm/projects/`. GLM-5.3 accepts 5 concurrent requests, Flash 50; a quota
-error (429, 1302, 1305) makes GLM unavailable until its window resets.
-
-GLM helpers always run at `max` through the canonical checkout's `helper.sh`:
-
-```bash
-~/code/dev-auto/skills/dev-auto/scripts/helper.sh review strong "$PROJECT" "$PROMPT" "$OUTPUT"
-~/code/dev-auto/skills/dev-auto/scripts/helper.sh browse strong "$PROJECT" "$PROMPT" "$OUTPUT" "$ORIGIN"
-```
-
-`review` reads; `browse` also drives the same loopback-limited browser; `edit` runs
-only on an explicit owner request. File tools stay inside `PROJECT`, `.env*` is
-denied, and no mode has a shell: the lead runs tests and commands and supplies
-sanitized results. The script's first lines name the provider's credentials file and
-models; never read, print, copy or trace that file. Switching provider edits those
-lines and reruns the checks the script names. An early `unrecognized_model`
-diagnostic is harmless; wait for the terminal receipt.
+GLM is deactivated for now. Before owner-authorized reactivation, recover its routing
+and safety instructions from commit `014f98c` and revalidate them.
