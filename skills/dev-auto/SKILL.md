@@ -166,7 +166,7 @@ duplicating completed or active work.
 The hook injects the complete handoff up to 9,000 characters (above that, only a
 full-read warning) and stays silent once the run is finished. Keep the handoff under
 the limit by moving resolved history and verbose results to the log, never dropping
-unresolved information. Keep one each of `Status` (state label and a short reason),
+unresolved information or compressing wording (removed spaces, private abbreviations). Keep one each of `Status` (state label and a short reason),
 `Explicit user stop` (`none` when absent) and `Next safe action`. A finished run ends
 with `- Status: COMPLETE` as the last line and stop `none`, each optionally followed by
 a short note after punctuation that never reverses its label. Run `scripts/check.py
