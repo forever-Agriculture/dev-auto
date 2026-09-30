@@ -1,21 +1,32 @@
 # Owner cockpit (BMN)
 
-Read this only when the session runs inside BMN (`bmn` on PATH, `BMN_CONTROL_SOCKET`
-and `BMN_TOKEN` set; test with `[ -n "${BMN_TOKEN:-}" ]`, never print either value);
-then mirror the run for the owner. At each
-`DEV-AUTO:` line run `bmn progress` with ACTIVE→`running`, PAUSED→`waiting`,
-BLOCKED→`blocked`, COMPLETE→`claimed-done`; the label is the evidence for COMPLETE
-and the next action otherwise; never `verified`, which is the owner's judgment. Ask every
-owner decision in the session itself (AskUserQuestion in Claude Code, a direct question
-in Codex), also right after compaction: a BMN card cannot carry the answer back (BMN
-Epic 28 and ProjectB Epic 69, 2026-09-26). Then mirror it with `bmn ask dev-auto-<epic>
-"<decision needed>"`, `--kind permission` for an action needing authorization and
-`--kind question` otherwise; an external dependency needing no owner action stays a blocked progress
-label. The ask never gates work: continue independent authorized work, and `bmn
-withdraw` the request when you observe the decision in the session. An answered or
-withdrawn request is not approval; only an attributable owner answer authorizes its
-named action. At acceptance `bmn publish`
-the handoff only, with receipts cited by path and hash; omit secrets. Never use
-`bmn send`. Bound each call to two seconds (for example `timeout 2 bmn …`); after the
-first failure skip mirroring for the rest of the run, without retries or repair, and
-note it once at the next normal handoff update.
+Inside BMN (`bmn` on PATH, `BMN_CONTROL_SOCKET`/`BMN_TOKEN` set; test with
+`[ -n "${BMN_TOKEN:-}" ]`, never print values), BMN handles native cards and conversation resume.
+Dev-auto's handoff preserves task state.
+
+Run `bmn progress` when the state, blocker or next action materially changes, and
+at COMPLETE: ACTIVE→`running`, PAUSED→`waiting`, BLOCKED→`blocked`,
+COMPLETE→`claimed-done`. Label COMPLETE with evidence, other states with the next
+action. Never use `verified`, which is the owner's judgment.
+
+Use selectable native question cards per global rules. If unavailable, keep the
+decision unresolved and state the limitation; do not ask in plain text.
+Omit manual mirroring only when existing current-run BMN request
+or hook evidence establishes handling for that question route; configuration and
+source tests alone do not establish delivery. Otherwise mirror the card's decision
+when asking. Do not add polling or withdraw
+hook-managed cards. Use
+`bmn ask dev-auto-<epic> "<decision needed>"` (`--kind permission` for authorization,
+`question` otherwise). Withdraw only that manual request when its answer arrives in
+the session or it stops mattering. External dependencies needing no owner action
+stay blocked progress. Continue independent authorized work while answers are pending.
+
+Only an attributable in-session owner answer authorizes its named action; card
+resolution/withdrawal is not approval, tool permission covers only that call.
+Remote answers require correlated producer receipts; unsupported routes stay unfinished.
+Keep unresolved questions through compaction without duplicating them.
+
+At acceptance `bmn publish` only the handoff, citing receipts by path/hash; omit
+secrets. Never use `bmn send`. Bound manual calls with `timeout 2 bmn …`; after
+one failure skip them for the run without retries/repair; note it at the next
+normal handoff update.

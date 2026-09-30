@@ -127,9 +127,9 @@ aside; resolve a conflict by keeping your copy and untracking the file (`git rm
 ## Owner cockpit (optional)
 
 When the session runs inside BMN (`bmn` on PATH, `BMN_CONTROL_SOCKET` and `BMN_TOKEN`
-set; test with `[ -n "${BMN_TOKEN:-}" ]`, never print their values), mirror the run as
-[references/bmn-cockpit.md](references/bmn-cockpit.md) describes; otherwise skip it
-silently. The cockpit only mirrors questions asked in the session.
+set; test presence, never print values), follow [references/bmn-cockpit.md](references/bmn-cockpit.md)
+for meaningful progress, native-hook questions with manual fallback, and acceptance
+publication; otherwise skip it silently. Owner answers must arrive in the session.
 
 ## Handoff and recovery
 
