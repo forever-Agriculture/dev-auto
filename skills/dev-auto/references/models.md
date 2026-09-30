@@ -145,27 +145,16 @@ while prohibiting writes, network, tests and installs. Forbidding all commands p
 review. `-C` and read-only create no read allowlist and do not scrub the environment,
 so use the project directly only when its readable scope is acceptable.
 
-Luna browser checks add a headless, isolated Playwright browser limited to `ORIGIN`, a
-loopback origin such as `http://127.0.0.1:3000` whose app the lead starts and stops:
+Luna browser checks drive a headless Playwright browser limited to a loopback `ORIGIN`
+whose app the lead starts; use synthetic data:
 
 ```bash
-[[ $ORIGIN =~ ^http://(127\.0\.0\.1|localhost|\[::1\]):[1-9][0-9]{0,4}$ ]] || exit 2
-tools='"browser_navigate","browser_navigate_back","browser_snapshot","browser_click","browser_type","browser_fill_form","browser_select_option","browser_press_key","browser_hover","browser_wait_for","browser_take_screenshot","browser_console_messages","browser_network_requests","browser_close"'
-codex exec --skip-git-repo-check -C "$PROJECT" -m gpt-6-luna -c model_reasoning_effort=max \
-  -c "mcp_servers={playwright={command=\"npx\",args=[\"--offline\",\"@playwright/mcp@0.0.75\",\"--headless\",\"--isolated\",\"--allowed-origins\",\"$ORIGIN\"],enabled_tools=[$tools],default_tools_approval_mode=\"approve\"}}" \
-  -c 'approval_policy="never"' \
-  --sandbox read-only --json -o "$OUTPUT" - < "$PROMPT"
+~/code/dev-auto/skills/dev-auto/scripts/luna-browse.sh "$PROJECT" "$PROMPT" "$OUTPUT" "$ORIGIN"
 ```
 
-The pattern keeps quotes out of the inline TOML. Only the listed Playwright tools are exposed (no
-script evaluation or file upload), pre-approved because `approval_policy="never"`
-otherwise refuses every MCP call. The origin filter misses redirects and requests a
-page makes itself, and browser actions can mutate test data: use synthetic data,
-never production or personal browser profiles.
-
 Tools-disabled Fable review from a prepared source packet. `env -i` drops inherited
-provider settings (a GLM lead's Z.ai variables) so the call reaches Claude;
-`--safe-mode` skips CLAUDE.md, so the global rules are appended:
+provider settings so the call reaches Claude; `--safe-mode` skips CLAUDE.md, so the
+global rules are appended:
 
 ```bash
 env -i HOME="$HOME" PATH="$PATH" claude -p --model fable --effort medium --output-format json \
