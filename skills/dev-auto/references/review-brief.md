@@ -37,7 +37,8 @@ obvious defects with location and consequence. End with the single line
      retirement.
 3. For changed consequential behavior, read the relevant tests and execution
    evidence: would a realistic regression at its use site fail an assertion?
-   Report gaps and evidence limits.
+   Does evidence exercise the affected owner path on the accepted candidate with
+   representative state and, where relevant, viewport? Report gaps and limits.
 4. Which boundaries did you not examine? Say so explicitly.
 
 At project scope, also examine the aggregate multi-epic change for consequential

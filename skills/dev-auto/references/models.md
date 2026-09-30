@@ -1,27 +1,21 @@
 # Model and dispatch reference
 
-Identifiers, effort values and CLI options were verified locally on 2026-09-17,
-2026-09-18, 2026-09-24 and 2026-09-25. That does not prove every route completed a
-live call: read the actual receipt, and never claim a route or effort from the
-prompt alone. External CLIs require configured, authorized access.
+Routes require configured, authorized access. Verify model and effort from actual
+receipts; a CLI option or prompt alone does not prove a live route.
 
 Lead cost is turns × context, so the lead does the work in its path and dispatches
-only where saved lead effort or elapsed time exceeds briefing, waiting and
-integration. In ProjectQ Epic 8, requests touching five GLM implementation
-helpers' packets were about 23% of the Codex lead's input tokens.
+only where saved lead effort or elapsed time exceeds briefing, waiting and integration.
 
 ## Lead
 
 The owner picks and starts the lead: Sol `xhigh` (Codex), Opus `xhigh` (Claude Code)
 or GLM-5.3 `max` (`claude glm --model opus --effort max`: Claude Code on the Z.ai plan
-in `~/.claude-glm`, whose settings set `CLAUDE_CODE_EFFORT_LEVEL=max`: Claude Code keeps
-a saved `max` for one session only and otherwise ran GLM at `xhigh`, probe 2026-09-28).
+in `~/.claude-glm`, whose settings set `CLAUDE_CODE_EFFORT_LEVEL=max` persistently).
 A GLM lead sends everything it reads
 to Z.ai: in a project that restricts Z.ai or holds customer, production or personal
 data it reports BLOCKED and names Sol or Opus instead. It never prints environment
 values or credential files (`env`, `printenv`, `set`) and tests a variable with
-`[ -n "${NAME:-}" ]` (BMN Epic 29 ran `env | grep '^BMN_'`, which would have sent
-`BMN_TOKEN`; the owner interrupted it). When a GLM lead stays stuck
+`[ -n "${NAME:-}" ]`. When a GLM lead stays stuck
 after the consultant's answer, it reports BLOCKED and recommends a Sol resume from the
 handoff. Decide this before launching a GLM lead: by the time it refuses, it has
 already sent what it read. GLM-5.3 accepts 5 concurrent requests, Flash 50. A quota
@@ -78,14 +72,16 @@ expected evidence and a concise result. Host permissions, not prompts, bound acc
 never use bypass-permissions modes.
 
 GLM always runs at `max` effort. Every lead, a GLM lead included, dispatches GLM
-helpers through `helper.sh`, which passes `--effort max` (native Claude Code
-subagents ran at `high` in a 2026-09-25 probe). Its modes expose no shell: the lead
+helpers through `helper.sh`, which passes `--effort max`. Its modes expose no shell: the lead
 runs tests and commands and supplies sanitized results.
 
-Codex reviews use the CLI read-only sandbox with `approval_policy=never`. Native Codex
-helpers inherit the lead's sandbox, and read-only with `on-request` allowed an
-`apply_patch` write in a 2026-09-24 probe. Check each child receipt's model, sandbox
-and approval policy; never label a writable child read-only.
+Codex reviews use the CLI read-only sandbox with `approval_policy=never`. Native
+helpers inherit the lead's sandbox; read-only with approvals enabled may still permit
+writes. Check each child's model, sandbox and approval policy from its receipt.
+
+Isolate probe executables, configuration, profiles and test data; disable auto-updates.
+A temporary profile does not isolate a shared executable. Global installs or owner-setting
+changes need explicit authorization; keep probes out of the owner's installed release.
 
 Observe model, effort and usage from host records. Codex writes every session,
 including `codex exec` and native helpers, to `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`
@@ -108,18 +104,17 @@ completion notifications or the longest wait the host permits, up to 300000 ms p
 call; a wait returns early when the process ends. Codex: `write_stdin` with empty `chars`
 and `yield_time_ms: 300000` (the initial `exec_command`'s 30000 cap does not apply).
 In code mode, start that cell with `// @exec: {"yield_time_ms": 300000}`; without it
-the cell yields after about 30 s (61 of 74 such 60 s waits, 2026-09-20–25). `wait` on a
+the cell yields after about 30 s. `wait` on a
 yielded cell with the same value instead of polling its process. Native Codex helpers
 use `wait_agent`; Claude Code background commands notify on completion. Never add
 shorter polls.
 
 Run long paid or product jobs detached from the tool session, for example
 `systemd-run --user --collect` with a log and an exit sentinel; the unit starts without
-the shell profile, so give absolute executable paths or `--setenv=PATH="$PATH"` (a bare
-`codex` failed eight times, 2026-09-25–27). Record the job's unit or PID in the handoff, and stop it on an explicit owner stop. Before any cleanup,
-judge liveness from the job's sentinel, log growth or PID, never from a vanished tool
-session: in ProjectB Epic 67 a tool-session job died by SIGTERM at 40 s, and a live
-detached job was then wrongly terminalized.
+the shell profile, so give absolute executable paths or `--setenv=PATH="$PATH"`.
+Record the job's unit or PID in the handoff and stop it on an explicit owner stop.
+Before cleanup, judge liveness from its sentinel, log growth or PID, never from a
+vanished tool session.
 
 ## Routes
 
@@ -134,10 +129,8 @@ GLM helpers, from any lead, through the canonical checkout:
 Playwright browser limited to `ORIGIN`, a loopback origin such as
 `http://127.0.0.1:3000` whose app the lead starts and stops; `edit`, which also
 edits, is outside the tier table and runs only on an explicit owner request. File
-tools stay inside
-`PROJECT`, `.env*` is denied, and no mode runs shell commands: an exact check in
-Claude's networkless sandbox read outside `PROJECT` and exposed inherited environment
-values (2026-09-24). Everything the helper reads or sees reaches the provider, so set
+tools stay inside `PROJECT`, `.env*` is denied, and shell tools are unavailable.
+Everything the helper reads or sees reaches the provider, so set
 `PROJECT` to a sanitized workspace when the project holds data restricted from it; if
 none can be prepared, skip the helper. The origin filter misses redirects and requests
 a page makes itself, and browser actions can mutate test data: use synthetic data,

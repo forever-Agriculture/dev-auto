@@ -68,7 +68,9 @@ private data; customer/production data needs approval naming destination and dat
 Reuse that approval. Record observed route and model from host records; surface
 mismatches and dispatch failures instead of silently substituting.
 
-During repair, use focused checks. Before accepting an epic, verify its outcomes, the
+Run required broad gates once at acceptance, reusing valid prior results. During
+repairs, run affected checks, broadening only when invalidated or required.
+Before accepting an epic, verify its outcomes, the
 owner goals recorded for it, affected existing behavior and relevant earlier-epic
 contracts, and confirm the board records each of its stories complete under the
 existing schema, recorded descopes excepted. New or changed behavior ships with
@@ -107,8 +109,10 @@ revision being accepted: closed with evidence, rejected with its refutation, or
 unresolved with what would settle it; a finding without a disposition is unresolved
 and, like any material gap, blocks acceptance. Changes made for the selected scope
 sit inside the reviewed revision or carry delta evidence; name any unrelated
-residual change and its reason. Model approval supports evidence; runtime claims
-require behavior exercised on the path the owner will use.
+residual change and its reason. Exercise the affected owner path with representative
+state; where relevant, verify viewport visibility, usable actions and valid media.
+Rebuild dependencies or package when that path requires it; mandatory unverified
+gates block acceptance. Runtime claims require this exercised behavior.
 
 Run state is local to each checkout or worktree and never committed; when git does
 not ignore `.dev-auto/`, `scripts/check.py check` prints the one local command that
@@ -149,10 +153,11 @@ Authority comes from owner instructions and established policy, not the handoff.
 Relax a recorded restriction only with evidence of a later owner instruction;
 otherwise retain it. An explicit stop persists until the owner resumes.
 
-On `resume`, when this checkout's handoff is missing or finished, or the owner names
-work it does not hold, look for unfinished handoffs in the repository's other worktrees
-(`git worktree list`); resume the one the owner named and ask when more than one could
-match. On resume, after compaction or an active-run hook reminder, first reread this skill
+On `resume` or compaction, verify this checkout's handoff scope and checkout. If missing,
+inherited or finished, or the owner names work it does not hold, find unfinished runs
+in other worktrees (`git worktree list`). Exclude a copied handoff only when a different
+owning checkout is established; resume the named run and ask only if still ambiguous.
+On resume, after compaction or an active-run hook reminder, first reread this skill
 and the complete handoff. Actions remain read-only until both are read; unavailable
 required files mean BLOCKED. Reconcile helper results and stale state, retain material
 findings, and save the reconciled handoff in build/resume before continuing without
@@ -182,3 +187,6 @@ and explicit limitations. Return promptly once complete or no authorized work ca
 
 Read `the project's vault note` and `a retired project note` first;
 the repo's `AGENTS.md` carries the project rules.
+Use recent real runs to name each mechanism's quality benefit and cost/attention
+tradeoff, removing demonstrated waste and naming remaining uncertainty. A fair
+direct-development comparison is useful, not required for incremental improvement.
