@@ -326,6 +326,24 @@ class SessionStartHookTests(unittest.TestCase):
         result = run_hook({"source": "compact", "cwd": str(main)})
         self.assertEqual((result.returncode, result.stdout), (0, ""))
 
+    def test_copied_handoff_checks_ownership_before_its_next_action(self) -> None:
+        # Main's Epic 68 copy must not steer the owner-selected Epic 73 session.
+        # The hook cannot choose the user's run; it must make ownership a prerequisite.
+        main, linked = self.worktrees()
+        copied = self.filled(**{
+            "Project / selected epics": f"worktree `{linked}`; Epic 68 only",
+            "Next safe action": "continue Epic 68",
+            "Restrictions and authorization boundaries": "no paid calls or push",
+        })
+        self.put(main, copied)
+        self.put(linked, self.filled())
+        context = context_of(run_hook({"source": "resume", "cwd": str(main)}))
+        self.assertLess(context.index("Verify checkout ownership and selected scope"),
+                        context.index("continue Epic 68"))
+        self.assertIn("read that run's handoff instead", context)
+        self.assertIn(copied, context)
+        self.assertIn("no paid calls or push", context)
+
     def test_own_run_keeps_its_snapshot_and_lists_siblings_within_budget(self) -> None:
         main, linked = self.worktrees()
         own = self.put(main, self.filled(**{"Material pending findings": "F1 open"}))

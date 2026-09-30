@@ -109,10 +109,18 @@ yielded cell with the same value instead of polling its process. Native Codex he
 use `wait_agent`; Claude Code background commands notify on completion. Never add
 shorter polls.
 
-Run long paid or product jobs detached from the tool session, for example
-`systemd-run --user --collect` with a log and an exit sentinel; the unit starts without
-the shell profile, so give absolute executable paths or `--setenv=PATH="$PATH"`.
-Record the job's unit or PID in the handoff and stop it on an explicit owner stop.
+Run long paid or product jobs detached from the tool session. The unit starts without
+the shell profile; use a reviewed, absolute-path job script that writes its log and
+exit sentinel, with the caller's PATH and project directory:
+
+```bash
+systemd-run --user --collect --setenv=PATH="$PATH" \
+  --property=WorkingDirectory="$PROJECT" /bin/bash "$JOB_SCRIPT"
+```
+
+Before a CLI dispatch through systemd, verify that route without a provider call:
+`systemd-run --user --wait --collect --pipe --setenv=PATH="$PATH" codex --version`
+(use the dispatched CLI). Record the unit or PID and stop it on an explicit owner stop.
 Before cleanup, judge liveness from its sentinel, log growth or PID, never from a
 vanished tool session.
 
@@ -161,9 +169,11 @@ codex exec --skip-git-repo-check -C "$PROJECT" \
 ```
 
 The persisted rollout is the receipt (`--json` output names neither model nor usage,
-so `--ephemeral` is omitted). The reviewer can still run read-only shell commands:
-`-C` and read-only create no read allowlist and do not scrub the environment, so use
-the project directly only when its readable scope is acceptable.
+so `--ephemeral` is omitted). The reviewer uses shell commands to read files: its
+prompt permits local text reads and hashing (`cat`, `sed -n`, `rg`, `git show/diff/log`),
+while prohibiting writes, network, tests and installs. Forbidding all commands prevents
+review. `-C` and read-only create no read allowlist and do not scrub the environment,
+so use the project directly only when its readable scope is acceptable.
 
 Tools-disabled Fable review from a prepared source packet. `env -i` drops a GLM
 lead's inherited Z.ai settings so the call reaches Claude; `--safe-mode` skips
