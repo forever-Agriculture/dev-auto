@@ -16,8 +16,18 @@ or hook evidence establishes handling for that question route; configuration and
 source tests alone do not establish delivery. Otherwise mirror the card's decision
 when asking. Do not add polling or withdraw
 hook-managed cards. Use
-`bmn ask dev-auto-<epic> "<decision needed>"` (`--kind permission` for authorization,
-`question` otherwise). Withdraw only that manual request when its answer arrives in
+`bmn ask dev-auto-<epic>-<decision> "<decision needed>" --choices-json '<choices>'`
+(`--kind permission` for authorization, `question` otherwise). Supply the same explicit
+labels/descriptions as the session card, for example
+`'{"options":[{"label":"Continue","description":null},{"label":"Keep pending","description":"Do not proceed yet"}]}'`.
+Use a stable distinct `<decision>` key for each unresolved decision; reuse it only for
+that decision’s revisions/retries. Concurrent decisions must never share a request key.
+Other is always added by BMN; callers do not supply it. `--choices-file -` accepts the
+same JSON on stdin (only one stdin field per invocation). A text-only `bmn ask`
+provides no selectable options and does not satisfy the card rule. A manual permission
+choice sends a decision message, never native Allow or command execution. The manual
+phone route requires a fresh foreground producer stamp in this incarnation; without
+one, keep it draft-only/UNVERIFIED and continue independent work. Withdraw only that manual request when its answer arrives in
 the session or it stops mattering. External dependencies needing no owner action
 stay blocked progress. Continue independent authorized work while answers are pending.
 
