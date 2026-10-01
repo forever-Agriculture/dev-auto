@@ -112,7 +112,9 @@ sit inside the reviewed revision or carry delta evidence; name any unrelated
 residual change and its reason. Exercise the affected owner path with representative
 state; where relevant, verify viewport visibility, usable actions and valid media.
 Rebuild dependencies or package when that path requires it; mandatory unverified
-gates block acceptance. Runtime claims require this exercised behavior.
+gates block acceptance. Where only the owner can exercise that path (an installed
+release, phone or messaging), recommend one short owner check and keep acceptance
+BLOCKED until it passes or the owner explicitly defers it, recording it UNVERIFIED.
 
 Run state is local to each checkout or worktree and never committed; when git does
 not ignore `.dev-auto/`, `scripts/check.py check` prints the one local command that
@@ -166,7 +168,7 @@ duplicating completed or active work.
 The hook injects the complete handoff up to 9,000 characters (above that, only a
 full-read warning) and stays silent once the run is finished. Keep the handoff under
 the limit by moving resolved history and verbose results to the log, never dropping
-unresolved information or compressing wording (removed spaces, private abbreviations). Keep one each of `Status` (state label and a short reason),
+unresolved information. Keep one each of `Status` (state label and a short reason),
 `Explicit user stop` (`none` when absent) and `Next safe action`. A finished run ends
 with `- Status: COMPLETE` as the last line and stop `none`, each optionally followed by
 a short note after punctuation that never reverses its label. Run `scripts/check.py
