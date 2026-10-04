@@ -19,9 +19,9 @@ spend and any delegation ("decide within the cap", "work autonomously"); record 
 delegation as a current handoff term. Ask the owner once, in the session, with a
 recommendation, only about spend beyond the approved total, changes to selected work
 or its acceptance criteria, actions the global rules reserve to him, and credentials or
-private data. Consult on unresolved technical decisions. Decide everything else on the
-recommended option when it keeps the requirements, acceptance criteria, privacy and
-limits; where his delegation permits, that includes moving unused approved money
+private data. Put technical decisions you cannot settle from the evidence to the
+consultant. Decide everything else on your recommended option when it keeps the
+requirements, acceptance criteria, privacy and limits; where his delegation permits, that includes moving unused approved money
 between the scope's runs within the total, keeping any narrower cap or retry limit he
 set and counting outstanding paid commitments. Log each decision with its reason under
 `Decided for you` in the handoff and the next report. A pending question never blocks
