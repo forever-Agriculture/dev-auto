@@ -3,12 +3,10 @@
 Routes require configured, authorized access. Verify model and effort from actual
 receipts; a CLI option or prompt alone does not prove a live route.
 
-Lead cost is turns × context, so the lead does the work in its path and dispatches
-only where saved lead effort or elapsed time exceeds briefing, waiting and integration.
-
 ## Lead
 
-The owner picks and starts the lead: Sol `xhigh` (Codex) or Opus `xhigh` (Claude Code).
+The owner picks the lead, Sol `xhigh` (Codex) or Opus `xhigh` (Claude Code), and starts
+it directly or through an approved BMN queue.
 GLM is deactivated (owner, 2026-09-30): no GLM lead or helper
 until the owner reactivates it; [GLM (deactivated)](#glm-deactivated) keeps its rules.
 
@@ -47,8 +45,9 @@ until the owner reactivates it; [GLM (deactivated)](#glm-deactivated) keeps its 
   failed approaches; `medium` for a bounded question, `high` for a critical or
   complex one.
 - **An epic runs**: the lead implements, dispatching helpers only where they pay →
-  pre-review with the lead's final checks → one repair → epic review → repair →
-  recheck → acceptance.
+  pre-review with the lead's final checks → one repair → epic review (for a web UI,
+  plus a Luna browser check of the running candidate against the acceptance criteria)
+  → repair → recheck → acceptance.
 
 Helper summaries are navigation aids, not acceptance proof. Reviewers examine the
 original requirements, relevant source, raw evidence, architecture, cross-story
@@ -58,8 +57,10 @@ and observed effort separately.
 
 ## Dispatch
 
-Start a fresh bounded task with exact source coordinates, prohibited actions, the
-expected evidence and a concise result. Host permissions, not prompts, bound access;
+Dispatch for required review, bounded work whose saved lead effort or time justifies
+coordination, or an unresolved decision. Use a native helper interface only when it
+delivers the route with the required access. Start a fresh bounded task with exact
+source coordinates, prohibited actions, the expected evidence and a concise result. Host permissions, not prompts, bound access;
 never use bypass-permissions modes.
 
 Codex reviews use the CLI read-only sandbox with `approval_policy=never`. Native
@@ -76,7 +77,8 @@ including `codex exec` and native helpers, to `~/.codex/sessions/YYYY/MM/DD/roll
 `total_token_usage`). Claude Code writes each session and native helper as a transcript
 under `~/.claude/projects/<project>/`;
 `-p --output-format json` receipts carry `modelUsage` and `total_cost_usd`.
-`scripts/check.py usage PATH` reads all three. One session's counter is that session's
+`scripts/check.py usage PATH` reads all three; `usage --list PROJECT` lists a project's
+Codex rollouts. One session's counter is that session's
 usage, not the epic's; read lead and helper records separately and never add a
 cumulative record to the worker costs it includes. List missing records as gaps and
 never dispatch a worker merely to discover usage.
