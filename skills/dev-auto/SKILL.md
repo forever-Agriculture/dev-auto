@@ -30,9 +30,10 @@ obligations. Use the existing board/schema; report missing state.
 
 Implement the smallest complete change and continue useful authorized work until
 the whole selected scope passes acceptance. There is no automatic deadline.
-Preserve unrelated work. The lead owns integration and board updates; coordinate
-with any concurrent lead. Implemented work awaiting checks stays in an appropriate
-unfinished active state. A blocker in one epic leaves independent selected work available.
+Preserve unrelated work. The lead owns integration and board updates: when a story
+or epic starts, gets a measured outcome, blocks or is accepted, update its board row
+in that step, in every checkout carrying the board; coordinate with any concurrent
+lead. Implemented work awaiting checks stays in an appropriate unfinished active state. A blocker in one epic leaves independent selected work available.
 When an outcome depends on another party's system, access or decision, finish what the
 project can prove and report that boundary BLOCKED on the named gate; work inside other
 teams' systems needs the owner to select it.
