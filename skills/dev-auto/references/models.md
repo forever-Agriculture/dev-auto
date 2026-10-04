@@ -5,8 +5,7 @@ receipts; a CLI option or prompt alone does not prove a live route.
 
 ## Lead
 
-The owner picks the lead, Sol `xhigh` (Codex) or Opus `xhigh` (Claude Code), and starts
-it directly or through an approved BMN queue.
+The owner picks and starts the lead: Sol `xhigh` (Codex) or Opus `xhigh` (Claude Code).
 GLM is deactivated (owner, 2026-09-30): no GLM lead or helper
 until the owner reactivates it; [GLM (deactivated)](#glm-deactivated) keeps its rules.
 
