@@ -12,8 +12,22 @@ approval stages belong only where those instructions require them.
 
 Optimize accepted quality, total cost, elapsed time and owner attention together;
 never maximize one at the others' expense. Each check earns its place by a failure it
-prevents; reuse valid evidence. Owner attention is a cost: ask real decisions once, in
-the session, with a recommendation.
+prevents; reuse valid evidence.
+
+## Owner decisions
+
+Owner attention is a cost. The invocation and later owner instructions set the run's
+authority: scope, approved spend and any delegation ("decide within the cap", "work
+autonomously"); record a delegation as a current handoff term. Ask him once, in the
+session, with a recommendation, only about spend beyond the approved total, changes to
+selected work or its acceptance criteria, actions the global rules reserve to him, and
+credentials or private data. Consult on unresolved technical decisions. Decide
+everything else on the recommended option when it keeps the requirements, acceptance
+criteria, privacy and limits; where his delegation permits, that includes moving unused
+approved money between the scope's runs within the total, keeping any narrower cap or
+retry limit he set and counting outstanding paid commitments. Log each decision with
+its reason under `Decided for you` in the handoff and the next report. A pending
+question never blocks independent work.
 
 ## Scope and delivery
 
@@ -30,10 +44,16 @@ obligations. Use the existing board/schema; report missing state.
 
 Implement the smallest complete change and continue useful authorized work until
 the whole selected scope passes acceptance. There is no automatic deadline.
-Preserve unrelated work. The lead owns integration and board updates: when a story
-or epic starts, gets a measured outcome, blocks or is accepted, update its board row
-in that step, in every checkout carrying the board; coordinate with any concurrent
-lead. Implemented work awaiting checks stays in an appropriate unfinished active state. A blocker in one epic leaves independent selected work available.
+Preserve unrelated work. Each run works on its own branch in its own worktree (create
+one first when started in the default branch's checkout) with its own dependency
+environment; never commit, stash or edit in another run's checkout or dependencies.
+When moving an active run, carry its handoff, log, evidence and live-job coordinates,
+record the new owning checkout and mark the old handoff a copy. The default branch
+receives work through an owner-authorized merge by the designated maintainer.
+The lead owns integration and board updates: when a story or epic starts, gets a
+measured outcome, blocks or is accepted, update its board row in that step on the run's
+branch; coordinate with any concurrent lead. Implemented work awaiting checks stays in
+an appropriate unfinished active state. A blocker in one epic leaves independent selected work available.
 When an outcome depends on another party's system, access or decision, finish what the
 project can prove and report that boundary BLOCKED on the named gate; work inside other
 teams' systems needs the owner to select it.
@@ -41,12 +61,17 @@ teams' systems needs the owner to select it.
 Test a representative outcome early when the approach is uncertain. After two
 unsuccessful fixes for the same outcome, compare captured failures, the shared
 boundary and any working equivalent before another repair; if that leaves it
-unresolved, ask the consultant. Measure bulk work such
+unresolved, ask the consultant. An owner instruction not to stop keeps diagnosis and
+consultation and lifts no authorization, spend or acceptance gate: once an allowance is
+exhausted, each further attempt needs a different, evidence-backed method the
+consultant agrees, with attempts and spend so far recorded first; without one the
+boundary stays BLOCKED. Measure bulk work such
 as fixtures or reference answers early; when its review-and-repair rate cannot finish
 the remaining scope at proportionate cost, change the method or report BLOCKED
 instead of starting another round. Prefer offline replay when representative; live
 attempts retain their spend and stop limits: stop and ask before a paid call that
-could exceed an owner limit or approved estimate, and never raise either yourself.
+could exceed an owner limit or approved estimate (moves within a delegated total
+follow Owner decisions), and never raise either yourself.
 Before a paid or long run, make the cheapest live call to each external service it
 needs; a dry run that stubs a service proves nothing about it.
 
@@ -69,8 +94,9 @@ private data; customer/production data needs approval naming destination and dat
 Reuse that approval. Record observed route and model from host records; surface
 mismatches and dispatch failures instead of silently substituting.
 
-Run required broad gates once at acceptance, reusing valid prior results. During
-repairs, run affected checks, broadening only when invalidated or required.
+Run required broad gates once at acceptance, reusing valid prior results; before a
+gate, confirm the tests import this worktree's code. During repairs, run affected
+checks, broadening only when invalidated or required.
 Before accepting an epic, verify its outcomes, the
 owner goals recorded for it, affected existing behavior and relevant earlier-epic
 contracts, and confirm the board records each of its stories complete under the
@@ -95,14 +121,16 @@ on, at one acceptance boundary: if a recheck finds a material defect introduced 
 previous repair, or a second recheck finds material defects (any review of a repaired
 candidate is a recheck, however labeled), stop repairing: reread the original
 acceptance criteria, substantiate each open finding with a reproduction or requirement
-evidence, and put the design question once to the consultant or report that boundary
-BLOCKED with options, including removing work the story does not ask for. One
-consolidated repair and recheck may follow its answer; remaining material defects
-block the boundary while independent selected work continues. A new reviewer, repair
+evidence, and put the design question once to the consultant, whose method must keep
+the requirements, acceptance criteria and limits (removing work the story does not ask
+for is a valid answer). One consolidated repair and recheck may follow; remaining
+material defects park that boundary BLOCKED with the consultant's options while
+independent selected work continues; an instruction not to stop follows the rule
+above. A new reviewer, repair
 wave or resumed run does not reset this allowance; the pre-review and any
 owner-requested review sit outside it. Project scope adds a quick project
 pre-review before the final cross-epic evaluation; a project-level pre-review and
-review can cover the coincident final epic. Material gaps block acceptance.
+review can cover the coincident final epic.
 
 Record the baseline and reviewed revisions, actual checks and unverified
 boundaries. Give every material finding from all reviews a disposition against the
@@ -149,8 +177,7 @@ Read each terminal helper receipt once, when collecting it, with `scripts/check.
 usage PATH` (models.md names the record types; `usage --list PROJECT` lists Codex
 rollouts) and record its observed route and receipt path; record each lead session's
 ID. Elapsed time, usage and owner prompts come from those records when runs are
-evaluated, so do not tally them. At acceptance run `scripts/check.py check` and fix
-every FAIL before reporting COMPLETE. Record an UNABLE result instead of ignoring it.
+evaluated, so do not tally them.
 
 Authority comes from owner instructions and established policy, not the handoff.
 Relax a recorded restriction only with evidence of a later owner instruction;
@@ -173,8 +200,8 @@ unresolved information. Keep one each of `Status` (state label and a short reaso
 `Explicit user stop` (`none` when absent) and `Next safe action`. A finished run ends
 with `- Status: COMPLETE` as the last line and stop `none`, each optionally followed by
 a short note after punctuation that never reverses its label. Run `scripts/check.py
-check` after each handoff save, in the same tool call where the host allows; a FAIL
-before COMPLETE means the next save fixes it, not that work stops. The hook searches the
+check` after every handoff save, in the same tool call where the host allows; fix a FAIL
+at the next save and every FAIL before COMPLETE, and record an UNABLE result. The hook searches the
 working directory and its ancestors up to the first repository or home boundary and
 lists unfinished runs in the repository's other worktrees; report recovery unavailable
 when the selected project is outside it. Recovery uses owner-created wakeups.
@@ -188,8 +215,4 @@ and explicit limitations. Return promptly once complete or no authorized work ca
 
 ## Changing this workflow
 
-Read `the project's vault note` and `a retired project note` first;
-the repo's `AGENTS.md` carries the project rules.
-Use recent real runs to name each mechanism's quality benefit and cost/attention
-tradeoff, removing demonstrated waste and naming remaining uncertainty. A fair
-direct-development comparison is useful, not required for incremental improvement.
+Follow `~/code/dev-auto/AGENTS.md`.

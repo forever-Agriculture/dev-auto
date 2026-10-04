@@ -1,6 +1,7 @@
 # Dev Auto handoff
 
 - Project / selected epics:
+- Owning checkout and branch:
 - Original request and intended outcomes:
 - Mode: build | resume
 - Stopping condition: selected scope accepted; no automatic time limit
@@ -20,6 +21,7 @@
 ## Decisions and findings
 
 - Original or approved intent changes:
+- Decided for you (decisions taken under the owner's delegation, for his review):
 - Material pending findings:
 - Cross-epic obligations:
 
