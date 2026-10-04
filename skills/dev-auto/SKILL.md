@@ -18,8 +18,8 @@ The invocation and later owner instructions set the run's authority: scope, appr
 spend and any delegation ("decide within the cap", "work autonomously"); record a
 delegation, with its source quote, as a current handoff term; it carries through
 compaction, resume and a fresh session, for the scope and total it named and no further.
-Ask the owner once, in the session, with a
-recommendation, only about spend beyond the approved total, changes to selected work
+Ask the owner once, in the session, with a recommendation, only about spend beyond
+what he approved or delegated, changes to selected work
 or its acceptance criteria, actions the global rules reserve to him, and credentials or
 private data. Put technical decisions you cannot settle from the evidence to the
 consultant. Decide everything else on your recommended option when it keeps the
@@ -47,11 +47,16 @@ completion labels are claims to verify. Before each epic, confirm its outcome fi
 project and keeps later-epic obligations; use the existing board schema and report
 missing state.
 
-Each run works on its own branch in its own worktree (create one first when started in
-the default branch's checkout) with its own dependency environment; never commit, stash
-or edit in another run's checkout or dependencies. A run already active in the default
-checkout finishes there. Read planning files the worktree lacks from the default
-checkout; never commit, stash or copy its uncommitted files. Never remove a run's
+Each run works on its own branch in its own worktree with its own dependency
+environment. Started in the default branch's checkout, create the worktree and work
+only there if this session can edit it, otherwise end BLOCKED with the one command that
+starts the lead in it; after compaction your handoff is the worktree's, whatever
+checkout the session or hook points at. Never commit, stash or edit in another run's
+checkout or dependencies, except your own epics' entries in untracked planning files
+(board, story records) kept in the default checkout, reread just before each edit. A
+run already active in the default checkout finishes there. Read planning files the
+worktree lacks, or holds in an older version, from the default checkout; never commit,
+stash or copy its uncommitted files. Never remove a run's
 worktree yourself; before an owner-requested removal, move its `.dev-auto/` to the
 default checkout's `.dev-auto/runs/<branch>/`. Moving an active run carries its
 handoff, log, evidence and live-job coordinates, records the new owning checkout and
@@ -66,26 +71,27 @@ selected scope passes acceptance; there is no automatic deadline. Preserve unrel
 work. The lead owns integration and the board: when a story or epic starts, gets a
 measured outcome, blocks or is accepted, update its row in that step where the project
 keeps its board (on the run's branch when the board is tracked, otherwise in the
-default checkout), touching only its own epics' rows; implemented work awaiting checks stays
-in an unfinished active state. A blocked epic leaves independent selected work
+default checkout), touching only its own epics' rows; implemented work awaiting checks
+stays in an unfinished active state. A blocked epic leaves independent selected work
 available. An outcome that depends on another party's system, access or decision ends
 BLOCKED on that named gate once the project has proved its part; work inside other
 teams' systems needs the owner to select it.
 
 Test a representative outcome early when the approach is uncertain. After two
-unsuccessful fixes for one outcome, or three failed runs of one gate whatever fails in
-them, compare captured failures, the shared boundary and any working equivalent; if
-still unresolved, ask the consultant. After that, with or without an instruction not to
-stop, each further attempt needs a different, evidence-backed method the consultant
-agrees, recording first the attempts, gate runs, paid spend and the lead session's
-`check.py usage` total; without one the boundary stays BLOCKED. An instruction not to
-stop lifts no authorization, spend or acceptance gate. Measure bulk work such as
-fixtures or reference answers early; when its review-and-repair rate cannot finish the
-scope at proportionate cost, change the method or report BLOCKED. Prefer representative
-offline replay. Stop and ask before a paid call that could exceed an owner cap or the
-approved total; exceed an approved estimate only by a delegated move, and never raise a
-cap or the total yourself. Before a paid or long run, make the cheapest live call to each
-external service it needs; a stubbed dry run proves nothing about a service.
+unsuccessful fixes for one outcome, or three failed runs in a row of one acceptance or
+CI gate whatever fails in them, compare captured failures, the shared boundary and any
+working equivalent; if still unresolved, ask the consultant. After that, with or without
+an instruction not to stop, each further attempt at that outcome or gate needs a
+different, evidence-backed method the consultant agrees, recording first the attempts,
+gate runs, paid spend and the lead session's `check.py usage` total; without one the
+boundary stays BLOCKED. An instruction not to stop lifts no authorization, spend or
+acceptance gate. Measure bulk work such as fixtures or reference answers early; when its
+review-and-repair rate cannot finish the scope at proportionate cost, change the method
+or report BLOCKED. Prefer representative offline replay. Stop and ask before a paid call
+that could exceed an owner cap, the approved total or an approved estimate no delegation
+covers, and never raise a cap or the total yourself. Before a paid or long run, make the
+cheapest live call to each external service it needs; a stubbed dry run proves nothing
+about a service.
 
 ## Helpers and review
 
@@ -98,8 +104,8 @@ and unrelated private data; customer or production data needs approval naming
 destination and data, then reused. Record each helper's observed route and model and
 its receipt path (read each terminal receipt once, when collecting it, with
 `scripts/check.py usage PATH`) and each lead session's ID; surface mismatches and
-failures instead of silently substituting. Runs are evaluated from
-those records, so do not tally time, usage or owner prompts.
+failures instead of silently substituting. Runs are evaluated from those records, so
+beyond the brake's record do not tally time, usage or owner prompts.
 
 Freeze the candidate and run the quick pre-review from
 [references/review-brief.md](references/review-brief.md) alongside your own final
@@ -129,9 +135,9 @@ coincident final epic.
 
 ## Acceptance
 
-Run required broad gates once at acceptance, reusing valid prior results; before a
-gate, confirm the tests import this worktree's code and reach only services started
-from it (own ports, compose project and test data). During repairs run affected checks,
+Run required broad gates once at acceptance, reusing valid prior results; before a gate,
+confirm the tests import this worktree's code and that local services, ports, compose
+projects and mutable test data belong to this run. During repairs run affected checks,
 broadening only when invalidated or required. New or changed behavior ships with
 automated tests in the project's existing layers, using synthetic identifiers and data;
 list untested behavior in the handoff. Material regression tests fail on the original
