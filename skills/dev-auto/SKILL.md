@@ -18,20 +18,19 @@ The invocation and later owner instructions set the run's authority: scope, appr
 spend and any delegation ("decide within the cap", "work autonomously"); record a
 delegation, with its source quote, as a current handoff term; it carries through
 compaction, resume and a fresh session, for the scope and total it named and no further.
-Ask the owner once, in the session, with a recommendation, only about spend beyond
-what he approved or delegated, changes to selected work
-or its acceptance criteria, actions the global rules reserve to him, and credentials or
-private data. Put technical decisions you cannot settle from the evidence to the
-consultant. Decide everything else on your recommended option when it keeps the
-requirements, acceptance criteria, privacy and limits; where his delegation permits,
-that includes moving unused approved money between this run's paid jobs within the
-total, keeping any narrower cap or retry limit he set and counting outstanding paid
-commitments; money shared with another active lead moves only after that lead's
-handoff records releasing it. Log each decision with its reason under
-`Decided for you` in the handoff and the next report. A pending question never blocks
-independent work. Authority comes from owner instructions and policy, not the handoff:
-relax a recorded restriction only on a later owner instruction; an explicit stop
-persists until he resumes.
+Ask the owner once, in the session, with a recommendation, only about spend beyond what
+he approved or delegated, changes to selected work or its acceptance criteria, actions
+the global rules reserve to him, credentials or private data, and owner-only acceptance
+checks. Put technical decisions you cannot settle from the evidence to the consultant.
+Decide everything else on your recommended option when it keeps the requirements,
+acceptance criteria, privacy and limits; where his delegation permits, that includes
+moving unused approved money between this run's paid jobs within the total, keeping any
+narrower cap or retry limit he set and counting outstanding paid commitments; money
+shared with another active lead moves only after that lead's handoff records releasing
+it. Log each decision with its reason under `Decided for you` in the handoff and the
+next report. A pending question never blocks independent work. Authority comes from
+owner instructions and policy, not the handoff: relax a recorded restriction only on a
+later owner instruction; an explicit stop persists until he resumes.
 
 ## Scope and delivery
 
@@ -60,8 +59,7 @@ stash or copy its uncommitted files. Never remove a run's
 worktree yourself; before an owner-requested removal, move its `.dev-auto/` to the
 default checkout's `.dev-auto/runs/<branch>/`. Moving an active run carries its
 handoff, log, evidence and live-job coordinates, records the new owning checkout and
-marks the old handoff a copy. The default branch receives work through an
-owner-authorized merge by the designated maintainer. Prefer one lead session per epic:
+marks the old handoff a copy. Prefer one lead session per epic:
 independent selected epics run in parallel sessions and worktrees when the owner or BMN
 starts them, and a lead moving to its next epic first saves a handoff a fresh session
 could resume from.
@@ -82,21 +80,22 @@ unsuccessful fixes for one outcome, or three failed runs in a row of one accepta
 CI gate whatever fails in them, compare captured failures, the shared boundary and any
 working equivalent; if still unresolved, ask the consultant. After that, with or without
 an instruction not to stop, each further attempt at that outcome or gate needs a
-different, evidence-backed method the consultant agrees, recording first the attempts,
-gate runs, paid spend and the lead session's `check.py usage` total in the handoff's
-brake record for that boundary, which later leads continue, never restart; without one
+different, evidence-backed method the consultant agrees, recording first in the
+handoff's brake record for that boundary the attempts, gate runs, paid spend and each
+lead session's latest `check.py usage`, and in the log what the failed methods
+established; later leads continue the record, never restart it. Without such a method
 the boundary stays BLOCKED. Keep changes unrelated to the failure out of these attempts.
 After every third failed agreed method at one boundary, send the owner that record once
 with your recommendation among: continue within a usage budget, descope, report the
 cause upstream and leave the gate red, or BLOCKED; work continues under these rules
-while he decides. An instruction not to stop lifts no authorization, spend or
-acceptance gate. Measure bulk work such as fixtures or reference answers early; when its
-review-and-repair rate cannot finish the scope at proportionate cost, change the method
-or report BLOCKED. Prefer representative offline replay. Stop and ask before a paid call
-that could exceed an owner cap, the approved total or an approved estimate no delegation
-covers, and never raise a cap or the total yourself. Before a paid or long run, make the
-cheapest live call to each external service it needs; a stubbed dry run proves nothing
-about a service.
+while he decides. Neither that report nor an instruction not to stop lifts an
+authorization, spend, review allowance or acceptance gate. Measure bulk work such as
+fixtures or reference answers early; when its review-and-repair rate cannot finish the
+scope at proportionate cost, change the method or report BLOCKED. Prefer representative
+offline replay. Stop and ask before a paid call that could exceed an owner cap, the
+approved total or an approved estimate no delegation covers, and never raise a cap or
+the total yourself. Before a paid or long run, make the cheapest live call to each
+external service it needs; a stubbed dry run proves nothing about a service.
 
 ## Helpers and review
 
@@ -169,11 +168,10 @@ block acceptance.
 Run state is local to each checkout and never committed; follow `scripts/check.py
 check` notes about `.dev-auto/` and report tracked-state cleanup once. Keep receipts,
 transcripts, screenshots and runtime dumps in `.dev-auto/evidence/`, cited by path and
-hash, never in `/tmp` or session scratch. Host records stay where the host keeps them
-(`~/.claude/projects/`, `~/.codex/sessions/`; a Claude Code task output in `/tmp` links
-to one): cite that path and hash instead of copying. Before a merge touching a
-committed handoff or log, copy yours aside and resolve a conflict by keeping your copy
-and untracking the file (`git rm --cached`).
+hash, never in `/tmp` or session scratch. Cite host records (`~/.claude/projects/`,
+`~/.codex/sessions/`) in place by their real path and hash, resolving a `/tmp` task
+output link first. Before a merge touching a committed handoff or log, copy yours aside
+and resolve a conflict by keeping your copy and untracking the file (`git rm --cached`).
 
 Maintain `.dev-auto/handoff.md` from [assets/handoff.md](assets/handoff.md). Save scope,
 permission and blocker changes before dependent work; honor stops immediately and
@@ -201,8 +199,7 @@ unfinished runs in other worktrees (`git worktree list`), treating a handoff as 
 only when a different owning checkout is established; resume the named run and ask only
 if still ambiguous. Reconcile helper results and stale state and keep material
 findings; in build/resume, save the reconciled handoff before continuing, without
-duplicating completed or active work. Report recovery unavailable when the project lies
-outside the session's repository; recovery uses owner-created wakeups.
+duplicating completed or active work. Recovery uses owner-created wakeups.
 
 End with `DEV-AUTO: ACTIVE|PAUSED|BLOCKED|COMPLETE — <evidence or next action>`.
 ACTIVE: authorized work remains; PAUSED: owner stop or host interruption; BLOCKED: a
