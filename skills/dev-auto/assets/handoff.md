@@ -32,6 +32,7 @@
 - Reviewed scope and route:
 - Baseline and reviewed revisions / material finding dispositions / recheck or delta evidence:
 - Review allowance at the current boundary: rechecks used / consultation used / final repair used:
+- Brake record per stuck outcome or gate, kept across leads: attempts / gate runs / agreed methods / paid spend / lead usage / last owner report:
 - Unreviewed or unverified areas:
 
 ## Measurement

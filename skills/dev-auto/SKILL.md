@@ -83,8 +83,13 @@ CI gate whatever fails in them, compare captured failures, the shared boundary a
 working equivalent; if still unresolved, ask the consultant. After that, with or without
 an instruction not to stop, each further attempt at that outcome or gate needs a
 different, evidence-backed method the consultant agrees, recording first the attempts,
-gate runs, paid spend and the lead session's `check.py usage` total; without one the
-boundary stays BLOCKED. An instruction not to stop lifts no authorization, spend or
+gate runs, paid spend and the lead session's `check.py usage` total in the handoff's
+brake record for that boundary, which later leads continue, never restart; without one
+the boundary stays BLOCKED. Keep changes unrelated to the failure out of these attempts.
+After every third failed agreed method at one boundary, send the owner that record once
+with your recommendation among: continue within a usage budget, descope, report the
+cause upstream and leave the gate red, or BLOCKED; work continues under these rules
+while he decides. An instruction not to stop lifts no authorization, spend or
 acceptance gate. Measure bulk work such as fixtures or reference answers early; when its
 review-and-repair rate cannot finish the scope at proportionate cost, change the method
 or report BLOCKED. Prefer representative offline replay. Stop and ask before a paid call
@@ -164,9 +169,11 @@ block acceptance.
 Run state is local to each checkout and never committed; follow `scripts/check.py
 check` notes about `.dev-auto/` and report tracked-state cleanup once. Keep receipts,
 transcripts, screenshots and runtime dumps in `.dev-auto/evidence/`, cited by path and
-hash, never in `/tmp` or session scratch. Before a merge touching a committed handoff or
-log, copy yours aside and resolve a conflict by keeping your copy and untracking the
-file (`git rm --cached`).
+hash, never in `/tmp` or session scratch. Host records stay where the host keeps them
+(`~/.claude/projects/`, `~/.codex/sessions/`; a Claude Code task output in `/tmp` links
+to one): cite that path and hash instead of copying. Before a merge touching a
+committed handoff or log, copy yours aside and resolve a conflict by keeping your copy
+and untracking the file (`git rm --cached`).
 
 Maintain `.dev-auto/handoff.md` from [assets/handoff.md](assets/handoff.md). Save scope,
 permission and blocker changes before dependent work; honor stops immediately and
