@@ -91,11 +91,11 @@ Codex's native skill picker may also expose it. The skill does not switch the cu
 
 1. Reads project instructions and BMAD requirements, architecture, epics/stories and acceptance criteria.
 2. Checks the selected epic against the project before implementing it directly.
-3. Works on its own branch in its own worktree with its own dependencies, and maintains the existing `sprint-status.yaml` there, preserving unrelated entries and comments; the default branch gets the work through an owner-authorized merge.
+3. Works on its own branch in its own worktree with its own dependencies, and updates its own `sprint-status.yaml` rows in both the default checkout, where the owner reads them, and its worktree, preserving unrelated entries and comments; the default branch gets the work through an owner-authorized merge.
 4. Uses focused story tests and appropriate project regression/integration checks; checks existing behavior, not just new tests.
-5. Runs a quick Luna pre-review of the frozen epic alongside its own final checks, repairs once, then one independent Astra whole-epic review with a focused recheck, never editing a candidate while a reviewer reads it. Repair loops are bounded (see [SKILL.md](skills/dev-auto/SKILL.md)); every material finding ends with a disposition, and acceptance confirms each in-scope story's board completion.
+5. Runs a quick Luna pre-review of the frozen epic alongside its own final checks, repairs once, then one independent Astra whole-epic review with a focused recheck, never editing a candidate while a reviewer reads it. Repair loops are bounded (see [SKILL.md](skills/dev-auto/SKILL.md)); every material finding ends with a disposition, and acceptance confirms each in-scope story's board row.
 6. Preserves pending findings, restrictions, routes, evidence and next actions in a short project handoff.
-7. Asks the owner only about spend beyond the approved total, scope or acceptance changes, actions his global rules reserve, and credentials or private data; method questions go to the consultant, and everything else is decided on the recommended option and listed under `Decided for you` in the handoff.
+7. Asks the owner only about spend beyond the approved total, scope or acceptance changes, actions his global rules reserve, credentials or private data, owner-only checks and brake decisions; method questions go to the consultant, and everything else is decided on the recommended option and listed under `Decided for you` in the handoff.
 
 The handoff keeps every selected epic and its dependency visible. At material
 updates, replace stale state and link detailed receipts; append owner quotes,
@@ -104,7 +104,7 @@ unresolved restrictions or findings to fit; move resolved material instead. Run 
 
 Mechanical handoff rules are checked by a read-only helper instead of prose. `skills/dev-auto/scripts/check.py check` fails any handoff over the 9,000-character snapshot limit, with a Status longer than 200 characters, or without exactly one Status, Explicit user stop and Next safe action field; or when git does not ignore `.dev-auto/`, and notes `.dev-auto` files earlier work committed (removing them needs a repository change the owner approves); at COMPLETE it also fails placeholder text in the observed-model and lead-session fields. `-h` prints its help. `check.py usage PATH` prints model, effort and usage from a Codex rollout, a Claude Code session or subagent transcript, or a Claude JSON receipt, plus timestamps and owner prompts (or Codex turns) from rollouts and transcripts. The lead runs `check` after each handoff save (a FAIL before COMPLETE means the next save fixes it) and `usage` when collecting each receipt; the helper never writes, launches or decides, and it is not a hook.
 
-Inside BMN, native hooks manage question/permission cards and BMN resumes conversations. Dev-auto reports meaningful progress changes and relies on native question and permission cards without manual mirroring. Questions use selectable cards; unavailable card routes remain unresolved. It publishes the handoff at acceptance. Owner answers must reach the session; task recovery and acceptance remain dev-auto's responsibility. Outside BMN this is skipped. Manual calls are bounded to two seconds and skipped after one failure. Never report `verified` or use `bmn send`. See [BMN integration](skills/dev-auto/references/bmn-cockpit.md).
+Inside BMN, its native hooks manage question and permission cards; dev-auto makes no manual cockpit calls.
 
 The [model table](skills/dev-auto/references/models.md#helpers-and-reviewers) defines helper and reviewer routing.
 

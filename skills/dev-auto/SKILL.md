@@ -5,10 +5,8 @@ description: Implement, resume, or report selected BMAD-planned epics directly, 
 
 # Dev Auto
 
-Deliver the selected epics with the host's normal coding tools: BMAD supplies the
-requirements, this skill a thin implementation and acceptance workflow under existing
-owner, project and host authority, adding no extra workflow or approval stage they do
-not require.
+Deliver the selected BMAD epics with host tools under existing authority, adding no
+unnecessary approval stage.
 Optimize accepted quality, total cost, elapsed time and owner attention together. Each
 check earns its place by a failure it prevents; reuse valid evidence.
 
@@ -20,8 +18,11 @@ delegation, with its source quote, as a current handoff term; it carries through
 compaction, resume and a fresh session, for the scope and total it named and no further.
 Ask the owner once, in the session, with a recommendation, only about spend beyond what
 he approved or delegated, changes to selected work or its acceptance criteria, actions
-the global rules reserve to him, credentials or private data, and owner-only acceptance
-checks. Put technical decisions you cannot settle from the evidence to the consultant.
+the global rules reserve to him, credentials or private data, owner-only acceptance
+checks and the brake's decision below. Record his choices of reviewer, consultant or
+helper model, quoted, in the default checkout's git-ignored `.dev-auto/owner-choices.md`,
+read at start; they bind later runs unless he limits them, the latest winning. Put
+technical decisions you cannot settle from the evidence to the consultant.
 Decide everything else on your recommended option when it keeps the requirements,
 acceptance criteria, privacy and limits; where his delegation permits, that includes
 moving unused approved money between this run's paid jobs within the total, keeping any
@@ -38,7 +39,6 @@ Interpret `epic 12`, `epics 12-14`, `project` (unfinished planned epics plus a f
 cross-epic evaluation), `resume` and `status` in the selected project, defaulting to the
 current directory when it holds the planning artifacts. `status` is read-only: change no
 files, caches or jobs, report discrepancies and mark prior checks' freshness unverified.
-Resolve material ambiguity before edits.
 
 Read project instructions, original acceptance criteria, relevant architecture and
 dependencies. Reconcile repository, sprint board, handoff and active helpers;
@@ -51,26 +51,25 @@ environment. Started in the default branch's checkout, create the worktree and w
 only there if this session can edit it, otherwise end BLOCKED with the one command that
 starts the lead in it; after compaction your handoff is the worktree's, whatever
 checkout the session or hook points at. Never commit, stash or edit in another run's
-checkout or dependencies, except your own epics' entries in untracked planning files
-(board, story records) kept in the default checkout, reread just before each edit. A
+checkout or dependencies, except owner choices and your own epics' board rows and untracked
+story records in the default checkout, reread just before each edit and never committed there. A
 run already active in the default checkout finishes there. Read planning files the
 worktree lacks, or holds in an older version, from the default checkout; never commit,
 stash or copy its uncommitted files. Never remove a run's
-worktree yourself; before an owner-requested removal, move its `.dev-auto/` to the
-default checkout's `.dev-auto/runs/<branch>/`. Moving an active run carries its
-handoff, log, evidence and live-job coordinates, records the new owning checkout and
-marks the old handoff a copy. Prefer one lead session per epic:
+worktree yourself; an owner-requested removal first moves its `.dev-auto/` to the
+default checkout's `.dev-auto/runs/<branch>/`. A moved run keeps all state and live-job
+coordinates, records its new owning checkout and marks the old handoff a copy. Prefer one lead session per epic:
 independent selected epics run in parallel sessions and worktrees when the owner or BMN
 starts them, and a lead moving to its next epic first saves a handoff a fresh session
 could resume from.
 
 Implement the smallest complete change and continue authorized work until the whole
-selected scope passes acceptance; there is no automatic deadline. Preserve unrelated
-work. The lead owns integration and the board: when a story or epic starts, gets a
-measured outcome, blocks or is accepted, update its row in that step where the project
-keeps its board (on the run's branch when the board is tracked, otherwise in the
-default checkout), touching only its own epics' rows; implemented work awaiting checks
-stays in an unfinished active state. A blocked epic leaves independent selected work
+selected scope passes acceptance; there is no automatic deadline. The lead owns integration and the board: when a story or epic starts, gets a
+measured outcome, blocks or is accepted, update its rows in that step on the board in
+the default checkout, where the owner reads it, and on the run's branch when the board is
+tracked, touching only its own epics' rows; implemented work awaiting checks stays in
+an unfinished active state, and accepted work keeps the board's unfinished state,
+noting acceptance and its branch, until you see it on the default branch. A blocked epic leaves independent selected work
 available. An outcome that depends on another party's system, access or decision ends
 BLOCKED on that named gate once the project has proved its part; work inside other
 teams' systems needs the owner to select it.
@@ -85,11 +84,12 @@ handoff's brake record for that boundary the attempts, gate runs, paid spend and
 lead session's latest `check.py usage`, and in the log what the failed methods
 established; later leads continue the record, never restart it. Without such a method
 the boundary stays BLOCKED. Keep changes unrelated to the failure out of these attempts.
-After every third failed agreed method at one boundary, send the owner that record once
-with your recommendation among: continue within a usage budget, descope, report the
-cause upstream and leave the gate red, or BLOCKED; work continues under these rules
-while he decides. Neither that report nor an instruction not to stop lifts an
-authorization, spend, review allowance or acceptance gate. Measure bulk work such as
+After every third failed agreed method at one boundary, ask the owner by card: that
+record, the consultant's odds and cost to pass, and your recommendation among continue
+within a usage budget, descope, report the cause upstream and leave the gate red, or
+BLOCKED. Pause retries at that boundary until his answer authorizes them; inspect
+existing evidence and continue independent work. Neither that card nor an instruction
+not to stop lifts an authorization, spend, review allowance or acceptance gate. Measure bulk work such as
 fixtures or reference answers early; when its review-and-repair rate cannot finish the
 scope at proportionate cost, change the method or report BLOCKED. Prefer representative
 offline replay. Stop and ask before a paid call that could exceed an owner cap, the
@@ -150,7 +150,7 @@ preserving working-tree changes. A failure you cannot identify is unresolved.
 
 Before accepting an epic, verify its outcomes, the owner goals recorded for it,
 affected existing behavior and earlier-epic contracts, and that the board records each
-of its stories complete, recorded descopes excepted. Exercise the affected owner path
+story's acceptance and delivery state, recorded descopes excepted. Exercise the affected owner path
 with representative state, including viewport visibility, usable actions and valid
 media where relevant, rebuilding or packaging when that path requires it. Where only the
 owner can exercise it (an installed release, phone or messaging), recommend one short
@@ -170,8 +170,8 @@ check` notes about `.dev-auto/` and report tracked-state cleanup once. Keep rece
 transcripts, screenshots and runtime dumps in `.dev-auto/evidence/`, cited by path and
 hash, never in `/tmp` or session scratch. Cite host records (`~/.claude/projects/`,
 `~/.codex/sessions/`) in place by their real path and hash, resolving a `/tmp` task
-output link first. Before a merge touching a committed handoff or log, copy yours aside
-and resolve a conflict by keeping your copy and untracking the file (`git rm --cached`).
+output link first. Before a merge touching a committed handoff or log, copy yours
+aside; on conflict keep yours and untrack the file (`git rm --cached`).
 
 Maintain `.dev-auto/handoff.md` from [assets/handoff.md](assets/handoff.md). Save scope,
 permission and blocker changes before dependent work; honor stops immediately and
@@ -180,7 +180,8 @@ acceptance and before pausing. Keep each selected epic's state and dependency, c
 restrictions and approval coordinates, pending findings, active helpers, evidence and
 next action, as current terms with source coordinates. Append verbatim owner quotes,
 superseded terms, verbose results and failed attempts to the append-only
-`.dev-auto/log.md`, never restated in `Status` or `Resume`.
+`.dev-auto/log.md`, never restated in `Status` or `Resume`; append what changed, never a
+copy of the handoff.
 
 Keep the handoff within the recovery hook's 9,000-character snapshot by moving
 resolved history and verbose results to the log, never dropping unresolved
@@ -207,13 +208,6 @@ necessary decision, permission or external dependency; COMPLETE: all selected ou
 and acceptance checks passed. In build/resume, reconcile board and handoff before
 COMPLETE; otherwise leave a safe next action and explicit limitations. Return promptly
 when no authorized work can proceed.
-
-## Owner cockpit (optional)
-
-Inside BMN (`bmn` on PATH, `BMN_CONTROL_SOCKET` and `BMN_TOKEN` set; test presence,
-never print values), follow [references/bmn-cockpit.md](references/bmn-cockpit.md) for
-progress, questions and acceptance publication; otherwise skip it silently. Owner
-answers must arrive in the session.
 
 ## Changing this workflow
 

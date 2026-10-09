@@ -23,7 +23,7 @@ until the owner reactivates it; [GLM (deactivated)](#glm-deactivated) keeps its 
 | Project final review | Astra `high` | Fable `high` | BLOCKED |
 | Consultant | Astra `medium` or `high` | Fable `medium` or `high` | BLOCKED |
 
-- **How to read it.** Start in column 1st. Move right only when that route fails or
+- **How to read it.** Honor applicable owner model choices; otherwise start in column 1st. Move right only when that route fails or
   is unavailable (error, quota, missing access), leaves the question unresolved, or
   cannot do the task. A good enough answer ends it. Record the route and the reason
   for any move. Luna goes first as the lightest Codex model; Luna and Astra spend
