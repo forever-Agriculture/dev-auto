@@ -152,14 +152,16 @@ Before accepting an epic, verify its outcomes, the owner goals recorded for it,
 affected existing behavior and earlier-epic contracts, and that the board records each
 story's acceptance and delivery state, recorded descopes excepted. Exercise the affected owner path
 with representative state, including viewport visibility, usable actions and valid
-media where relevant, rebuilding or packaging when that path requires it. Where only the
+media where relevant, rebuilding or packaging when that path requires it; check each
+consequential fake once against the real contract, and recommend delivery only after
+its own path (packaged build, update or deploy) passes. Where only the
 owner can exercise it (an installed release, phone or messaging), recommend one short
 owner check and keep acceptance BLOCKED until it passes or he explicitly defers it,
 recording it UNVERIFIED. Record baseline and reviewed revisions, actual checks and
 unverified boundaries. Give every material finding from all reviews a disposition
 against the accepted revision: closed with evidence, rejected with its refutation, or
 unresolved with what would settle it. Changes for the selected scope sit inside the
-reviewed revision or carry delta evidence; name any unrelated residual change and why.
+reviewed revision or carry delta evidence, including commits added after acceptance; name any unrelated residual change and why.
 Material findings without a disposition, material gaps and mandatory unverified gates
 block acceptance.
 
