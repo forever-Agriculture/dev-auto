@@ -1,6 +1,6 @@
 ---
 name: epic-lead-planning
-description: Suggest an implementation lead when drafting or materially revising BMAD epics in any project, in the epic file and on its sprint-status row. Use during epic planning, not during implementation.
+description: Load alongside the project's planning workflow whenever drafting or materially revising BMAD epics in any project (epic lists, epic files, create-epics-and-stories); it adds a suggested implementation lead to the epic file and its sprint-status row. Planning only, not implementation.
 ---
 
 # Epic lead suggestions
