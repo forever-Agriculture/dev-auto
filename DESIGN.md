@@ -48,7 +48,7 @@ Use one model registry with concrete model IDs, requested and supported effort, 
 
 ## Model priorities
 
-Superseded on 2026-09-25 by the tier table in `skills/dev-auto/references/models.md` (owner decision). The 2026-09-17 selection below is history.
+Superseded on 2026-09-25 by the tier table in `skills/dev-auto/references/models.md` (owner decision), and that table on 2026-10-11 by the owner's team in BMN, which the same file says how to ask. The 2026-09-17 selection below is history.
 
 The owner selected the roles and effort levels below on 2026-09-17. These are task priorities, not a measured pricing ranking. Exact identifiers, supported effort and available launch routes must be validated during implementation; no silent effort downgrade.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# MODULE: helper.sh - run one dev-auto helper on the helper provider (Z.ai GLM, deactivated since 2026-09-30; see models.md)
+# MODULE: helper.sh - run one dev-auto helper on the helper provider (Z.ai GLM, deactivated since 2026-09-30; see "GLM (deactivated)" in models.md: a reactivation adds the team check)
 #
 # helper.sh review|edit fast|strong PROJECT PROMPT OUTPUT
 # helper.sh browse fast|strong PROJECT PROMPT OUTPUT ORIGIN

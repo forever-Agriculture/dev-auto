@@ -106,7 +106,7 @@ Mechanical handoff rules are checked by a read-only helper instead of prose. `sk
 
 Inside BMN, its native hooks manage question and permission cards; dev-auto makes no manual cockpit calls.
 
-The [model table](skills/dev-auto/references/models.md#helpers-and-reviewers) defines helper and reviewer routing.
+The owner's team in BMN defines helper and reviewer routing: [models.md](skills/dev-auto/references/models.md#helpers-and-reviewers) says how the lead asks it (`bmn roster role`) and checks every dispatch against it (`bmn roster check`).
 
 Credentials are never part of this repository. An unavailable route is reported; no silent model or effort substitution.
 

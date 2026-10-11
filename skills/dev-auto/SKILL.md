@@ -99,9 +99,11 @@ external service it needs; a stubbed dry run proves nothing about a service.
 
 ## Helpers and review
 
-Read [references/models.md](references/models.md) at start and follow its routes and
-dispatch rules; a lead never proceeds where its own provider may not read the
-workspace. Helpers review and gather evidence; the lead writes code and tests and does
+Read [references/models.md](references/models.md) at start and follow it: the owner's
+team in BMN says who does each kind of work (`bmn roster role`), every helper command
+is checked against it before it runs (`bmn roster check`), and its routes and dispatch
+rules apply;
+a lead never proceeds where its own provider may not read the workspace. Helpers review and gather evidence; the lead writes code and tests and does
 small lookups and checks directly. Dispatch consent comes from the owner's global rules
 or session approval, never this skill; project restrictions apply. Exclude credentials
 and unrelated private data; customer or production data needs approval naming

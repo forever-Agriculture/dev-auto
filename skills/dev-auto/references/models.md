@@ -5,31 +5,61 @@ receipts; a CLI option or prompt alone does not prove a live route.
 
 ## Lead
 
-The owner picks and starts the lead: Sol `xhigh` (Codex) or Opus `xhigh` (Claude Code).
+The owner picks and starts the lead; `bmn roster role lead --json` lists who may lead
+and at which efforts.
 GLM is deactivated (owner, 2026-09-30): no GLM lead or helper
 until the owner reactivates it; [GLM (deactivated)](#glm-deactivated) keeps its rules.
 
 ## Helpers and reviewers
 
-| Work | 1st | 2nd | 3rd |
-| --- | --- | --- | --- |
-| Routine chores | Luna `max` | lead | |
-| Focused review: a bounded area, or a failure the lead is debugging | Luna `max` | Astra `low` | lead |
-| Browser checks | Luna `max` browse | lead | |
-| Epic pre-review (quick) | Luna `max` | skip it | |
-| Epic review | Astra `medium` | Fable `medium` | BLOCKED |
-| Recheck a finding | same reviewer, Astra at `low` | | |
-| Project pre-review (quick) | Luna `max` | skip it | |
-| Project final review | Astra `high` | Fable `high` | BLOCKED |
-| Consultant | Astra `medium` or `high` | Fable `medium` or `high` | BLOCKED |
+The owner's team in BMN (Preferences › Team) says who does each kind of work; this file
+names no models. Ask the team for the role:
 
-- **How to read it.** Honor applicable owner model choices; otherwise start in column 1st. Move right only when that route fails or
-  is unavailable (error, quota, missing access), leaves the question unresolved, or
-  cannot do the task. A good enough answer ends it. Record the route and the reason
-  for any move. Luna goes first as the lightest Codex model; Luna and Astra spend
-  Codex quota, Fable spends Claude quota.
-- **Luna** is `gpt-6-luna` at `max` through the Codex CLI [routes](#routes), read-only;
-  **lead** means the lead does it itself.
+| Work | Role |
+| --- | --- |
+| Routine chores | `helper` |
+| Focused review: a bounded area, or a failure the lead is debugging | `focused-reviewer` |
+| Browser checks | `browser` |
+| Epic pre-review (quick) | `pre-reviewer` |
+| Epic review | `epic-reviewer` |
+| Project pre-review (quick) | `project-pre-reviewer` |
+| Project final review | `final-reviewer` |
+| Consultant | `consultant` |
+
+- **Ask.** `bmn roster role <role> --json` gives the approved chain: `candidates` in
+  order, each with its `efforts` (with `effort_choice` the lead picks: the lowest listed
+  unless the question is critical or complex), whether it is `eligible`,
+  and the `context` items (`argv`, `env`) its command must carry. `then` says what
+  follows the last candidate: `lead` (the lead does it itself), `skip`, `blocked` or
+  `owner-chooses`. `recheck` gives the effort for rechecking a finding: a new run of the
+  same reviewer under the same role. `small_work` is the candidate for a small,
+  well-evidenced epic's review.
+  `bmn team --all --json` gives each agent's app (`harness`) and `model` for the
+  [routes](#routes).
+- **How to read it.** Honor applicable owner model choices; otherwise start with the
+  first eligible candidate. Move to the next only when that route fails or is
+  unavailable (error, quota, missing access), leaves the question unresolved, cannot do
+  the task, or the check answers `DATA_FORBIDDEN`. A candidate without a documented
+  route for this work is unavailable: record why, continue in team order, and follow
+  `then` after the last candidate; if the owner explicitly chose that candidate, report
+  the missing route instead of substituting. A good enough answer ends it. Record the
+  route and the reason for any move. Codex agents spend Codex quota, Claude Code agents
+  Claude quota.
+- **Check every helper command.** Just before it, in the same environment and from the
+  folder it will run in (one inside the project), run `bmn roster check --agent <id>
+  --role <role> --workspace "$PROJECT" --data private --cwd "$PWD" --stdin "$PROMPT"
+  --json -- <the exact command, without its "< $PROMPT" redirect>`; `--data public` only
+  where `bmn roster visibility "$PROJECT"` proves the workspace public. The answer is
+  the receipt and only its `verdict` decides: save it in `.dev-auto/evidence/` beside
+  the helper's prompt and answer, and for a Codex helper run `bmn roster bind --receipt
+  <file> --session <id>` as soon as its rollout exists (BMN binds only within ten
+  minutes of the check); check a resume with `--resume-of <receipt>`. Any refusal but `DATA_FORBIDDEN` stops that dispatch: report
+  its line, since the owner changes the team or names another agent, and never reword a
+  command to get past it. An owner's model choice is checked the same way. A wrapper
+  script runs the check on its own inner command. Without `bmn` or an approved team,
+  dispatch nothing and report BLOCKED. A native helper has no command to check, so it
+  runs only as the lead's own model; work for any other model goes through a route and
+  the check.
 - **Helpers review; the lead writes the code and tests.** **Routine chores**: wide
   lookups, evidence gathering, log and test-output triage, checklist rechecks.
   **Focused review**: another model's eyes on a bounded area when the lead wants
@@ -39,20 +69,16 @@ until the owner reactivates it; [GLM (deactivated)](#glm-deactivated) keeps its 
   run while the lead runs its own final checks on the frozen candidate, overlapping
   them instead of adding a wait. The lead repairs their material findings once and
   reruns affected checks, then the strong review gets the map as a navigation aid.
-  The epic review may use Astra `low` for a small, well-evidenced epic.
 - **Consultant**: a critical decision, a reviewer disagreement, or stuck after two
-  failed approaches; `medium` for a bounded question, `high` for a critical or
-  complex one.
+  failed approaches.
 - **An epic runs**: the lead implements, dispatching helpers only where they pay →
   pre-review with the lead's final checks → one repair → epic review (for a web UI,
-  plus a Luna browser check of the running candidate against the acceptance criteria)
+  plus a browser check of the running candidate against the acceptance criteria)
   → repair → recheck → acceptance.
 
 Helper summaries are navigation aids, not acceptance proof. Reviewers examine the
 original requirements, relevant source, raw evidence, architecture, cross-story
-effects, omissions and drift. `fable` resolves to `claude-fable-5-1`. Codex supports
-Sol at `xhigh`, Luna at `max`, and Astra at `low`, `medium` or `high`. Record requested
-and observed effort separately.
+effects, omissions and drift. Record requested and observed effort separately.
 
 ## Dispatch
 
@@ -129,8 +155,7 @@ review rejects for missing consent and permits presenting evidence, cite the exi
 authorization once when it covers that exact action and payload; otherwise report the
 reason and request approval. Never change routes or permissions to evade a refusal.
 
-Codex CLI for Luna and Astra, read-only (set model and effort from the tier table;
-Luna is `-m gpt-6-luna -c model_reasoning_effort=max`):
+Codex CLI, read-only (model and effort from the team; the example is Astra at medium):
 
 ```bash
 codex exec --skip-git-repo-check -C "$PROJECT" \
@@ -146,19 +171,25 @@ while prohibiting writes, network, tests and installs. Forbidding all commands p
 review. `-C` and read-only create no read allowlist and do not scrub the environment,
 so use the project directly only when its readable scope is acceptable.
 
-Luna browser checks drive a headless Playwright browser limited to a loopback `ORIGIN`
-whose app the lead starts; use synthetic data:
+Browser checks drive a headless Playwright browser limited to a loopback `ORIGIN`
+whose app the lead starts; use synthetic data. The script is Luna's route: pass the
+effort selected above as the fifth argument. It runs the team check itself (`browser`
+role, receipt in `OUTPUT.check.json`); the caller finds the run's rollout with
+`scripts/check.py usage --list "$PROJECT"` and binds that receipt to its session within
+ten minutes of the check. Only Luna has a documented browser route here; skip other
+candidates under the unavailable-route rule and follow the team's `then` action.
 
 ```bash
-~/code/dev-auto/skills/dev-auto/scripts/luna-browse.sh "$PROJECT" "$PROMPT" "$OUTPUT" "$ORIGIN"
+~/code/dev-auto/skills/dev-auto/scripts/luna-browse.sh "$PROJECT" "$PROMPT" "$OUTPUT" "$ORIGIN" "$EFFORT"
 ```
 
-Tools-disabled Fable review from a prepared source packet. `env -i` drops inherited
-provider settings so the call reaches Claude; `--safe-mode` skips CLAUDE.md, so the
-global rules are appended:
+Tools-disabled Claude Code review from a prepared source packet (model and effort from
+the team; the example is Opus at medium). `env -i` drops inherited provider settings so
+the call reaches Claude, and a candidate's `context.env` items go after `PATH=`;
+`--safe-mode` skips CLAUDE.md, so the global rules are appended:
 
 ```bash
-env -i HOME="$HOME" PATH="$PATH" claude -p --model fable --effort medium --output-format json \
+env -i HOME="$HOME" PATH="$PATH" claude -p --model claude-opus-5-5 --effort medium --output-format json \
   --tools '' --permission-mode dontAsk --safe-mode --no-session-persistence \
   --strict-mcp-config --mcp-config '{"mcpServers":{}}' \
   --append-system-prompt "$(<"$HOME/.claude/CLAUDE.md")" \
@@ -168,4 +199,5 @@ env -i HOME="$HOME" PATH="$PATH" claude -p --model fable --effort medium --outpu
 ## GLM (deactivated)
 
 GLM is deactivated for now. Before owner-authorized reactivation, recover its routing
-and safety instructions from commit `014f98c` and revalidate them.
+and safety instructions from commit `014f98c`, revalidate them, and make `helper.sh`
+run the team check on its inner command.

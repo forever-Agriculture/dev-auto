@@ -164,6 +164,7 @@ class SessionStartHookTests(unittest.TestCase):
             context = context_of(result)
             self.assertIn(str(REPO / "skills" / "dev-auto" / "SKILL.md"), context)
             self.assertIn("before any dispatch, the skill's references/models.md", context)
+            self.assertIn("`bmn roster role`", context)
             self.assertIn(str(self.handoff), context)
             self.assertIn("- Status: ACTIVE", context)
             self.assertIn("never GLM", context)
