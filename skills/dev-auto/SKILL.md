@@ -13,9 +13,9 @@ check earns its place by a failure it prevents; reuse valid evidence.
 ## Owner decisions
 
 The invocation and later owner instructions set the run's authority: scope, approved
-spend and any delegation ("decide within the cap", "work autonomously"); record a
-delegation, with its source quote, as a current handoff term; it carries through
-compaction, resume and a fresh session, for the scope and total it named and no further.
+spend and delegation ("decide within the cap", "work autonomously"). Record each
+delegation and source quote as a current handoff term; it survives compaction, resume
+and fresh sessions only for its named scope and total.
 Ask the owner once, in the session, with a recommendation, only about spend beyond what
 he approved or delegated, changes to selected work or its acceptance criteria, actions
 the global rules reserve to him, credentials or private data, owner-only acceptance
@@ -35,12 +35,12 @@ later owner instruction; an explicit stop persists until he resumes.
 
 Away: `away` as an invocation argument or a message of its own, or the owner saying he
 is leaving now ("going to bed"), starts away mode, a handoff term with his quote and
-time; his next message that is not a card answer ends it, and an explicit stop outranks
-it. Unless he forbade questions, ask at once in one card everything the remaining work
-may need from him (merge or push authority, a spend split, an owner check to defer);
-after that record what waits instead of asking. Once ever per boundary, one further
-narrow repair and recheck may follow a used review allowance; mark it used in the
-handoff first. Everything else reserved to him above parks its own boundary.
+time; it ends when he says he is back or cancels it, and an explicit stop outranks it.
+Unless he forbade questions, ask at once in one card for everything remaining work may
+need (merge or push authority, a spend split, an owner check to defer). Then record
+what waits instead of asking. Once ever per boundary, one further narrow repair and
+recheck may follow a used review allowance; mark it used in the handoff first.
+Everything else reserved to him above parks its own boundary.
 
 ## Scope and delivery
 
@@ -92,9 +92,9 @@ handoff's brake record for that boundary the attempts, gate runs, paid spend and
 lead session's latest `check.py usage`, and in the log what the failed methods
 established; later leads continue the record, never restart it. Without such a method
 the boundary stays BLOCKED. Keep changes unrelated to the failure out of these attempts.
-Once per method, a run that broke in your own harness before it exercised the product
-is repaired and rerun without counting a failed method: record it as a gate run first;
-a second such failure counts the method failed.
+Once per method, record a failure in your own harness before product execution as a
+gate run, then repair and rerun without counting a failed method. A second such
+failure counts the method failed.
 After every third failed agreed method at one boundary, ask the owner by card: that
 record, the consultant's odds and cost to pass, and your recommendation among continue
 within a usage budget, descope, report the cause upstream and leave the gate red, or

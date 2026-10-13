@@ -55,7 +55,7 @@ Then:
 /dev-auto resume
 ```
 
-Use `epics` for selected epic numbers/ranges; `project` covers the planned project. Add `away` (`/dev-auto epics 1-3 away`), or say you are leaving, when you will not be there: the lead asks everything it needs in one card first, then records what waits instead of asking until your next message (see Owner decisions in [SKILL.md](skills/dev-auto/SKILL.md)). Start one of these scopes, not both concurrently. Status reports current progress; resume continues the recorded scope, and when the current checkout holds no unfinished run it looks in the repository's other worktrees and asks when more than one could match.
+Use `epics` for selected epic numbers/ranges; `project` covers the planned project. Add `away` (`/dev-auto epics 1-3 away`), or say you are leaving, when you will not be there: the lead asks everything it needs in one card first, then records what waits instead of asking until you say you are back (see Owner decisions in [SKILL.md](skills/dev-auto/SKILL.md)). Start one of these scopes, not both concurrently. Status reports current progress; resume continues the recorded scope, and when the current checkout holds no unfinished run it looks in the repository's other worktrees and asks when more than one could match.
 
 Optional continuation in the same Claude session:
 
