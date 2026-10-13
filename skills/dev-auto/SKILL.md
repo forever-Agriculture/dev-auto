@@ -33,14 +33,14 @@ next report. A pending question never blocks independent work. Authority comes f
 owner instructions and policy, not the handoff: relax a recorded restriction only on a
 later owner instruction; an explicit stop persists until he resumes.
 
-Away: `away` in the invocation or a later message, or the owner saying he is leaving
-("going to bed"), starts away mode: a handoff term with his quote and time, ended by
-his next message, outranked by an explicit stop. At once ask, in one card, everything
-the remaining work may need from him (merge or push authority, a spend split, an owner
-check to defer); then send no card. Once per boundary, one further narrow repair and
-recheck may follow a used review allowance, and one further consultant-agreed method
-may run while the brake's card waits. Everything else reserved to him above parks its
-own boundary. Open the next report with what you decided and what waits.
+Away: `away` as an invocation argument or a message of its own, or the owner saying he
+is leaving now ("going to bed"), starts away mode, a handoff term with his quote and
+time; his next message that is not a card answer ends it, and an explicit stop outranks
+it. Unless he forbade questions, ask at once in one card everything the remaining work
+may need from him (merge or push authority, a spend split, an owner check to defer);
+after that record what waits instead of asking. Once ever per boundary, one further
+narrow repair and recheck may follow a used review allowance; mark it used in the
+handoff first. Everything else reserved to him above parks its own boundary.
 
 ## Scope and delivery
 
@@ -55,22 +55,21 @@ completion labels are claims to verify. Before each epic, confirm its outcome fi
 project and keeps later-epic obligations; use the existing board schema and report
 missing state.
 
-Each run works on its own branch in its own worktree with its own dependency
-environment. Started in the default branch's checkout, create the worktree and work
-only there if this session can edit it, otherwise end BLOCKED with the one command that
-starts the lead in it; after compaction your handoff is the worktree's, whatever
-checkout the session or hook points at. Never commit, stash or edit in another run's
-checkout or dependencies, except owner choices and your own epics' board rows and untracked
-story records in the default checkout, reread just before each edit and never committed there. A
-run already active in the default checkout finishes there. Read planning files the
-worktree lacks, or holds in an older version, from the default checkout; never commit,
-stash or copy its uncommitted files. Never remove a run's
+Use a separate branch, worktree and dependency environment per run. From the default
+checkout, create the worktree and work only there if this session can edit it,
+otherwise end BLOCKED with the one command that starts the lead in it; after compaction
+use that worktree's handoff, whatever checkout the session or hook points at. Never
+commit, stash or edit another run's checkout or dependencies, except owner choices and
+your epics' board rows and untracked story records in the default checkout: reread
+just before each edit and never commit there. A run already active in the default
+checkout finishes there. Read missing or older planning files from the default
+checkout; never commit, stash or copy its uncommitted files. Never remove a run's
 worktree yourself; an owner-requested removal first moves its `.dev-auto/` to the
-default checkout's `.dev-auto/runs/<branch>/`. A moved run keeps all state and live-job
-coordinates, records its new owning checkout and marks the old handoff a copy. Prefer one lead session per epic:
-independent selected epics run in parallel sessions and worktrees when the owner or BMN
-starts them, and a lead moving to its next epic first saves a handoff a fresh session
-could resume from.
+default checkout's `.dev-auto/runs/<branch>/`, keeping all state and live-job
+coordinates, recording the new owning checkout and marking the old handoff a copy.
+Prefer one lead session per epic: independent selected epics run in parallel sessions
+and worktrees when the owner or BMN starts them; before moving to the next epic, save a
+handoff a fresh session could resume from.
 
 Implement the smallest complete change and continue authorized work until the whole
 selected scope passes acceptance; there is no automatic deadline. The lead owns integration and the board: when a story or epic starts, gets a
@@ -93,15 +92,15 @@ handoff's brake record for that boundary the attempts, gate runs, paid spend and
 lead session's latest `check.py usage`, and in the log what the failed methods
 established; later leads continue the record, never restart it. Without such a method
 the boundary stays BLOCKED. Keep changes unrelated to the failure out of these attempts.
-A run that broke in your own harness before it exercised the product is repaired and
-rerun once under the same method: a gate run in the record, not a failed method.
+Once per method, a run that broke in your own harness before it exercised the product
+is repaired and rerun without counting a failed method: record it as a gate run first;
+a second such failure counts the method failed.
 After every third failed agreed method at one boundary, ask the owner by card: that
 record, the consultant's odds and cost to pass, and your recommendation among continue
 within a usage budget, descope, report the cause upstream and leave the gate red, or
 BLOCKED. Pause retries at that boundary until his answer authorizes them; inspect
 existing evidence and continue independent work. Neither that card nor an instruction
-not to stop lifts an authorization, spend, review allowance or acceptance gate; away
-mode adds only what Owner decisions names. Measure bulk work such as
+not to stop lifts an authorization, spend, review allowance or acceptance gate. Measure bulk work such as
 fixtures or reference answers early; when its review-and-repair rate cannot finish the
 scope at proportionate cost, change the method or report BLOCKED. Prefer representative
 offline replay. Stop and ask before a paid call that could exceed an owner cap, the

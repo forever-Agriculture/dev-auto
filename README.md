@@ -55,7 +55,7 @@ Then:
 /dev-auto resume
 ```
 
-Use `epics` for selected epic numbers/ranges; `project` covers the planned project. Add `away` (`/dev-auto epics 1-3 away`), or say you are leaving, when you will not be there: the lead asks everything it needs in one card first, then sends no more cards until your next message (see Owner decisions in [SKILL.md](skills/dev-auto/SKILL.md)). Start one of these scopes, not both concurrently. Status reports current progress; resume continues the recorded scope, and when the current checkout holds no unfinished run it looks in the repository's other worktrees and asks when more than one could match.
+Use `epics` for selected epic numbers/ranges; `project` covers the planned project. Add `away` (`/dev-auto epics 1-3 away`), or say you are leaving, when you will not be there: the lead asks everything it needs in one card first, then records what waits instead of asking until your next message (see Owner decisions in [SKILL.md](skills/dev-auto/SKILL.md)). Start one of these scopes, not both concurrently. Status reports current progress; resume continues the recorded scope, and when the current checkout holds no unfinished run it looks in the repository's other worktrees and asks when more than one could match.
 
 Optional continuation in the same Claude session:
 
@@ -95,7 +95,7 @@ Codex's native skill picker may also expose it. The skill does not switch the cu
 4. Uses focused story tests and appropriate project regression/integration checks; checks existing behavior, not just new tests.
 5. Runs a quick Luna pre-review of the frozen epic alongside its own final checks, repairs once, then one independent Astra whole-epic review with a focused recheck, never editing a candidate while a reviewer reads it. Repair loops are bounded (see [SKILL.md](skills/dev-auto/SKILL.md)); every material finding ends with a disposition, and acceptance confirms each in-scope story's board row.
 6. Preserves pending findings, restrictions, routes, evidence and next actions in a short project handoff.
-7. Asks the owner only about spend beyond the approved total, scope or acceptance changes, actions his global rules reserve, credentials or private data, owner-only checks and brake decisions; method questions go to the consultant, and everything else is decided on the recommended option and listed under `Decided for you` in the handoff. In away mode it asks once before he leaves, then may run one more narrow repair and recheck and one more consultant-agreed method per boundary; spend beyond the total, reserved actions, acceptance changes and owner-only checks still wait for him.
+7. Asks the owner only about spend beyond the approved total, scope or acceptance changes, actions his global rules reserve, credentials or private data, owner-only checks and brake decisions; method questions go to the consultant, and everything else is decided on the recommended option and listed under `Decided for you` in the handoff. In away mode it asks once before he leaves, then may run one more narrow repair and recheck per boundary; the brake's card, spend beyond the total, reserved actions, acceptance changes and owner-only checks still wait for him.
 
 The handoff keeps every selected epic and its dependency visible. At material
 updates, replace stale state and link detailed receipts; append owner quotes,

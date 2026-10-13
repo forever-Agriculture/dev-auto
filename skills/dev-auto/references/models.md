@@ -65,16 +65,9 @@ names no models. Ask the team for the role:
   **Focused review**: another model's eyes on a bounded area when the lead wants
   them, or a diagnosis of a failure from the source and logs the lead supplies.
   **Browser checks**: a local app the lead started.
-- **Pre-reviews** follow the quick section of the [review brief](review-brief.md) and
-  run while the lead runs its own final checks on the frozen candidate, overlapping
-  them instead of adding a wait. The lead repairs their material findings once and
-  reruns affected checks, then the strong review gets the map as a navigation aid.
 - **Consultant**: a critical decision, a reviewer disagreement, or stuck after two
   failed approaches.
-- **An epic runs**: the lead implements, dispatching helpers only where they pay →
-  pre-review with the lead's final checks → one repair → epic review (for a web UI,
-  plus a browser check of the running candidate against the acceptance criteria)
-  → repair → recheck → acceptance.
+- **Review sequence and its bounds**: SKILL.md, Helpers and review.
 
 Helper summaries are navigation aids, not acceptance proof. Reviewers examine the
 original requirements, relevant source, raw evidence, architecture, cross-story
