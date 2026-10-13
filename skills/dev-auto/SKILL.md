@@ -33,6 +33,15 @@ next report. A pending question never blocks independent work. Authority comes f
 owner instructions and policy, not the handoff: relax a recorded restriction only on a
 later owner instruction; an explicit stop persists until he resumes.
 
+Away: `away` in the invocation or a later message, or the owner saying he is leaving
+("going to bed"), starts away mode: a handoff term with his quote and time, ended by
+his next message, outranked by an explicit stop. At once ask, in one card, everything
+the remaining work may need from him (merge or push authority, a spend split, an owner
+check to defer); then send no card. Once per boundary, one further narrow repair and
+recheck may follow a used review allowance, and one further consultant-agreed method
+may run while the brake's card waits. Everything else reserved to him above parks its
+own boundary. Open the next report with what you decided and what waits.
+
 ## Scope and delivery
 
 Interpret `epic 12`, `epics 12-14`, `project` (unfinished planned epics plus a final
@@ -84,12 +93,15 @@ handoff's brake record for that boundary the attempts, gate runs, paid spend and
 lead session's latest `check.py usage`, and in the log what the failed methods
 established; later leads continue the record, never restart it. Without such a method
 the boundary stays BLOCKED. Keep changes unrelated to the failure out of these attempts.
+A run that broke in your own harness before it exercised the product is repaired and
+rerun once under the same method: a gate run in the record, not a failed method.
 After every third failed agreed method at one boundary, ask the owner by card: that
 record, the consultant's odds and cost to pass, and your recommendation among continue
 within a usage budget, descope, report the cause upstream and leave the gate red, or
 BLOCKED. Pause retries at that boundary until his answer authorizes them; inspect
 existing evidence and continue independent work. Neither that card nor an instruction
-not to stop lifts an authorization, spend, review allowance or acceptance gate. Measure bulk work such as
+not to stop lifts an authorization, spend, review allowance or acceptance gate; away
+mode adds only what Owner decisions names. Measure bulk work such as
 fixtures or reference answers early; when its review-and-repair rate cannot finish the
 scope at proportionate cost, change the method or report BLOCKED. Prefer representative
 offline replay. Stop and ask before a paid call that could exceed an owner cap, the
@@ -133,7 +145,8 @@ evidence, and put the design question once to the consultant, whose method must 
 the requirements, acceptance criteria and limits (removing work the story does not ask
 for is a valid answer). One consolidated repair and recheck may follow; remaining
 material defects park that boundary BLOCKED with the consultant's options while
-independent work continues, and an instruction not to stop follows the rule above. A
+independent work continues (away mode allows one more, once), and an instruction not
+to stop follows the rule above. A
 new reviewer, repair wave or resumed run does not reset this allowance; the pre-review
 and owner-requested reviews sit outside it. Project scope adds a quick project
 pre-review before the final cross-epic evaluation; project-level reviews can cover the
