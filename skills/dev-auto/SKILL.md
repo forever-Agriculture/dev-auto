@@ -65,8 +65,8 @@ just before each edit and never commit there. A run already active in the defaul
 checkout finishes there. Read missing or older planning files from the default
 checkout; never commit, stash or copy its uncommitted files. Never remove a run's
 worktree yourself; an owner-requested removal first moves its `.dev-auto/` to the
-default checkout's `.dev-auto/runs/<branch>/`, keeping all state and live-job
-coordinates, recording the new owning checkout and marking the old handoff a copy.
+default checkout's `.dev-auto/runs/<branch>/`. A moved run keeps all state and
+live-job coordinates, records its new owning checkout and marks the old handoff a copy.
 Prefer one lead session per epic: independent selected epics run in parallel sessions
 and worktrees when the owner or BMN starts them; before moving to the next epic, save a
 handoff a fresh session could resume from.
