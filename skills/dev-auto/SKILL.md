@@ -36,10 +36,10 @@ later owner instruction; an explicit stop persists until he resumes.
 Away: `away` as an invocation argument or a message of its own, or the owner saying he
 is leaving now ("going to bed"), starts away mode, a handoff term with his quote and
 time; it ends when he says he is back or cancels it, and an explicit stop outranks it.
-Unless he forbade questions, ask at once in one card for everything remaining work may
-need (merge or push authority, a spend split, an owner check to defer). Then record
-what waits instead of asking. Once ever per boundary, one further narrow repair and
-recheck may follow a used review allowance; mark it used in the handoff first.
+At once, state in one short message the selected scope, what proceeds and what waits;
+unless he forbade questions, add one card for unresolved decisions reserved above that
+remaining work may need. Then record what waits instead of asking. Once ever per
+boundary, one further narrow repair and recheck may follow a used review allowance; mark it used in the handoff first.
 Everything else reserved to him above parks its own boundary.
 
 ## Scope and delivery
@@ -76,8 +76,9 @@ selected scope passes acceptance; there is no automatic deadline. The lead owns 
 measured outcome, blocks or is accepted, update its rows in that step on the board in
 the default checkout, where the owner reads it, and on the run's branch when the board is
 tracked, touching only its own epics' rows; implemented work awaiting checks stays in
-an unfinished active state, and accepted work keeps the board's unfinished state,
-noting acceptance and its branch, until you see it on the default branch. A blocked epic leaves independent selected work
+an unfinished active state; record verified acceptance and its branch using the
+board's convention; delivery is complete only once you confirm the work is on the
+default branch. A blocked epic leaves independent selected work
 available. An outcome that depends on another party's system, access or decision ends
 BLOCKED on that named gate once the project has proved its part; work inside other
 teams' systems needs the owner to select it.
