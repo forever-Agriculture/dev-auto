@@ -189,6 +189,29 @@ env -i HOME="$HOME" PATH="$PATH" claude -p --model claude-opus-5-5 --effort medi
   < "$PROMPT" > "$OUTPUT"
 ```
 
+OpenCode, read-only (an agent on OpenCode; the example is Luna (Go) at xhigh). The run
+starts from BMN's own OpenCode folder, never the owner's, with BMN's read-only agent; it reads
+the project it starts in and the prompt on standard input. `bmn roster role <role> --json`
+gives the candidate's parts (`opencode.env`, `opencode.argv`, then `-m` and `--title`) and puts
+that folder in order; check the command from `$PROJECT` as written, without the `cd` and
+redirects. A provider error is retried without end, so give the call the host's time limit:
+
+```bash
+F="$HOME/.config/bmn/agents/state/opencode"
+cd "$PROJECT" && env -i HOME="$F/home" XDG_CONFIG_HOME="$F/config" XDG_DATA_HOME="$F/data" \
+  XDG_STATE_HOME="$F/state" XDG_CACHE_HOME="$F/cache" OPENCODE_DISABLE_PROJECT_CONFIG=1 \
+  OPENCODE_DISABLE_AUTOUPDATE=1 OPENCODE_DISABLE_MODELS_FETCH=1 PATH="$PATH" \
+  opencode run --standalone --format json --agent bmn-helper -m opencode-go/gpt-6-luna#xhigh \
+  --title "dev-auto helper" < "$PROMPT" > "$OUTPUT"
+```
+
+The answer is the last `text` event in `$OUTPUT`; every event names the session (`ses_…`),
+which `bmn roster bind` takes. The output holds only part of the usage, so the receipt is the
+session export, from the same folder and environment:
+`opencode session export "$SESSION" --standalone > "$OUTPUT.session.json"` (the same `env -i`
+prefix), then `scripts/check.py usage "$OUTPUT.session.json"` gives model, effort, agent,
+tokens and cost.
+
 ## GLM (deactivated)
 
 GLM is deactivated for now. Before owner-authorized reactivation, recover its routing

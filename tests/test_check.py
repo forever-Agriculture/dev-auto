@@ -453,6 +453,38 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(info["session_cost_state"]["total_cost_usd"], 1.5)
         self.assertEqual(info["owner_prompts"]["count"], 2)
 
+    def test_opencode_session_export_and_run_output(self) -> None:
+        # Shapes of OpenCode 2.0.29 as BMN's 70.1 record shows them; values made up.
+        export = {"info": {"id": "ses_0123456789abMadeUpSession1", "agent": "bmn-helper",
+                           "model": {"id": "gpt-6-luna", "providerID": "opencode-go", "variant": "xhigh"},
+                           "cost": 0.0123, "tokens": {"input": 60, "output": 24, "reasoning": 5,
+                                                      "cache": {"read": 7, "write": 0}},
+                           "outcome": "succeeded", "time": {"created": 1791982683647, "updated": 1791982683915}},
+                  "messages": []}
+        step = {"type": "step_finish", "timestamp": 1791982683857, "sessionID": "ses_0123456789abMadeUpSession1",
+                "part": {"type": "step-finish", "cost": 0, "tokens": {"input": 20, "output": 8}}}
+        failed = {"type": "error", "timestamp": 1791982683990, "sessionID": "ses_0123456789abMadeUpSession1",
+                  "error": {"type": "provider.auth", "message": "made up"}}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "out.session.json"
+            path.write_text(json.dumps(export), encoding="utf-8")
+            info = json.loads(run("usage", str(path)).stdout)
+            self.assertEqual(info["routes"], ["opencode-go/gpt-6-luna#xhigh"])
+            self.assertEqual((info["id"], info["agent"], info["cost_usd"], info["outcome"]),
+                             ("ses_0123456789abMadeUpSession1", "bmn-helper", 0.0123, "succeeded"))
+            self.assertEqual(info["usage"], {"input": 60, "output": 24, "reasoning": 5, "cache_read": 7, "cache_write": 0})
+            self.assertEqual((info["first"], info["last"]), ("2026-10-14T12:58:03.647Z", "2026-10-14T12:58:03.915Z"))
+            # The run's own output names the session and errors, never its partial usage.
+            path = Path(tmp) / "out.jsonl"
+            path.write_text("\n".join([json.dumps(step), "not json", json.dumps(failed)]) + "\n", encoding="utf-8")
+            info = json.loads(run("usage", str(path)).stdout)
+            self.assertEqual((info["id"], info["usage"], info["errors"]), ("ses_0123456789abMadeUpSession1", "unavailable", ["provider.auth"]))
+            self.assertIn("session export", info["note"])
+            # A Claude receipt is still read as one.
+            path = Path(tmp) / "receipt.json"
+            path.write_text(json.dumps({"info": {"id": "not-a-session"}, "modelUsage": {}}), encoding="utf-8")
+            self.assertEqual(json.loads(run("usage", str(path)).stdout)["models"], ["unavailable"])
+
     def test_subagent_transcript_without_cost_state_and_empty_transcript(self) -> None:
         record = {"type": "assistant", "timestamp": "t", "message": {"id": "a", "model": "claude-fable-5-1",
                   "usage": {"output_tokens": 3}}}

@@ -10,8 +10,10 @@ check [PROJECT]     lint .dev-auto/handoff.md. At any status: size within the re
                     removing them needs a repository change the owner approves.
 usage PATH          print model, effort, Codex permission settings, timestamps, usage and
                     owner prompts from a rollout (.jsonl), one Claude Code session or
-                    subagent transcript (.jsonl under ~/.claude/projects), or one Claude
-                    ``--output-format json`` receipt (.json).
+                    subagent transcript (.jsonl under ~/.claude/projects), one Claude
+                    ``--output-format json`` receipt (.json), one OpenCode run's
+                    ``--format json`` output (.jsonl), or its ``opencode session export``
+                    (.json).
 usage --list PROJECT  list Codex rollouts whose session cwd is PROJECT; choose by hand.
 
 Exit 0 PASS or SKIP (status not COMPLETE and shape checks pass), 1 FAIL with one reason per line,
@@ -20,6 +22,7 @@ Exit 0 PASS or SKIP (status not COMPLETE and shape checks pass), 1 FAIL with one
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -295,8 +298,85 @@ def read_claude_transcript(path: Path) -> dict:
     return info
 
 
+OPENCODE_EVENTS = {"step_start", "step_finish", "tool_use", "text", "reasoning", "error"}
+
+
+def opencode_session(record: object) -> bool:
+    """An event of ``opencode run --format json``: each names its session (``ses_…``)."""
+    return isinstance(record, dict) and record.get("type") in OPENCODE_EVENTS \
+        and str(record.get("sessionID") or "").startswith("ses_")
+
+
+def is_opencode_run(path: Path) -> bool:
+    with path.open(encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            try:
+                return opencode_session(json.loads(line))
+            except ValueError:
+                return False
+    return False
+
+
+def moment(ms: object) -> str | None:
+    """OpenCode stamps milliseconds since 1970; shown as UTC like the other receipts."""
+    if not isinstance(ms, (int, float)) or isinstance(ms, bool):
+        return None
+    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
+def opencode_tokens(tokens: object) -> dict | None:
+    if not isinstance(tokens, dict):
+        return None
+    cache = tokens.get("cache") if isinstance(tokens.get("cache"), dict) else {}
+    found = {"input": tokens.get("input"), "output": tokens.get("output"), "reasoning": tokens.get("reasoning"),
+             "cache_read": cache.get("read"), "cache_write": cache.get("write")}
+    return {k: v for k, v in found.items() if isinstance(v, (int, float)) and not isinstance(v, bool)} or None
+
+
+def read_opencode_run(path: Path) -> dict:
+    """The run's own events name its session and any error, not its usage: a run's last step and
+    its title request print no ``step_finish`` (BMN 70.1, case b1: 20 of 60 input tokens shown).
+    ``opencode session export <id> --standalone``, saved as .json, holds the usage."""
+    session, first, last, errors = None, None, None, []
+    with path.open(encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            try:
+                record = json.loads(line)
+            except ValueError:
+                continue
+            if not opencode_session(record):
+                continue
+            session = session or record["sessionID"]
+            stamp = record.get("timestamp")
+            if isinstance(stamp, (int, float)):
+                first, last = first or stamp, stamp
+            if record["type"] == "error":
+                error = record.get("error") if isinstance(record.get("error"), dict) else {}
+                errors.append(error.get("type") or "error")
+    return {"source": str(path), "id": session, "first": moment(first), "last": moment(last),
+            "routes": ["unavailable"], "usage": "unavailable", "errors": errors,
+            "note": "an OpenCode run prints only part of its usage; save `opencode session export "
+                    "<id> --standalone`, run in the same environment, as .json and read that"}
+
+
+def read_opencode_export(path: Path, data: dict) -> dict:
+    info = data["info"]
+    model = info.get("model") if isinstance(info.get("model"), dict) else {}
+    times = info.get("time") if isinstance(info.get("time"), dict) else {}
+    route = f"{model.get('providerID') or 'unavailable'}/{model.get('id') or 'unavailable'}#{model.get('variant') or 'unavailable'}"
+    return {"source": str(path), "id": info.get("id"), "agent": info.get("agent") or "unavailable",
+            "first": moment(times.get("created")), "last": moment(times.get("updated")),
+            "routes": [route] if model else ["unavailable"],
+            "usage": opencode_tokens(info.get("tokens")) or "unavailable",
+            "cost_usd": info.get("cost", "unavailable"), "outcome": info.get("outcome", "unavailable")}
+
+
 def read_receipt(path: Path) -> dict:
     data = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(data, dict) and isinstance(data.get("info"), dict) and str(data["info"].get("id") or "").startswith("ses_"):
+        return read_opencode_export(path, data)
     models = data.get("modelUsage") or {}
     return {"source": str(path), "models": list(models) or ["unavailable"],
             "usage": {m: {k: v for k, v in u.items() if k.endswith("Tokens") and k != "maxOutputTokens" or k == "costUSD"}
@@ -336,6 +416,8 @@ def usage(args: list[str]) -> int:
             info = read_receipt(path)
         elif is_codex_rollout(path):
             info = read_rollout(path)
+        elif is_opencode_run(path):
+            info = read_opencode_run(path)
         else:
             info = read_claude_transcript(path)
     except Exception as exc:  # any unreadable or malformed file is UNABLE, never a traceback
