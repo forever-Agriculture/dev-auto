@@ -61,7 +61,8 @@ names no models. Ask the team for the role:
   role's small-work candidate, `--agent A` for the owner's one-time pick or the next
   candidate, and `--recheck-of ID` (no `--effort`) for a recheck: the earlier run's
   teammate at the role's recheck effort. The answer is the JSON's `answer`, and its
-  `id` is the run id; reports cite asks by it. Once the ask ends, before acceptance, save
+  `id` is the run id; reports cite asks by it. Give each new ask a new key name; the same
+  key only retries that very ask (BMN returns its run, and a changed request is refused). Once the ask ends, before acceptance, save
   its record: `bmn team asks export <id> --output .dev-auto/evidence/<story>/<name>`, read
   once with `scripts/check.py usage` on that folder (the teammate, its observed model and
   effort, its usage counted once on its app's basis). BMN keeps records 30 days; a later
