@@ -21,7 +21,8 @@ he approved or delegated, changes to selected work or its acceptance criteria, a
 the global rules reserve to him, credentials or private data, owner-only acceptance
 checks and the brake's decision below. His choices of reviewer, consultant or helper
 model live in his team: a lasting choice for a project goes into the team file's
-`## project-choices` as an entry he approves in BMN, never in effect before. Where an
+`## project-choices` as an entry he approves in BMN, never in effect before (where the
+host refuses that write, give him the entry to add). Where an
 approved choice exists for the role, name no `--agent`; a one-time different pick needs
 him to change the choice first, and a quote in a handoff grants no override. Otherwise
 pass his pick as `--agent` (and `--effort`) for the asks it covers, recording his quote
