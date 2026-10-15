@@ -19,9 +19,13 @@ and fresh sessions only for its named scope and total.
 Ask the owner once, in the session, with a recommendation, only about spend beyond what
 he approved or delegated, changes to selected work or its acceptance criteria, actions
 the global rules reserve to him, credentials or private data, owner-only acceptance
-checks and the brake's decision below. Record his choices of reviewer, consultant or
-helper model, quoted, in the default checkout's git-ignored `.dev-auto/owner-choices.md`,
-read at start; they bind later runs unless he limits them, the latest winning. Put
+checks and the brake's decision below. His choices of reviewer, consultant or helper
+model live in his team: a lasting choice for a project goes into the team file's
+`## project-choices` as an entry he approves in BMN, never in effect before. Where an
+approved choice exists for the role, name no `--agent`; a one-time different pick needs
+him to change the choice first, and a quote in a handoff grants no override. Otherwise
+pass his pick as `--agent` (and `--effort`) for the asks it covers, recording his quote
+in the handoff. Old `.dev-auto/owner-choices.md` files are history; nothing reads them. Put
 technical decisions you cannot settle from the evidence to the consultant.
 Decide everything else on your recommended option when it keeps the requirements,
 acceptance criteria, privacy and limits; where his delegation permits, that includes
