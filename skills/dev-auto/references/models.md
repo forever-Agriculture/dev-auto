@@ -61,8 +61,8 @@ names no models. Ask the team for the role:
   role's small-work candidate, `--agent A` for the owner's one-time pick or the next
   candidate, and `--recheck-of ID` (no `--effort`) for a recheck: the earlier run's
   teammate at the role's recheck effort. The answer is the JSON's `answer`, and its
-  `id` is the run id; reports cite asks by it. Give each new ask a new key name; the same
-  key only retries that very ask (BMN returns its run, and a changed request is refused). Once the ask ends, before acceptance, save
+  `id` is the run id; reports cite asks by it. A key is today's UTC day, a dash and a name
+  (`20261015-72-7-review`); give each new ask a new name; the same key only retries that very ask (BMN returns its run, and a changed request is refused). Once the ask ends, before acceptance, save
   its record: `bmn team asks export <id> --output .dev-auto/evidence/<story>/<name>`, read
   once with `scripts/check.py usage` on that folder (the teammate, its observed model and
   effort, its usage counted once on its app's basis). BMN keeps records 30 days; a later
@@ -79,8 +79,9 @@ names no models. Ask the team for the role:
   the ask needs is BLOCKED, naming the upgrade. Exit 14 (busy): wait, then ask again
   with the same key. Exit 15 (out of time): report it; one longer `--time-limit` may be
   asked under a new key. Exit 17 (not attributed): once more with the same teammate,
-  effort and payload under a new key; a second one is a failed route. Exit 2 or 3–7
-  (usage, team state) and 16 (stopped) are reported.
+  effort and payload under a new key; a second one is a failed route. Exit 2 (usage):
+  correct the command from BMN's message and ask again; report it if that fails. Exit 3–7
+  (team state) and 16 (stopped) are reported.
 - **Helpers review; the lead writes the code and tests.** **Routine chores**: wide
   lookups, evidence gathering, log and test-output triage, checklist rechecks.
   **Focused review**: another model's eyes on a bounded area when the lead wants
