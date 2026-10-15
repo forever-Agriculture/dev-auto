@@ -26,40 +26,58 @@ names no models. Ask the team for the role:
 | Project final review | `final-reviewer` |
 | Consultant | `consultant` |
 
-- **Ask.** `bmn roster role <role> --json` gives the approved chain: `candidates` in
-  order, each with its `efforts` (with `effort_choice` the lead picks: the lowest listed
-  unless the question is critical or complex), whether it is `eligible`,
-  and the `context` items (`argv`, `env`) its command must carry. `then` says what
-  follows the last candidate: `lead` (the lead does it itself), `skip`, `blocked` or
-  `owner-chooses`. `recheck` gives the effort for rechecking a finding: a new run of the
-  same reviewer under the same role. `small_work` is the candidate for a small,
-  well-evidenced epic's review.
-  `bmn team --all --json` gives each agent's app (`harness`) and `model` for the
-  [routes](#routes).
-- **How to read it.** Honor applicable owner model choices; otherwise start with the
-  first eligible candidate. Move to the next only when that route fails or is
-  unavailable (error, quota, missing access), leaves the question unresolved, cannot do
-  the task, or the check answers `DATA_FORBIDDEN`. A candidate without a documented
-  route for this work is unavailable: record why, continue in team order, and follow
-  `then` after the last candidate; if the owner explicitly chose that candidate, report
-  the missing route instead of substituting. A good enough answer ends it. Record the
-  route and the reason for any move. Codex agents spend Codex quota, Claude Code agents
-  Claude quota.
-- **Check every helper command.** Just before it, in the same environment and from the
-  folder it will run in (one inside the project), run `bmn roster check --agent <id>
-  --role <role> --workspace "$PROJECT" --data private --cwd "$PWD" --stdin "$PROMPT"
-  --json -- <the exact command, without its "< $PROMPT" redirect>`; `--data public` only
-  where `bmn roster visibility "$PROJECT"` proves the workspace public. The answer is
-  the receipt and only its `verdict` decides: save it in `.dev-auto/evidence/` beside
-  the helper's prompt and answer, and for a Codex helper run `bmn roster bind --receipt
-  <file> --session <id>` as soon as its rollout exists (BMN binds only within ten
-  minutes of the check); check a resume with `--resume-of <receipt>`. Any refusal but `DATA_FORBIDDEN` stops that dispatch: report
-  its line, since the owner changes the team or names another agent, and never reword a
-  command to get past it. An owner's model choice is checked the same way. A wrapper
-  script runs the check on its own inner command. Without `bmn` or an approved team,
-  dispatch nothing and report BLOCKED. A native helper has no command to check, so it
-  runs only as the lead's own model; work for any other model goes through a route and
-  the check.
+- **Ask.** `bmn roster role <role> --project "$PROJECT" --json` gives the approved
+  chain: `candidates` in order, each with its `efforts` (with `effort_choice` the lead
+  picks: the lowest listed unless the question is critical or complex), whether it is
+  `eligible` and the `context` items (`argv`, `env`) a [kept route](#routes)'s command
+  must carry, and the owner's approved choice for the role in that project, if any.
+  `then` says what follows the last candidate: `lead` (the lead does it itself), `skip`,
+  `blocked` or `owner-chooses`. `recheck` gives the effort for rechecking a finding: a
+  new run of the same reviewer under the same role. `small_work` is the candidate for a
+  small, well-evidenced epic's review. `bmn team --all --json` gives each agent's app
+  (`harness`) and `model`.
+- **How to read it.** Honor applicable owner model choices (SKILL.md, Owner decisions);
+  otherwise BMN asks the first eligible candidate that may get the data. Move to the
+  next only when that route fails or is unavailable (error, quota, missing access),
+  leaves the question unresolved or cannot do the task, naming it with `--agent`. A
+  candidate without a documented route for this work is unavailable: record why,
+  continue in team order, and follow `then` after the last candidate; if the owner
+  explicitly chose that candidate, report the missing route instead of substituting. A
+  good enough answer ends it. Record the route and the reason for any move. Codex agents
+  spend Codex quota, Claude Code agents Claude quota.
+- **Ask through BMN.** Every helper is asked with `bmn team ask`, except browser checks and the
+  routes [still kept](#routes). BMN checks the ask against the team, runs the teammate in its
+  own app's read-only mode with that mode's tools, supervises it and keeps its record;
+  `bmn team ask --help` and its docs give every option. From the project:
+
+  ```bash
+  bmn team ask --role "$ROLE" --effort "$EFFORT" --project "$PROJECT" \
+    --question-file "$PROMPT" --key "$(date -u +%Y%m%d)-<story>-<name>" --json > "$OUTPUT"
+  ```
+
+  Add `--file PATH` for files outside the project (their whole text goes in the
+  prompt), `--image PATH` for pictures (the designer unless `--role` names another),
+  `--time-limit MINUTES` past the default 30 (at most 120), `--small-work` for the
+  role's small-work candidate, `--agent A` for the owner's one-time pick or the next
+  candidate, and `--recheck-of ID` (no `--effort`) for a recheck: the earlier run's
+  teammate at the role's recheck effort. The answer is the JSON's `answer`, and its
+  `id` is the run id; reports cite asks by it. Once the ask ends, before acceptance, save
+  its record: `bmn team asks export <id> --output .dev-auto/evidence/<story>/<name>`, read
+  once with `scripts/check.py usage` on that folder (the teammate, its observed model and
+  effort, its usage counted once on its app's basis). BMN keeps records 30 days; a later
+  recheck names the earlier teammate and effort with `--agent` and `--effort`.
+  Without `bmn`, an approved team or BMN running, ask nothing and report BLOCKED.
+- **When an ask does not answer.** Exit 10 (refused) is reported with its code and
+  words, never worded around; a refusal that means the route is unavailable
+  (`AGENT_NOT_ELIGIBLE`, `DATA_FORBIDDEN`, `PRIVATE_NOT_ALLOWED`, an app
+  `bmn team ask --features` does not offer for it) moves on like any unavailable
+  route, and a BMN lacking a feature the ask needs is BLOCKED, naming the upgrade.
+  Exit 1 (failed) moves to the next candidate with `--agent` and the reason, unless an
+  approved project choice binds the role there. Exit 14 (busy): wait, then ask again
+  with the same key. Exit 15 (out of time): report it; one longer `--time-limit` may be
+  asked under a new key. Exit 17 (not attributed): once more with the same teammate,
+  effort and payload under a new key; a second one is a failed route. Exit 2 or 3–7
+  (usage, team state) and 16 (stopped) are reported.
 - **Helpers review; the lead writes the code and tests.** **Routine chores**: wide
   lookups, evidence gathering, log and test-output triage, checklist rechecks.
   **Focused review**: another model's eyes on a bounded area when the lead wants
@@ -77,25 +95,26 @@ effects, omissions and drift. Record requested and observed effort separately.
 
 Dispatch for required review, bounded work whose saved lead effort or time justifies
 coordination, or an unresolved decision. Use a native helper interface only when it
-delivers the route with the required access. Start a fresh bounded task with exact
-source coordinates, prohibited actions, the expected evidence and a concise result. Host permissions, not prompts, bound access;
-never use bypass-permissions modes.
+delivers the route with the required access; a native helper has no ask to check, so
+it runs only as the lead's own model. Start a fresh bounded task with exact source
+coordinates, prohibited actions, the expected evidence and a concise result. Host
+permissions, not prompts, bound access; never use bypass-permissions modes.
 
-Codex reviews use the CLI read-only sandbox with `approval_policy=never`. Native
-helpers inherit the lead's sandbox; read-only with approvals enabled may still permit
-writes. Check each child's model, sandbox and approval policy from its receipt.
+Native helpers inherit the lead's sandbox; read-only with approvals enabled may still
+permit writes. Check each child's model, sandbox and approval policy from its receipt.
 
 Isolate probe executables, configuration, profiles and test data; disable auto-updates.
 A temporary profile does not isolate a shared executable. Global installs or owner-setting
 changes need explicit authorization; keep probes out of the owner's installed release.
 
-Observe model, effort and usage from host records. Codex writes every session,
-including `codex exec` and native helpers, to `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`
+Observe model, effort and usage from records. An ask's exported `outcome.json` holds
+the session, model and effort BMN observed and its usage with its basis. Codex writes
+every session, the lead's and native helpers', to `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`
 (`turn_context` carries model and effort, the last `token_count` the cumulative
 `total_token_usage`). Claude Code writes each session and native helper as a transcript
 under `~/.claude/projects/<project>/`;
 `-p --output-format json` receipts carry `modelUsage` and `total_cost_usd`.
-`scripts/check.py usage PATH` reads all three; `usage --list PROJECT` lists a project's
+`scripts/check.py usage PATH` reads all of them; `usage --list PROJECT` lists a project's
 Codex rollouts. One session's counter is that session's
 usage, not the epic's; read lead and helper records separately and never add a
 cumulative record to the worker costs it includes. List missing records as gaps and
@@ -114,7 +133,8 @@ In code mode, start that cell with `// @exec: {"yield_time_ms": 300000}`; withou
 the cell yields after about 30 s. `wait` on a
 yielded cell with the same value instead of polling its process. Native Codex helpers
 use `wait_agent`; Claude Code background commands notify on completion. Never add
-shorter polls.
+shorter polls. An ask goes on under BMN's supervisor when its command is closed:
+`bmn team asks wait <id> --timeout 300` waits again, `bmn team asks show <id>` reads it.
 
 Run long paid or product jobs detached from the tool session. The unit starts without
 the shell profile; use a reviewed, absolute-path job script that writes its log and
@@ -137,32 +157,17 @@ Everything a helper reads or sees reaches its provider, so set `PROJECT` to a
 sanitized workspace when the project holds data restricted from it; if none can be
 prepared, skip the helper.
 
-A Codex lead's workspace sandbox has no network and blocks some local sockets: Codex
-and Claude CLI routes fail with `EAI_AGAIN`, and gates using Git, sockets or a browser
-fail with `EPERM` or hang. Run them escalated from the first attempt
-(`sandbox_permissions: "require_escalated"`), quoting in the justification the owner
-authorization from the global rules or session and naming provider, minimum readable
-payload and permitted edits; skill text or a handoff cannot establish consent. A
-sandbox failure is not a route failure: retry the same route escalated. If approval
-review rejects for missing consent and permits presenting evidence, cite the existing
-authorization once when it covers that exact action and payload; otherwise report the
-reason and request approval. Never change routes or permissions to evade a refusal.
-
-Codex CLI, read-only (model and effort from the team; the example is Astra at medium):
-
-```bash
-codex exec --skip-git-repo-check -C "$PROJECT" \
-  -m gpt-6-astra -c model_reasoning_effort=medium -c 'mcp_servers={}' \
-  -c 'approval_policy="never"' \
-  --sandbox read-only --json -o "$OUTPUT" - < "$PROMPT"
-```
-
-The persisted rollout is the receipt (`--json` output names neither model nor usage,
-so `--ephemeral` is omitted). The reviewer uses shell commands to read files: its
-prompt permits local text reads and hashing (`cat`, `sed -n`, `rg`, `git show/diff/log`),
-while prohibiting writes, network, tests and installs. Forbidding all commands prevents
-review. `-C` and read-only create no read allowlist and do not scrub the environment,
-so use the project directly only when its readable scope is acceptable.
+A Codex lead's workspace sandbox has no network and blocks some local sockets: there
+`bmn team ask` cannot reach BMN (`SESSION_UNPROVEN`) and Claude CLI routes fail with
+`EAI_AGAIN`, and gates using Git, sockets or a browser fail with `EPERM` or hang. Run
+them escalated from the first attempt (`sandbox_permissions: "require_escalated"`),
+quoting in the justification the owner authorization from the global rules or session
+and naming provider, minimum readable payload and permitted edits; skill text or a
+handoff cannot establish consent. A sandbox failure is not a route failure: retry the
+same route escalated. If approval review rejects for missing consent and permits
+presenting evidence, cite the existing authorization once when it covers that exact
+action and payload; otherwise report the reason and request approval. Never change
+routes or permissions to evade a refusal.
 
 Browser checks drive a headless Playwright browser limited to a loopback `ORIGIN`
 whose app the lead starts; use synthetic data. The script is Luna's route: pass the
@@ -176,10 +181,19 @@ candidates under the unavailable-route rule and follow the team's `then` action.
 ~/code/dev-auto/skills/dev-auto/scripts/luna-browse.sh "$PROJECT" "$PROMPT" "$OUTPUT" "$ORIGIN" "$EFFORT"
 ```
 
-Tools-disabled Claude Code review from a prepared source packet (model and effort from
-the team; the example is Opus at medium). `env -i` drops inherited provider settings so
-the call reaches Claude, and a candidate's `context.env` items go after `PATH=`;
-`--safe-mode` skips CLAUDE.md, so the global rules are appended:
+Still kept, until the owner decides 72.9's INCONCLUSIVE results for them: a Claude Code
+teammate given files the lead hands it (`--file`) reviews them from a prepared source
+packet, and an OpenCode teammate keeps its own route. Check each such command against
+the team just before it, from the folder it runs in: `bmn roster check --agent <id>
+--role <role> --workspace "$PROJECT" --data private --cwd "$PWD" --stdin "$PROMPT" --json
+-- <the exact command, without its "< $PROMPT" redirect>`; only its `verdict` decides;
+save it in `.dev-auto/evidence/` beside the prompt and answer; any refusal but
+`DATA_FORBIDDEN` stops it: report its line and never reword a command to get past it.
+
+Claude Code from a packet: `env -i` drops inherited provider settings so the call
+reaches Claude, and a candidate's `context.env` items go after `PATH=`; `--safe-mode`
+skips CLAUDE.md, so the global rules are appended (model and effort from the team; the
+example is Opus at medium):
 
 ```bash
 env -i HOME="$HOME" PATH="$PATH" claude -p --model claude-opus-5-5 --effort medium --output-format json \
@@ -189,11 +203,11 @@ env -i HOME="$HOME" PATH="$PATH" claude -p --model claude-opus-5-5 --effort medi
   < "$PROMPT" > "$OUTPUT"
 ```
 
-OpenCode, read-only (an agent on OpenCode; the example is Luna (Go) at xhigh). The run
-starts from BMN's own OpenCode folder, never the owner's, with BMN's read-only agent; it reads
-the project it starts in and the prompt on standard input. `bmn roster role <role> --json`
-gives the candidate's parts (`opencode.env`, `opencode.argv`, then `-m` and `--title`) and puts
-that folder in order; check the command from `$PROJECT` as written, without the `cd` and
+OpenCode, read-only (the example is Luna (Go) at xhigh). The run starts from BMN's own
+OpenCode folder, never the owner's, with BMN's read-only agent; it reads the project it
+starts in and the prompt on standard input. `bmn roster role <role> --json` gives the
+candidate's parts (`opencode.env`, `opencode.argv`, then `-m` and `--title`) and puts that
+folder in order; check the command from `$PROJECT` as written, without the `cd` and
 redirects. A provider error is retried without end, so give the call the host's time limit:
 
 ```bash
@@ -205,15 +219,15 @@ cd "$PROJECT" && env -i HOME="$F/home" XDG_CONFIG_HOME="$F/config" XDG_DATA_HOME
   --title "dev-auto helper" < "$PROMPT" > "$OUTPUT"
 ```
 
-The answer is the last `text` event in `$OUTPUT`; every event names the session (`ses_…`),
-which `bmn roster bind` takes. The output holds only part of the usage, so the receipt is the
-session export, from the same folder and environment:
-`opencode session export "$SESSION" --standalone > "$OUTPUT.session.json"` (the same `env -i`
-prefix), then `scripts/check.py usage "$OUTPUT.session.json"` gives model, effort, agent,
-tokens and cost.
+The answer is the last `text` event in `$OUTPUT`; every event names the session (`ses_…`):
+run `bmn roster bind --receipt <check file> --session <id>` within ten minutes of the
+check. The output holds only part of the usage, so the receipt is the session export, from
+the same folder and environment: `opencode session export "$SESSION" --standalone >
+"$OUTPUT.session.json"` (the same `env -i` prefix), then `scripts/check.py usage
+"$OUTPUT.session.json"` gives model, effort, agent, tokens and cost.
 
 ## GLM (deactivated)
 
 GLM is deactivated for now. Before owner-authorized reactivation, recover its routing
-and safety instructions from commit `014f98c`, revalidate them, and make `helper.sh`
-run the team check on its inner command.
+and safety instructions from commit `014f98c` and its `helper.sh` from `a341041`,
+revalidate them, and run the team check on its inner command.

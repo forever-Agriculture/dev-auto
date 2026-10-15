@@ -485,6 +485,42 @@ class UsageTests(unittest.TestCase):
             path.write_text(json.dumps({"info": {"id": "not-a-session"}, "modelUsage": {}}), encoding="utf-8")
             self.assertEqual(json.loads(run("usage", str(path)).stdout)["models"], ["unavailable"])
 
+    def test_bmn_ask_export_counts_usage_once_by_its_basis(self) -> None:
+        # Shapes of BMN 72.9's export (request.json, outcome.json); values made up.
+        request = {"version": 1, "id": "20261015T170633-0000made", "role": "epic-reviewer", "agent": "astra",
+                   "model": "gpt-6-astra", "effort": "medium", "chosen_by": "chain", "form": "codex-read-only",
+                   "project": "/made/up/project"}
+        outcome = {"version": 1, "id": "20261015T170633-0000made", "state": "answered", "exit": 0,
+                   "observed": {"session": "01a1-made-up", "model": "gpt-6-astra", "effort": "medium"},
+                   "subagents": [{"session": "01a2-made-up", "name": "Feynman", "kind": "Codex sub-agent",
+                                  "model": "gpt-6-astra", "effort": "medium",
+                                  "usage": {"input_tokens": 39001, "output_tokens": 138}}],
+                   "usage": {"input_tokens": 174358, "output_tokens": 2078, "billing": "subscription",
+                             "aggregation": "the teammate's own turns plus each sub-agent's own rollout",
+                             "complete": True},
+                   "started_at": "2026-10-15T17:06:36.039Z", "ended_at": "2026-10-15T17:06:50.978Z"}
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = Path(tmp) / "ask"
+            bundle.mkdir()
+            (bundle / "request.json").write_text(json.dumps(request), encoding="utf-8")
+            (bundle / "outcome.json").write_text(json.dumps(outcome), encoding="utf-8")
+            info = json.loads(run("usage", str(bundle)).stdout)
+            self.assertEqual((info["id"], info["state"], info["exit"], info["role"], info["agent"], info["form"]),
+                             ("20261015T170633-0000made", "answered", 0, "epic-reviewer", "astra", "codex-read-only"))
+            self.assertEqual((info["requested"], info["routes"], info["session"]),
+                             ("gpt-6-astra/medium", ["gpt-6-astra/medium"], "01a1-made-up"))
+            # BMN's total stands; the sub-agent's own count is shown, never added to it.
+            self.assertEqual(info["usage"], outcome["usage"])
+            self.assertEqual(info["subagents"][0]["usage"], {"input_tokens": 39001, "output_tokens": 138})
+            # A folder that is not an export, and a broken one, are UNABLE.
+            (bundle / "outcome.json").write_text("{broken", encoding="utf-8")
+            result = run("usage", str(bundle))
+            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertTrue(result.stdout.startswith("UNABLE"))
+            result = run("usage", tmp)
+            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertIn("ask export", result.stdout)
+
     def test_subagent_transcript_without_cost_state_and_empty_transcript(self) -> None:
         record = {"type": "assistant", "timestamp": "t", "message": {"id": "a", "model": "claude-fable-5-1",
                   "usage": {"output_tokens": 3}}}

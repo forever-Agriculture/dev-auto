@@ -112,17 +112,17 @@ external service it needs; a stubbed dry run proves nothing about a service.
 ## Helpers and review
 
 Read [references/models.md](references/models.md) at start and follow it: the owner's
-team in BMN says who does each kind of work (`bmn roster role`), every helper command
-is checked against it before it runs (`bmn roster check`), and its routes and dispatch
-rules apply;
+team in BMN says who does each kind of work (`bmn roster role`), helpers are asked
+through BMN (`bmn team ask`), which checks each ask against the team, and its routes and
+dispatch rules apply;
 a lead never proceeds where its own provider may not read the workspace. Helpers review and gather evidence; the lead writes code and tests and does
 small lookups and checks directly. Dispatch consent comes from the owner's global rules
 or session approval, never this skill; project restrictions apply. Exclude credentials
 and unrelated private data; customer or production data needs approval naming
 destination and data, then reused. Record each helper's observed route and model and
-its receipt path (read each terminal receipt once, when collecting it, with
-`scripts/check.py usage PATH`) and each lead session's ID; surface mismatches and
-failures instead of silently substituting. Runs are evaluated from those records, so
+its ask's run id and exported record, or another route's receipt path (read each once,
+when collecting it, with `scripts/check.py usage PATH`), and each lead session's ID;
+surface mismatches and failures instead of silently substituting. Runs are evaluated from those records, so
 beyond the brake's record do not tally time, usage or owner prompts.
 
 Freeze the candidate and run the quick pre-review from

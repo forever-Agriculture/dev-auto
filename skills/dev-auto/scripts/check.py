@@ -12,8 +12,8 @@ usage PATH          print model, effort, Codex permission settings, timestamps, 
                     owner prompts from a rollout (.jsonl), one Claude Code session or
                     subagent transcript (.jsonl under ~/.claude/projects), one Claude
                     ``--output-format json`` receipt (.json), one OpenCode run's
-                    ``--format json`` output (.jsonl), or its ``opencode session export``
-                    (.json).
+                    ``--format json`` output (.jsonl), its ``opencode session export``
+                    (.json), or one BMN ask's export folder (``bmn team asks export``).
 usage --list PROJECT  list Codex rollouts whose session cwd is PROJECT; choose by hand.
 
 Exit 0 PASS or SKIP (status not COMPLETE and shape checks pass), 1 FAIL with one reason per line,
@@ -385,6 +385,37 @@ def read_receipt(path: Path) -> dict:
             "num_turns": data.get("num_turns", "unavailable")}
 
 
+ASK_BUNDLE = ("request.json", "outcome.json")
+
+
+def is_ask_export(path: Path) -> bool:
+    return path.is_dir() and all((path / name).is_file() for name in ASK_BUNDLE)
+
+
+def read_ask_export(path: Path) -> dict:
+    """``bmn team asks export <id> --output PATH``. BMN's outcome already counts each usage
+    record once by the app's basis (``usage.aggregation``): Claude Code's total includes its
+    sub-agents, Codex and OpenCode add each session's own. So the total is shown as BMN gives
+    it, and each sub-agent's own count beside it, never added again."""
+    request = json.loads((path / "request.json").read_text(encoding="utf-8"))
+    outcome = json.loads((path / "outcome.json").read_text(encoding="utf-8"))
+    observed = outcome.get("observed") if isinstance(outcome.get("observed"), dict) else {}
+    subagents = [s for s in outcome.get("subagents") or [] if isinstance(s, dict)]
+    return {"source": str(path), "id": outcome.get("id") or request.get("id"),
+            "state": outcome.get("state", "unavailable"), "exit": outcome.get("exit", "unavailable"),
+            "role": request.get("role"), "agent": request.get("agent"), "chosen_by": request.get("chosen_by"),
+            "form": request.get("form"), "project": request.get("project"),
+            "requested": f"{request.get('model') or 'unavailable'}/{request.get('effort') or 'unavailable'}",
+            "routes": [f"{observed.get('model') or 'unavailable'}/{observed.get('effort') or 'unavailable'}"],
+            "session": observed.get("session") or "unavailable",
+            "first": outcome.get("started_at"), "last": outcome.get("ended_at"),
+            "usage": outcome.get("usage") or "unavailable",
+            "subagents": [{k: s.get(k) for k in ("session", "name", "kind", "model", "effort", "usage")}
+                          for s in subagents],
+            "note": "usage is BMN's total by its aggregation basis; each sub-agent's own usage is "
+                    "shown for reading, never added to it"}
+
+
 def list_rollouts(project: Path) -> int:
     target = str(project.resolve())
     found = 0
@@ -412,7 +443,11 @@ def usage(args: list[str]) -> int:
         return 2
     path = Path(args[0])
     try:
-        if path.suffix.lower() != ".jsonl":
+        if path.is_dir():
+            if not is_ask_export(path):
+                raise ValueError("a folder is read only as a BMN ask export (request.json and outcome.json)")
+            info = read_ask_export(path)
+        elif path.suffix.lower() != ".jsonl":
             info = read_receipt(path)
         elif is_codex_rollout(path):
             info = read_rollout(path)
