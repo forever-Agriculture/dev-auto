@@ -69,12 +69,14 @@ names no models. Ask the team for the role:
   recheck names the earlier teammate and effort with `--agent` and `--effort`.
   Without `bmn`, an approved team or BMN running, ask nothing and report BLOCKED.
 - **When an ask does not answer.** Exit 10 (refused) is reported with its code and
-  words, never worded around; a refusal that means the route is unavailable
+  words, never worded around. A refusal that means the route is unavailable
   (`AGENT_NOT_ELIGIBLE`, `DATA_FORBIDDEN`, `PRIVATE_NOT_ALLOWED`, an app
-  `bmn team ask --features` does not offer for it) moves on like any unavailable
-  route, and a BMN lacking a feature the ask needs is BLOCKED, naming the upgrade.
-  Exit 1 (failed) moves to the next candidate with `--agent` and the reason, unless an
-  approved project choice binds the role there. Exit 14 (busy): wait, then ask again
+  `bmn team ask --features` does not offer for it) and exit 1 (failed) move on like any
+  unavailable route: to the next candidate with `--agent` and the reason, or to the
+  role's `then` once BMN says no candidate can answer. A bound ask never moves on: an
+  owner's named pick, a recheck's reviewer or an approved project choice that cannot
+  answer is reported, and he changes the pick or the choice. A BMN lacking a feature
+  the ask needs is BLOCKED, naming the upgrade. Exit 14 (busy): wait, then ask again
   with the same key. Exit 15 (out of time): report it; one longer `--time-limit` may be
   asked under a new key. Exit 17 (not attributed): once more with the same teammate,
   effort and payload under a new key; a second one is a failed route. Exit 2 or 3–7
