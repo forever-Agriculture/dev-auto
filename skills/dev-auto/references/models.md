@@ -45,8 +45,8 @@ names no models. Ask the team for the role:
   explicitly chose that candidate, report the missing route instead of substituting. A
   good enough answer ends it. Record the route and the reason for any move. Codex agents
   spend Codex quota, Claude Code agents Claude quota.
-- **Ask through BMN.** Every helper is asked with `bmn team ask`, except browser checks and the
-  routes [still kept](#routes). BMN checks the ask against the team, runs the teammate in its
+- **Ask through BMN.** Every helper is asked with `bmn team ask`, except the routes
+  [still kept](#routes). BMN checks the ask against the team, runs the teammate in its
   own app's read-only mode with that mode's tools, supervises it and keeps its record;
   `bmn team ask --help` and its docs give every option. From the project:
 
@@ -169,16 +169,13 @@ presenting evidence, cite the existing authorization once when it covers that ex
 action and payload; otherwise report the reason and request approval. Never change
 routes or permissions to evade a refusal.
 
-Browser checks drive a headless Playwright browser limited to a loopback `ORIGIN`
-whose app the lead starts; use synthetic data. The script is Luna's route: pass the
-effort selected above as the fifth argument. It runs the team check itself (`browser`
-role, receipt in `OUTPUT.check.json`); the caller finds the run's rollout with
-`scripts/check.py usage --list "$PROJECT"` and binds that receipt to its session within
-ten minutes of the check. Only Luna has a documented browser route here; skip other
-candidates under the unavailable-route rule and follow the team's `then` action.
+Browser checks ask the `browser` role about a loopback app the lead started, with
+synthetic data, as a disposable instance; `--interact` where the check must click, type
+or fill in. Its pages and screenshots are in the exported record:
 
 ```bash
-~/code/dev-auto/skills/dev-auto/scripts/luna-browse.sh "$PROJECT" "$PROMPT" "$OUTPUT" "$ORIGIN" "$EFFORT"
+bmn team ask --origin "$ORIGIN" --disposable --effort "$EFFORT" --project "$PROJECT" \
+  --question-file "$PROMPT" --key "$(date -u +%Y%m%d)-<story>-browser" --json > "$OUTPUT"
 ```
 
 Still kept, until the owner decides 72.9's INCONCLUSIVE results for them: a Claude Code
