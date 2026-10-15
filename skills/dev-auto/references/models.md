@@ -176,7 +176,7 @@ or fill in. Its pages and screenshots are in the exported record:
 
 ```bash
 bmn team ask --origin "$ORIGIN" --disposable --effort "$EFFORT" --project "$PROJECT" \
-  --question-file "$PROMPT" --key "$(date -u +%Y%m%d)-<story>-browser" --json > "$OUTPUT"
+  --question-file "$PROMPT" --key "$(date -u +%Y%m%d)-<story>-<name>" --json > "$OUTPUT"
 ```
 
 Still kept, until the owner decides 72.9's INCONCLUSIVE results for them: a Claude Code
