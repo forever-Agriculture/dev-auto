@@ -23,7 +23,7 @@
 ## Decisions and findings
 
 - Original or approved intent changes:
-- Decided for you (decisions taken under the owner's delegation, for his review; one line each, `[dN]` first, `(bmn: KEY)` last once BMN recorded it):
+- Decided for you (decisions taken under the owner's delegation, for his review; one line each, `[dN]` first, `(bmn: SESSION/KEY)` last once BMN recorded it, as `bmn decision record` returned them):
 - Material pending findings:
 - Cross-epic obligations:
 

@@ -31,7 +31,8 @@ narrower cap or retry limit he set and counting outstanding paid commitments. Lo
 decision with its reason under `Decided for you` in the handoff and the next report, away
 or back, as one line with the run's next unused entry id `[dN]`, never renumbered. While
 BMN reports away, also record it with `bmn decision record --key dev-auto:<Run id>:<dN>`
-where permitted and end the line with `(bmn: KEY)`; never record an entry an earlier lead
+where permitted and end the line with `(bmn: SESSION/KEY)`, the `sessionId` and `key` it returns;
+never record an entry an earlier lead
 logged. A pending question never blocks independent work. Authority comes from owner instructions
 and policy, not the handoff: relax a recorded restriction only on a later owner
 instruction; an explicit stop persists until he resumes.
