@@ -52,7 +52,8 @@ names no models. Ask the team for the role:
   ```
 
   `--agent` names the owner's one-time pick or the next candidate, `--recheck-of ID`
-  (no `--effort`) rechecks with the earlier run's teammate, `--small-work` takes the
+  rechecks with the earlier run's teammate under the same role, at the role's `recheck`
+  effort or, where it has none, an `--effort` you choose; `--small-work` takes the
   role's small-work candidate. Each new ask gets a new key name. Reports cite an ask by
   its run `id`. Once it ends, before acceptance, save its record with
   `bmn team asks export <id> --output .dev-auto/evidence/<story>/<name>` and read it once
