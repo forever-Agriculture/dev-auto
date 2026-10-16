@@ -16,8 +16,8 @@ The pre-review needs the original requirements, the baseline and the diff. Map, 
 not judge exhaustively. Return, in about one page: each story or acceptance criterion
 with the files and tests that implement and cover it; criteria without a test or
 evidence; the changed areas most worth the strong reviewer's attention, and why;
-obvious defects with location and consequence. End with the single line
-`RESULT: done`. The questions below are for the strong review.
+obvious defects and slop (question 4) with location and consequence. End with the
+single line `RESULT: done`. The questions below are for the strong review.
 
 ## Questions for the reviewer
 
@@ -38,7 +38,14 @@ obvious defects with location and consequence. End with the single line
    evidence: would a realistic regression at its use site fail an assertion?
    Does evidence exercise the affected owner path on the accepted candidate with
    representative state and, where relevant, viewport? Report gaps and limits.
-4. Which boundaries did you not examine? Say so explicitly.
+4. Does the change add slop, lasting cost no requirement asks for? Name a second
+   way of doing what the codebase already does one way (both sites); an
+   abstraction, option or layer with fewer than two real uses; a shim or fallback
+   where the end state was asked for; replaced code left in place (its callers,
+   or proof of none); a test that asserts its own mock; a simplified copy instead
+   of the real component; comments that restate the code. Give file:line and the
+   end state that fixes it. These findings are material; taste is not a finding.
+5. Which boundaries did you not examine? Say so explicitly.
 
 At project scope, also examine the aggregate multi-epic change for consequential
 duplication, dependency or pattern drift and accumulated complexity, and verify
