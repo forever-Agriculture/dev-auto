@@ -38,13 +38,18 @@ single line `RESULT: done`. The questions below are for the strong review.
    evidence: would a realistic regression at its use site fail an assertion?
    Does evidence exercise the affected owner path on the accepted candidate with
    representative state and, where relevant, viewport? Report gaps and limits.
-4. Does the change add slop, lasting cost no requirement asks for? Name a second
-   way of doing what the codebase already does one way (both sites); an
-   abstraction, option or layer with fewer than two real uses; a shim or fallback
-   where the end state was asked for; replaced code left in place (its callers,
-   or proof of none); a test that asserts its own mock; a simplified copy instead
-   of the real component; comments that restate the code. Give file:line and the
-   end state that fixes it. These findings are material; taste is not a finding.
+4. Does the change add slop: complexity or leftovers no requirement asks for? Look
+   for a second way of doing what the codebase already does one way (both sites);
+   an abstraction, option or layer with no concrete purpose in the required design;
+   a shim or fallback in place of the requested end state; replaced code left
+   behind (its remaining callers, or evidence of none); a test that checks only
+   its own mock; a simplified copy that bypasses the real component. These are
+   signals: a finding is material only with evidence of a violated requirement or
+   invariant or a consequential maintenance cost, allowing for required
+   architecture, test seams and compatibility. Give file:line, the consequence
+   and the simplest end state that keeps the requirements. Comments that restate
+   the code and other cosmetic slop are optional polish: list them in one line
+   for a repair already needed; alone they never justify a repair or recheck.
 5. Which boundaries did you not examine? Say so explicitly.
 
 At project scope, also examine the aggregate multi-epic change for consequential
