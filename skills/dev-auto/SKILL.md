@@ -56,10 +56,10 @@ project and keeps later-epic obligations; use the existing board schema and repo
 missing state.
 
 Use a separate branch, worktree and dependency environment per run, created from the
-default checkout; a run already active in the default checkout finishes there. After compaction use that worktree's
-handoff, whatever checkout the session or hook points at. Never commit, stash or edit
-another run's checkout or dependencies. In the default checkout touch only your epics'
-board rows and untracked story records, rereading just before each edit and never
+default checkout; a run already active in the default checkout finishes there. After
+compaction use that worktree's handoff, whatever checkout the session or hook points at.
+Never commit, stash or edit another run's checkout or dependencies. From a separate
+worktree, touch in the default checkout only your epics' board rows and untracked story records, rereading just before each edit and never
 committing there; read missing or older planning files from it without copying its
 uncommitted files. Never remove a run's worktree yourself. Prefer one lead session per
 epic.
@@ -100,8 +100,7 @@ needs; a stubbed dry run proves nothing about a service.
 
 ## Helpers and review
 
-Read [references/models.md](references/models.md) at start and follow it: helpers are
-asked through BMN (`bmn team ask`) in the roles of the owner's team; a lead never
+Read [references/models.md](references/models.md) at start and follow it; a lead never
 proceeds where its own provider may not read the workspace. Dispatch consent and its data limits (no credentials or unapproved private data) come
 from the owner's global rules or session approval, never this skill; project
 restrictions apply. Record each ask's run id and exported record, or a native helper's
@@ -187,7 +186,8 @@ save and every FAIL before COMPLETE, and record an UNABLE result.
 
 On `resume`, compaction or an active-run hook reminder, first reread this skill and the
 complete handoff; act read-only until both are read, and report BLOCKED if a required
-file is unavailable. Verify this checkout's handoff scope; if missing, inherited or
+file is unavailable. Verify this handoff's scope and owning checkout, treating it as a
+copy only when another owning checkout is established; if missing, inherited or
 finished, or the owner names work it does not hold, find unfinished runs in other
 worktrees (`git worktree list`) and resume the named run, asking only if still
 ambiguous. Reconcile helper results and stale state and keep material findings; in
