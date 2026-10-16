@@ -503,5 +503,97 @@ class UsageTests(unittest.TestCase):
         self.assertIn("2 rollout(s)", result.stdout)
 
 
+class AwayTests(unittest.TestCase):
+    """`check.py away`: BMN's state beside the handoff's last confirmed one (BMN Story 76.7)."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.bin = Path(self.tmp.name) / "bin"
+        self.bin.mkdir()
+        self.project = Project(CLEAN.replace("- Status: COMPLETE", "- Status: ACTIVE"))
+        self.addCleanup(self.project.tmp.cleanup)
+
+    def bmn(self, stdout: str = "", code: int = 0, stderr: str = "") -> None:
+        script = self.bin / "bmn"
+        script.write_text("#!/bin/sh\n"
+                          f"[ \"$*\" = \"away --status --json\" ] || exit 9\n"
+                          f"printf '%s' {json.dumps(stdout)}\nprintf '%s' {json.dumps(stderr)} >&2\nexit {code}\n",
+                          encoding="utf-8")
+        script.chmod(0o755)
+
+    def away(self, held: str | None = None, socket: bool = True) -> subprocess.CompletedProcess[str]:
+        body = CLEAN.replace("- Status: COMPLETE", "- Status: ACTIVE")
+        if held is not None:
+            body = body.replace("- Explicit user stop", f"- BMN away: {held}\n- Explicit user stop")
+        self.project.write(body)
+        env = {k: v for k, v in os.environ.items() if k not in ("BMN_CONTROL_SOCKET", "AITERM_CONTROL_SOCKET")}
+        env["PATH"] = f"{self.bin}{os.pathsep}/usr/bin{os.pathsep}/bin"
+        if socket:
+            env["BMN_CONTROL_SOCKET"] = "/nonexistent/control.sock"
+        return run("away", str(self.project.root), env=env)
+
+    def state(self, state: str, revision: int, since: str | None = "2026-10-16T19:10:00.000Z") -> str:
+        return json.dumps({"state": state, "since": since, "revision": revision})
+
+    def test_an_away_set_in_bmn_is_adopted_without_a_departure_card(self) -> None:
+        self.bmn(self.state("away", 3))
+        result = self.away()
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("AWAY: away since 2026-10-16T19:10:00.000Z revision 3; ADOPT: set "
+                      "`- BMN away: away since 2026-10-16T19:10:00.000Z revision 3`", result.stdout)
+        self.assertIn("no departure statement or card", result.stdout)
+        current = self.away("away since 2026-10-16T19:10:00.000Z revision 3")
+        self.assertIn("AWAY: away since 2026-10-16T19:10:00.000Z revision 3; the handoff is current", current.stdout)
+        self.assertNotIn("ADOPT", current.stdout)
+
+    def test_back_in_bmn_ends_away_mode(self) -> None:
+        self.bmn(self.state("back", 4))
+        result = self.away("away since 2026-10-16T19:10:00.000Z revision 3")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("BACK: back since 2026-10-16T19:10:00.000Z revision 4; ADOPT:", result.stdout)
+        self.assertIn("away mode ends", result.stdout)
+
+    def test_bmn_missing_keeps_the_local_away_mode(self) -> None:
+        result = self.away("away since 2026-10-16T19:10:00.000Z revision 3")  # no bmn on PATH
+        self.assertEqual((result.returncode, result.stdout.split(":")[0]), (0, "MISSING"), result.stdout)
+        self.bmn(self.state("away", 3))
+        self.assertTrue(self.away(socket=False).stdout.startswith("MISSING"))  # not inside a BMN session
+        self.bmn(code=2, stderr="bmn: unknown option --status\n")  # a BMN from before the away state
+        self.assertTrue(self.away().stdout.startswith("MISSING"))
+
+    def test_a_failed_read_is_unavailable_not_back_and_recovers_both_ways(self) -> None:
+        held = "away since 2026-10-16T19:10:00.000Z revision 3"
+        self.bmn(code=1, stderr="bmn: IO_ERROR: connect ECONNREFUSED\n")
+        failed = self.away(held)
+        self.assertEqual(failed.returncode, 2, failed.stdout)
+        self.assertIn("UNAVAILABLE: bmn away --status failed (exit 1): bmn: IO_ERROR", failed.stdout)
+        self.assertIn("the last confirmed state holds (away since 2026-10-16T19:10:00.000Z, revision 3), not back",
+                      failed.stdout)
+        self.bmn("not json")
+        self.assertEqual(self.away(held).returncode, 2)
+        self.bmn(self.state("back", 1))  # another BMN or a reset store: never read as back
+        regressed = self.away(held)
+        self.assertEqual(regressed.returncode, 2, regressed.stdout)
+        self.assertIn("older than the confirmed 3", regressed.stdout)
+        self.bmn(self.state("away", 3))
+        self.assertIn("the handoff is current", self.away(held).stdout)
+        self.bmn(self.state("back", 4))
+        self.assertTrue(self.away(held).stdout.startswith("BACK: "))
+        self.bmn(code=1, stderr="bmn: IO_ERROR: lost\n")
+        self.assertIn("holds (back since 2026-10-17T05:00:00.000Z, revision 4)",
+                      self.away("back since 2026-10-17T05:00:00.000Z revision 4").stdout)
+
+    def test_template_field_reads_as_nothing_confirmed(self) -> None:
+        template = TEMPLATE.read_text(encoding="utf-8")
+        self.assertIn("- BMN away: none (", template)
+        self.assertIn("- Run id: ", template)
+        self.project.write(template)
+        self.bmn(self.state("none", 0, since=None))
+        env = {**os.environ, "PATH": f"{self.bin}{os.pathsep}/usr/bin{os.pathsep}/bin", "BMN_CONTROL_SOCKET": "/x"}
+        result = run("away", str(self.project.root), env=env)
+        self.assertIn("NONE: none since - revision 0; the handoff is current", result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

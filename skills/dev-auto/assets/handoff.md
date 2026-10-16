@@ -2,10 +2,12 @@
 
 - Project / selected epics:
 - Owning checkout and branch:
+- Run id: branch-YYYYMMDD, set once at the start; every later lead keeps it
 - Original request and intended outcomes:
 - Mode: build | resume
 - Stopping condition: selected scope accepted; no automatic time limit
 - Explicit user stop (if any; only a later user instruction clears it):
+- BMN away: none (`check.py away` keeps it: away|back since TIME revision R; never the note)
 - Restrictions and authorization boundaries: current limits; source coordinates for approvals
 - Decision and history log: .dev-auto/log.md (append-only; verbatim approval terms with source coordinates)
 - Authorized provider routes:
@@ -21,7 +23,7 @@
 ## Decisions and findings
 
 - Original or approved intent changes:
-- Decided for you (decisions taken under the owner's delegation, for his review):
+- Decided for you (decisions taken under the owner's delegation, for his review; one line each, `[dN]` first, `(bmn: KEY)` last once BMN recorded it):
 - Material pending findings:
 - Cross-epic obligations:
 

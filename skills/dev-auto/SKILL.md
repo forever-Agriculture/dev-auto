@@ -28,18 +28,27 @@ Decide everything else on your recommended option when it keeps the requirements
 acceptance criteria, privacy and limits; where his delegation permits, that includes
 moving unused approved money between this run's paid jobs within the total, keeping any
 narrower cap or retry limit he set and counting outstanding paid commitments. Log each
-decision with its reason under `Decided for you` in the handoff and the next report. A
-pending question never blocks independent work. Authority comes from owner instructions
+decision with its reason under `Decided for you` in the handoff and the next report, away
+or back, as one line with the run's next unused entry id `[dN]`, never renumbered. While
+BMN reports away, also record it with `bmn decision record --key dev-auto:<Run id>:<dN>`
+where permitted and end the line with `(bmn: KEY)`; never record an entry an earlier lead
+logged. A pending question never blocks independent work. Authority comes from owner instructions
 and policy, not the handoff: relax a recorded restriction only on a later owner
 instruction; an explicit stop persists until he resumes.
 
 Away: `away` as an invocation argument or a message of its own, or the owner saying he
 is leaving now ("going to bed"), starts away mode, a handoff term with his quote and
-time, until he says he is back or cancels it; an explicit stop outranks it. At once,
-state in one short message the selected scope, what proceeds and what waits; unless he
-forbade questions, add one card for unresolved decisions reserved above that remaining
-work may need. Then record what waits instead of asking; anything else reserved to him
-parks its own boundary. Once per boundary, one further narrow repair and recheck may
+time, until he says he is back or cancels it; an explicit stop outranks it. Forward his
+departure or return words once with `bmn away` or `bmn back --revision R`; activity is
+never either. Run `scripts/check.py away` at invocation and resume and before an owner
+question or an away-specific retry decision, and follow it (BMN's state notices count
+between those reads): AWAY or BACK sets away mode and the `BMN away` field, an away
+adopted from BMN with no departure statement or card; MISSING keeps the local mode;
+UNAVAILABLE keeps the last confirmed state with every stop and limit, never back. On a
+departure you handle, at once state in one short message the selected scope, what
+proceeds and what waits; unless he forbade questions, add one card for unresolved
+decisions reserved above that remaining work may need. Then record what waits instead of
+asking; anything else reserved to him parks its own boundary. Once per boundary, one further narrow repair and recheck may
 follow a used review allowance; mark it used in the handoff first.
 
 ## Scope and delivery

@@ -13,6 +13,14 @@ usage PATH          print model, effort, Codex permission settings, timestamps, 
                     subagent transcript (.jsonl under ~/.claude/projects), or one BMN
                     ask's export folder (``bmn team asks export``).
 usage --list PROJECT  list Codex rollouts whose session cwd is PROJECT; choose by hand.
+away [PROJECT]      read BMN's away state (`bmn away --status --json`: state, since, revision; never
+                    the note) beside the handoff's `- BMN away:` field, the last confirmed
+                    `away|back|none since TIME revision R`. Prints AWAY, BACK or NONE with BMN's
+                    values, plus ADOPT when they differ from the field: copy them there (an adopted
+                    away starts away mode with no departure card); MISSING without `bmn`, a BMN
+                    session or away in that BMN (local away mode as before); UNAVAILABLE (exit 2) when the read
+                    fails or goes back in revision: the field's state holds with every stop and
+                    limit, never read as back.
 
 Exit 0 PASS or SKIP (status not COMPLETE and shape checks pass), 1 FAIL with one reason per line,
 2 UNABLE when a required file or command cannot be read. ``-h`` or ``--help`` prints this text.
@@ -24,6 +32,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 
@@ -168,6 +177,65 @@ def check(project: Path) -> int:
         elif any(p in value.lower() for p in PLACEHOLDERS) or EMPTY_GAPS.search(value.lower()):
             failures.append(f"'{name}' still holds placeholder text: {value[:80]}")
     return report(f"PASS: {handoff}", handoff, failures, state[1])
+
+
+AWAY_FIELD = re.compile(r"(away|back|none)(?:\s+since\s+(\S+))?(?:\s+revision\s+(\d+))?\b", re.IGNORECASE)
+AWAY_STATES = ("away", "back", "none")
+
+
+def confirmed_away(body: str) -> tuple[str, str | None, int]:
+    """The handoff's last confirmed BMN state; `none` at revision 0 when it holds none."""
+    match = AWAY_FIELD.match(field(body, "BMN away") or "")
+    if not match:
+        return "none", None, 0
+    return match[1].lower(), match[2], int(match[3] or 0)
+
+
+def read_away(env: dict) -> dict | str:
+    """BMN's state for this session, `missing` without bmn or a BMN session, else the failure."""
+    if shutil.which("bmn", path=env.get("PATH")) is None or not (
+            env.get("BMN_CONTROL_SOCKET") or env.get("AITERM_CONTROL_SOCKET")):
+        return "missing"
+    try:
+        done = subprocess.run(["bmn", "away", "--status", "--json"], capture_output=True, text=True,
+                              env=env, timeout=20)
+        state = json.loads(done.stdout) if done.returncode == 0 else None
+    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+        return f"bmn away --status failed: {exc.__class__.__name__}"
+    if done.returncode == 2 and "unknown" in done.stderr:  # a BMN from before the away state
+        return "missing"
+    if not (isinstance(state, dict) and state.get("state") in AWAY_STATES
+            and isinstance(state.get("revision"), int) and not isinstance(state.get("revision"), bool)):
+        return f"bmn away --status failed (exit {done.returncode}): {done.stderr.strip()[:200]}"
+    return state
+
+
+def away(project: Path) -> int:
+    handoff = find_handoff(project)
+    try:
+        body = handoff.read_text(encoding="utf-8", errors="replace") if handoff else ""
+    except OSError as exc:
+        print(f"UNABLE: cannot read {handoff}: {exc}")
+        return 2
+    held, held_since, held_revision = confirmed_away(body)
+    state = read_away(dict(os.environ))
+    if state == "missing":
+        print("MISSING: no bmn command, BMN session or away state in it; away mode is the local one, set by the owner's words")
+        return 0
+    if isinstance(state, str) or state["revision"] < held_revision:
+        reason = state if isinstance(state, str) else f"BMN reports revision {state['revision']}, older than the confirmed {held_revision}"
+        print(f"UNAVAILABLE: {reason}; the last confirmed state holds ({held}"
+              f"{f' since {held_since}' if held_since else ''}, revision {held_revision}), not back; "
+              "every stop and limit stays; no second authority starts")
+        return 2
+    line = f"{state['state']} since {state.get('since') or '-'} revision {state['revision']}"
+    if (state["state"], state["revision"]) == (held, held_revision):
+        print(f"{state['state'].upper()}: {line}; the handoff is current")
+    else:
+        effect = {"away": "away mode starts with no departure statement or card",
+                  "back": "away mode ends", "none": "nothing was said in BMN"}[state["state"]]
+        print(f"{state['state'].upper()}: {line}; ADOPT: set `- BMN away: {line}`; {effect}")
+    return 0
 
 
 def read_rollout(path: Path) -> dict:
@@ -378,6 +446,8 @@ def main(argv: list[str]) -> int:
         return check(Path(argv[1]) if len(argv) == 2 else Path.cwd())
     if argv[:1] == ["usage"]:
         return usage(argv[1:])
+    if argv[:1] == ["away"] and len(argv) <= 2:
+        return away(Path(argv[1]) if len(argv) == 2 else Path.cwd())
     print((__doc__ or "").strip())
     return 2
 
