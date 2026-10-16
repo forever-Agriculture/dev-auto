@@ -14,35 +14,33 @@ check earns its place by a failure it prevents; reuse valid evidence.
 
 The invocation and later owner instructions set the run's authority: scope, approved
 spend and delegation ("decide within the cap", "work autonomously"). Record each
-delegation and source quote as a current handoff term; it survives compaction, resume
-and fresh sessions only for its named scope and total.
+delegation with its source quote as a handoff term, valid only for its named scope and
+total.
 Ask the owner once, in the session, with a recommendation, only about spend beyond what
 he approved or delegated, changes to selected work or its acceptance criteria, actions
 the global rules reserve to him, credentials or private data, owner-only acceptance
-checks and the brake's decision below. His choices of reviewer, consultant or helper
-model live in his BMN team: a lasting choice for a project is a `## project-choices`
-entry he approves in BMN, which applies it (where the host refuses that write, give him
-the entry to add); a one-time pick goes as `--agent` (and `--effort`) on the asks it
-covers, with his quote in the handoff. Put
-technical decisions you cannot settle from the evidence to the consultant.
+checks and the brake's decision below. His model choices live in his BMN team: a lasting
+one for a project is a `## project-choices` entry he approves in BMN (if the host refuses
+your write, give him the entry), a one-time pick goes as `--agent` (and `--effort`) on
+the asks it covers, with his quote in the handoff. Technical decisions the evidence
+cannot settle go to the consultant.
 Decide everything else on your recommended option when it keeps the requirements,
 acceptance criteria, privacy and limits; where his delegation permits, that includes
 moving unused approved money between this run's paid jobs within the total, keeping any
-narrower cap or retry limit he set and counting outstanding paid commitments; money
-shared with another active lead moves only after that lead's handoff records releasing
-it. Log each decision with its reason under `Decided for you` in the handoff and the
-next report. A pending question never blocks independent work. Authority comes from
-owner instructions and policy, not the handoff: relax a recorded restriction only on a
-later owner instruction; an explicit stop persists until he resumes.
+narrower cap or retry limit he set and counting outstanding paid commitments. Log each
+decision with its reason under `Decided for you` in the handoff and the next report. A
+pending question never blocks independent work. Authority comes from owner instructions
+and policy, not the handoff: relax a recorded restriction only on a later owner
+instruction; an explicit stop persists until he resumes.
 
 Away: `away` as an invocation argument or a message of its own, or the owner saying he
 is leaving now ("going to bed"), starts away mode, a handoff term with his quote and
-time; it ends when he says he is back or cancels it, and an explicit stop outranks it.
-At once, state in one short message the selected scope, what proceeds and what waits;
-unless he forbade questions, add one card for unresolved decisions reserved above that
-remaining work may need. Then record what waits instead of asking. Once ever per
-boundary, one further narrow repair and recheck may follow a used review allowance; mark it used in the handoff first.
-Everything else reserved to him above parks its own boundary.
+time, until he says he is back or cancels it; an explicit stop outranks it. At once,
+state in one short message the selected scope, what proceeds and what waits; unless he
+forbade questions, add one card for unresolved decisions reserved above that remaining
+work may need. Then record what waits instead of asking; anything else reserved to him
+parks its own boundary. Once per boundary, one further narrow repair and recheck may
+follow a used review allowance; mark it used in the handoff first.
 
 ## Scope and delivery
 
@@ -57,73 +55,59 @@ completion labels are claims to verify. Before each epic, confirm its outcome fi
 project and keeps later-epic obligations; use the existing board schema and report
 missing state.
 
-Use a separate branch, worktree and dependency environment per run. From the default
-checkout, create the worktree and work only there if this session can edit it,
-otherwise end BLOCKED with the one command that starts the lead in it; after compaction
-use that worktree's handoff, whatever checkout the session or hook points at. Never
-commit, stash or edit another run's checkout or dependencies, except owner choices and
-your epics' board rows and untracked story records in the default checkout: reread
-just before each edit and never commit there. A run already active in the default
-checkout finishes there. Read missing or older planning files from the default
-checkout; never commit, stash or copy its uncommitted files. Never remove a run's
-worktree yourself; an owner-requested removal first moves its `.dev-auto/` to the
-default checkout's `.dev-auto/runs/<branch>/`. A moved run keeps all state and
-live-job coordinates, records its new owning checkout and marks the old handoff a copy.
-Prefer one lead session per epic: independent selected epics run in parallel sessions
-and worktrees when the owner or BMN starts them; before moving to the next epic, save a
-handoff a fresh session could resume from.
+Use a separate branch, worktree and dependency environment per run, created from the
+default checkout; a run already active in the default checkout finishes there. After compaction use that worktree's
+handoff, whatever checkout the session or hook points at. Never commit, stash or edit
+another run's checkout or dependencies. In the default checkout touch only your epics'
+board rows and untracked story records, rereading just before each edit and never
+committing there; read missing or older planning files from it without copying its
+uncommitted files. Never remove a run's worktree yourself. Prefer one lead session per
+epic.
 
 Implement the smallest complete change and continue authorized work until the whole
-selected scope passes acceptance; there is no automatic deadline. The lead owns integration and the board: when a story or epic starts, gets a
-measured outcome, blocks or is accepted, update its rows in that step on the board in
-the default checkout, where the owner reads it, and on the run's branch when the board is
-tracked, touching only its own epics' rows; implemented work awaiting checks stays in
-an unfinished active state; record verified acceptance and its branch using the
-board's convention; delivery is complete only once you confirm the work is on the
-default branch. A blocked epic leaves independent selected work
-available. An outcome that depends on another party's system, access or decision ends
-BLOCKED on that named gate once the project has proved its part; work inside other
-teams' systems needs the owner to select it.
+selected scope passes acceptance. The lead owns integration and the board: when a story
+or epic starts, gets a measured outcome, blocks or is accepted, update its rows in that
+step on the board in the default checkout, where the owner reads it, and on the run's
+branch when the board is tracked, touching only its own epics' rows; implemented work
+awaiting checks stays in an unfinished active state; record verified acceptance and its
+branch using the board's convention; delivery is complete only once you confirm the work
+is on the default branch. A blocked epic leaves independent selected work available. An
+outcome that depends on another party's system, access or decision ends BLOCKED on that
+named gate once the project has proved its part; work inside other teams' systems needs
+the owner to select it.
 
-Test a representative outcome early when the approach is uncertain. After two
-unsuccessful fixes for one outcome, or three failed runs in a row of one acceptance or
-CI gate whatever fails in them, compare captured failures, the shared boundary and any
-working equivalent; if still unresolved, ask the consultant. After that, with or without
-an instruction not to stop, each further attempt at that outcome or gate needs a
-different, evidence-backed method the consultant agrees, recording first in the
-handoff's brake record for that boundary the attempts, gate runs, paid spend and each
-lead session's latest `check.py usage`, and in the log what the failed methods
-established; later leads continue the record, never restart it. Without such a method
-the boundary stays BLOCKED. Keep changes unrelated to the failure out of these attempts.
-Once per method, record a failure in your own harness before product execution as a
-gate run, then repair and rerun without counting a failed method. A second such
-failure counts the method failed.
+Try an uncertain approach early on a representative sample, preferring offline replay.
+After two unsuccessful fixes for one outcome, or three failed runs in a row of one
+acceptance or CI gate whatever fails in them, compare captured failures, the shared
+boundary and any working equivalent; if still unresolved, ask the consultant. After that,
+even under an instruction not to stop, each further attempt at that outcome or gate
+needs a different, evidence-backed method the consultant agrees, recorded first in the
+handoff's brake record for that boundary, with what the failed methods established in
+the log; later leads continue the record, never restart it. Without such a method the boundary
+stays BLOCKED. Keep changes unrelated to the failure out of these attempts. Once per
+method, a failure in your own harness before product execution counts as a gate run,
+not a failed method: repair and rerun; a second such failure fails the method.
 After every third failed agreed method at one boundary, ask the owner by card: that
 record, the consultant's odds and cost to pass, and your recommendation among continue
 within a usage budget, descope, report the cause upstream and leave the gate red, or
 BLOCKED. Pause retries at that boundary until his answer authorizes them; inspect
 existing evidence and continue independent work. Neither that card nor an instruction
-not to stop lifts an authorization, spend, review allowance or acceptance gate. Measure bulk work such as
-fixtures or reference answers early; when its review-and-repair rate cannot finish the
-scope at proportionate cost, change the method or report BLOCKED. Prefer representative
-offline replay. Stop and ask before a paid call that could exceed an owner cap, the
-approved total or an approved estimate no delegation covers, and never raise a cap or
-the total yourself. Before a paid or long run, make the cheapest live call to each
-external service it needs; a stubbed dry run proves nothing about a service.
+not to stop lifts an authorization, spend, review allowance or acceptance gate.
+Stop and ask before a paid call that could exceed an owner cap, the approved total or an
+approved estimate no delegation covers, and never raise a cap or the total yourself.
+Before a paid or long run, make the cheapest live call to each external service it
+needs; a stubbed dry run proves nothing about a service.
 
 ## Helpers and review
 
 Read [references/models.md](references/models.md) at start and follow it: helpers are
-asked through BMN (`bmn team ask`) in the roles of the owner's team;
-a lead never proceeds where its own provider may not read the workspace. Helpers review and gather evidence; the lead writes code and tests and does
-small lookups and checks directly. Dispatch consent comes from the owner's global rules
-or session approval, never this skill; project restrictions apply. Exclude credentials
-and unrelated private data; customer or production data needs approval naming
-destination and data, then reused. Record each helper's observed route and model and
-its ask's run id and exported record, or a native helper's session record (read each once,
-when collecting it, with `scripts/check.py usage PATH`), and each lead session's ID;
-surface mismatches and failures instead of silently substituting. Runs are evaluated from those records, so
-beyond the brake's record do not tally time, usage or owner prompts.
+asked through BMN (`bmn team ask`) in the roles of the owner's team; a lead never
+proceeds where its own provider may not read the workspace. Dispatch consent and its data limits (no credentials or unapproved private data) come
+from the owner's global rules or session approval, never this skill; project
+restrictions apply. Record each ask's run id and exported record, or a native helper's
+session record, and each lead session's ID; surface mismatches and failures instead of
+silently substituting. Runs are evaluated from those records, so beyond the brake's
+record do not tally time, usage or owner prompts.
 
 Freeze the candidate and run the quick pre-review from
 [references/review-brief.md](references/review-brief.md) alongside your own final
@@ -132,10 +116,10 @@ checks and rerun affected checks, with no second pre-review. An independent stro
 reviewer then checks the epic against original intent, architecture and goals with the
 same brief, using the pre-review map and your dispositions as navigation, not proof:
 one full review, consolidated repairs and one focused recheck, the candidate unedited
-while a reviewer or gate reads it. For web UI changes, add a browser-route check of the
+while a reviewer or gate reads it. For web UI changes, add a browser check of the
 running candidate at the lead-started loopback origin, against the acceptance criteria
-with synthetic data. Further review needs a named material risk or a
-consequential new change or evidence, reusing unaffected results.
+with synthetic data. Further review needs a named material risk or a consequential new
+change or evidence, reusing unaffected results.
 
 From the full review on, at one acceptance boundary: if a recheck finds a material
 defect introduced by the previous repair, or a second recheck finds material defects
@@ -144,13 +128,11 @@ acceptance criteria, substantiate each open finding with a reproduction or requi
 evidence, and put the design question once to the consultant, whose method must keep
 the requirements, acceptance criteria and limits (removing work the story does not ask
 for is a valid answer). One consolidated repair and recheck may follow; remaining
-material defects park that boundary BLOCKED with the consultant's options while
-independent work continues (away mode allows one more, once), and an instruction not
-to stop follows the rule above. A
-new reviewer, repair wave or resumed run does not reset this allowance; the pre-review
-and owner-requested reviews sit outside it. Project scope adds a quick project
-pre-review before the final cross-epic evaluation; project-level reviews can cover the
-coincident final epic.
+material defects park that boundary BLOCKED with the consultant's options. A new
+reviewer, repair wave or resumed run does not reset this allowance; the pre-review and
+owner-requested reviews sit outside it. Project scope adds a quick project pre-review
+before the final cross-epic evaluation; project-level reviews can cover the coincident
+final epic.
 
 ## Acceptance
 
@@ -174,28 +156,23 @@ owner can exercise it (an installed release, phone or messaging), recommend one 
 owner check and keep acceptance BLOCKED until it passes or he explicitly defers it,
 recording it UNVERIFIED. Record baseline and reviewed revisions, actual checks and
 unverified boundaries. Give every material finding from all reviews a disposition
-against the accepted revision: closed with evidence, rejected with its refutation, or
-unresolved with what would settle it. Changes for the selected scope sit inside the
-reviewed revision or carry delta evidence, including commits added after acceptance; name any unrelated residual change and why.
-Material findings without a disposition, material gaps and mandatory unverified gates
-block acceptance.
+against the accepted revision, as the review brief defines. Changes for the selected
+scope sit inside the reviewed revision or carry delta evidence, including commits added
+after acceptance; name any unrelated residual change and why. Material findings without
+a disposition, material gaps and mandatory unverified gates block acceptance.
 
 ## Handoff and recovery
 
 Run state is local to each checkout and never committed; follow `scripts/check.py
 check` notes about `.dev-auto/` and report tracked-state cleanup once. Keep receipts,
 transcripts, screenshots and runtime dumps in `.dev-auto/evidence/`, cited by path and
-hash, never in `/tmp` or session scratch. Cite host records (`~/.claude/projects/`,
-`~/.codex/sessions/`) in place by their real path and hash, resolving a `/tmp` task
-output link first. Before a merge touching a committed handoff or log, copy yours
-aside; on conflict keep yours and untrack the file (`git rm --cached`).
+hash, never in `/tmp` or session scratch; cite host records (`~/.claude/projects/`,
+`~/.codex/sessions/`) in place by their real path.
 
-Maintain `.dev-auto/handoff.md` from [assets/handoff.md](assets/handoff.md). Save scope,
-permission and blocker changes before dependent work; honor stops immediately and
-record them; record helper dispatches and review outcomes before other work; update at
-acceptance and before pausing. Keep each selected epic's state and dependency, current
-restrictions and approval coordinates, pending findings, active helpers, evidence and
-next action, as current terms with source coordinates. Append verbatim owner quotes,
+Maintain `.dev-auto/handoff.md` from [assets/handoff.md](assets/handoff.md), its
+fields current terms with source coordinates. Honor stops immediately; save each change
+of scope, permission, blocker or stop and each helper dispatch and review outcome before
+dependent work, and update at acceptance and before pausing. Append verbatim owner quotes,
 superseded terms, verbose results and failed attempts to the append-only
 `.dev-auto/log.md`, never restated in `Status` or `Resume`; append what changed, never a
 copy of the handoff.
@@ -203,28 +180,26 @@ copy of the handoff.
 Keep the handoff within the recovery hook's 9,000-character snapshot by moving
 resolved history and verbose results to the log, never dropping unresolved
 information. Keep one each of `Status` (label and short reason), `Explicit user stop`
-(`none` when absent) and `Next safe action`. A finished run ends with `- Status:
-COMPLETE` as the last line and stop `none`, each optionally followed by a short note
-after punctuation that never reverses its label. Run `scripts/check.py check` after
+(`none` when absent) and `Next safe action`; a finished run's last line is `- Status:
+COMPLETE` with stop `none`, a short note after punctuation reversing neither. Run `scripts/check.py check` after
 every handoff save, in the same tool call where the host allows; fix a FAIL at the next
 save and every FAIL before COMPLETE, and record an UNABLE result.
 
 On `resume`, compaction or an active-run hook reminder, first reread this skill and the
 complete handoff; act read-only until both are read, and report BLOCKED if a required
-file is unavailable. Verify this checkout's handoff scope and owning checkout; if
-missing, inherited or finished, or the owner names work it does not hold, find
-unfinished runs in other worktrees (`git worktree list`), treating a handoff as a copy
-only when a different owning checkout is established; resume the named run and ask only
-if still ambiguous. Reconcile helper results and stale state and keep material
-findings; in build/resume, save the reconciled handoff before continuing, without
-duplicating completed or active work. Recovery uses owner-created wakeups.
+file is unavailable. Verify this checkout's handoff scope; if missing, inherited or
+finished, or the owner names work it does not hold, find unfinished runs in other
+worktrees (`git worktree list`) and resume the named run, asking only if still
+ambiguous. Reconcile helper results and stale state and keep material findings; in
+build/resume, save the reconciled handoff before continuing, without duplicating
+completed or active work. Recovery uses owner-created wakeups.
 
-End with `DEV-AUTO: ACTIVE|PAUSED|BLOCKED|COMPLETE — <evidence or next action>`.
-ACTIVE: authorized work remains; PAUSED: owner stop or host interruption; BLOCKED: a
-necessary decision, permission or external dependency; COMPLETE: all selected outcomes
-and acceptance checks passed. In build/resume, reconcile board and handoff before
-COMPLETE; otherwise leave a safe next action and explicit limitations. Return promptly
-when no authorized work can proceed.
+End with `DEV-AUTO: ACTIVE|PAUSED|BLOCKED|COMPLETE — <evidence or next action>`:
+ACTIVE while authorized work remains, PAUSED on an owner stop or host interruption,
+BLOCKED on a necessary decision, permission or external dependency, COMPLETE once all
+selected outcomes and acceptance checks passed and, in build/resume, board and handoff
+are reconciled. Otherwise leave a safe next action and explicit limitations. Return
+promptly when no authorized work can proceed.
 
 ## Changing this workflow
 
