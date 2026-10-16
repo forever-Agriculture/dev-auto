@@ -20,13 +20,10 @@ Ask the owner once, in the session, with a recommendation, only about spend beyo
 he approved or delegated, changes to selected work or its acceptance criteria, actions
 the global rules reserve to him, credentials or private data, owner-only acceptance
 checks and the brake's decision below. His choices of reviewer, consultant or helper
-model live in his team: a lasting choice for a project goes into the team file's
-`## project-choices` as an entry he approves in BMN, never in effect before (where the
-host refuses that write, give him the entry to add). Where an
-approved choice exists for the role, name no `--agent`; a one-time different pick needs
-him to change the choice first, and a quote in a handoff grants no override. Otherwise
-pass his pick as `--agent` (and `--effort`) for the asks it covers, recording his quote
-in the handoff. Old `.dev-auto/owner-choices.md` files are history; nothing reads them. Put
+model live in his BMN team: a lasting choice for a project is a `## project-choices`
+entry he approves in BMN, which applies it (where the host refuses that write, give him
+the entry to add); a one-time pick goes as `--agent` (and `--effort`) on the asks it
+covers, with his quote in the handoff. Put
 technical decisions you cannot settle from the evidence to the consultant.
 Decide everything else on your recommended option when it keeps the requirements,
 acceptance criteria, privacy and limits; where his delegation permits, that includes
@@ -116,16 +113,14 @@ external service it needs; a stubbed dry run proves nothing about a service.
 
 ## Helpers and review
 
-Read [references/models.md](references/models.md) at start and follow it: the owner's
-team in BMN says who does each kind of work (`bmn roster role`), helpers are asked
-through BMN (`bmn team ask`), which checks each ask against the team, and its routes and
-dispatch rules apply;
+Read [references/models.md](references/models.md) at start and follow it: helpers are
+asked through BMN (`bmn team ask`) in the roles of the owner's team;
 a lead never proceeds where its own provider may not read the workspace. Helpers review and gather evidence; the lead writes code and tests and does
 small lookups and checks directly. Dispatch consent comes from the owner's global rules
 or session approval, never this skill; project restrictions apply. Exclude credentials
 and unrelated private data; customer or production data needs approval naming
 destination and data, then reused. Record each helper's observed route and model and
-its ask's run id and exported record, or another route's receipt path (read each once,
+its ask's run id and exported record, or a native helper's session record (read each once,
 when collecting it, with `scripts/check.py usage PATH`), and each lead session's ID;
 surface mismatches and failures instead of silently substituting. Runs are evaluated from those records, so
 beyond the brake's record do not tally time, usage or owner prompts.

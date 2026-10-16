@@ -377,36 +377,16 @@ class UsageTests(unittest.TestCase):
             info = json.loads(run("usage", str(path)).stdout)
         self.assertEqual(info["routes"], ["gpt-5.6-sol/unavailable"])
 
-    def test_claude_receipt(self) -> None:
-        receipt = {"type": "result", "total_cost_usd": 0.03, "num_turns": 2,
-                   "modelUsage": {"GLM-5.3-Flash": {"inputTokens": 5, "outputTokens": 1,
-                                                    "costUSD": 0.03, "maxOutputTokens": 32000,
-                                                    "provider": "firstParty"}}}
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "receipt.json"
-            path.write_text(json.dumps(receipt), encoding="utf-8")
-            info = json.loads(run("usage", str(path)).stdout)
-        self.assertEqual(info["models"], ["GLM-5.3-Flash"])
-        self.assertEqual(info["usage"]["GLM-5.3-Flash"], {"inputTokens": 5, "outputTokens": 1, "costUSD": 0.03})
-        self.assertEqual(info["total_cost_usd"], 0.03)
-
-    def test_unreadable_receipt_is_unable(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "receipt.json"
-            path.write_text("{broken", encoding="utf-8")
-            result = run("usage", str(path))
-        self.assertEqual(result.returncode, 2, result.stdout)
-        self.assertTrue(result.stdout.startswith("UNABLE"))
+    def test_unreadable_or_unknown_record_is_unable(self) -> None:
         self.assertEqual(run("usage").returncode, 2)
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "rollout-x.jsonl"
             path.write_text(json.dumps({"type": "turn_context", "payload": "not a dict"}) + "\n", encoding="utf-8")
             info = json.loads(run("usage", str(path)).stdout)
             self.assertEqual(info["routes"], ["unavailable"])
+            # A lone .json file is no record this reads: Claude receipts and OpenCode exports went with their routes.
             path = Path(tmp) / "receipt.json"
-            path.write_text(json.dumps({"modelUsage": {"m": "bad"}}), encoding="utf-8")
-            self.assertEqual(run("usage", str(path)).returncode, 0)
-            path.write_text("[1]", encoding="utf-8")
+            path.write_text(json.dumps({"modelUsage": {"m": {"inputTokens": 1}}}), encoding="utf-8")
             result = run("usage", str(path))
         self.assertEqual(result.returncode, 2, result.stdout)
         self.assertTrue(result.stdout.startswith("UNABLE"))
@@ -452,38 +432,6 @@ class UsageTests(unittest.TestCase):
         self.assertEqual((info["id"], info["cwd"], info["last"]), ("s1", "/p", "2026-09-19T11:00:02Z"))
         self.assertEqual(info["session_cost_state"]["total_cost_usd"], 1.5)
         self.assertEqual(info["owner_prompts"]["count"], 2)
-
-    def test_opencode_session_export_and_run_output(self) -> None:
-        # Shapes of OpenCode 2.0.29 as BMN's 70.1 record shows them; values made up.
-        export = {"info": {"id": "ses_0123456789abMadeUpSession1", "agent": "bmn-helper",
-                           "model": {"id": "gpt-6-luna", "providerID": "opencode-go", "variant": "xhigh"},
-                           "cost": 0.0123, "tokens": {"input": 60, "output": 24, "reasoning": 5,
-                                                      "cache": {"read": 7, "write": 0}},
-                           "outcome": "succeeded", "time": {"created": 1791982683647, "updated": 1791982683915}},
-                  "messages": []}
-        step = {"type": "step_finish", "timestamp": 1791982683857, "sessionID": "ses_0123456789abMadeUpSession1",
-                "part": {"type": "step-finish", "cost": 0, "tokens": {"input": 20, "output": 8}}}
-        failed = {"type": "error", "timestamp": 1791982683990, "sessionID": "ses_0123456789abMadeUpSession1",
-                  "error": {"type": "provider.auth", "message": "made up"}}
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "out.session.json"
-            path.write_text(json.dumps(export), encoding="utf-8")
-            info = json.loads(run("usage", str(path)).stdout)
-            self.assertEqual(info["routes"], ["opencode-go/gpt-6-luna#xhigh"])
-            self.assertEqual((info["id"], info["agent"], info["cost_usd"], info["outcome"]),
-                             ("ses_0123456789abMadeUpSession1", "bmn-helper", 0.0123, "succeeded"))
-            self.assertEqual(info["usage"], {"input": 60, "output": 24, "reasoning": 5, "cache_read": 7, "cache_write": 0})
-            self.assertEqual((info["first"], info["last"]), ("2026-10-14T12:58:03.647Z", "2026-10-14T12:58:03.915Z"))
-            # The run's own output names the session and errors, never its partial usage.
-            path = Path(tmp) / "out.jsonl"
-            path.write_text("\n".join([json.dumps(step), "not json", json.dumps(failed)]) + "\n", encoding="utf-8")
-            info = json.loads(run("usage", str(path)).stdout)
-            self.assertEqual((info["id"], info["usage"], info["errors"]), ("ses_0123456789abMadeUpSession1", "unavailable", ["provider.auth"]))
-            self.assertIn("session export", info["note"])
-            # A Claude receipt is still read as one.
-            path = Path(tmp) / "receipt.json"
-            path.write_text(json.dumps({"info": {"id": "not-a-session"}, "modelUsage": {}}), encoding="utf-8")
-            self.assertEqual(json.loads(run("usage", str(path)).stdout)["models"], ["unavailable"])
 
     def test_bmn_ask_export_counts_usage_once_by_its_basis(self) -> None:
         # Shapes of BMN 72.9's export (request.json, outcome.json); values made up.
