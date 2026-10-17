@@ -38,7 +38,8 @@ and policy, not the handoff: relax a recorded restriction only on a later owner
 instruction; an explicit stop persists until he resumes.
 
 Away: `away` as an invocation argument or a message of its own, or the owner saying he
-is leaving now ("going to bed"), starts away mode, a handoff term with his quote and
+is leaving now and unreachable even by phone ("going to bed"; still on his phone or Remote
+Control is not away, owner 2026-10-17), starts away mode, a handoff term with his quote and
 time, until he says he is back or cancels it; an explicit stop outranks it. Forward his
 departure or return words once with `bmn away` or `bmn back --revision R`; activity is
 never either. Run `scripts/check.py away` at invocation and resume and before an owner
