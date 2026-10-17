@@ -61,7 +61,7 @@ current directory when it holds the planning artifacts. `status` is read-only: c
 files, caches or jobs, report discrepancies and mark prior checks' freshness unverified.
 
 Find the plan with `bmn plan status --json` and report its format and paths; both plans
-present, an unknown schema or a malformed own plan stops the run with that error named. In
+present, an unknown schema or a malformed BMN-format plan stops the run with that error named. In
 BMN's format (BMN `docs/planning.md`) read `PLAN.md`, the selected epic files and their rows,
 opening references, logs and evidence on demand; a legacy epic reads as its BMAD text, and an
 epic's Truth impact is part of the outcome you verify. There `project` takes the unfinished
@@ -70,7 +70,8 @@ stop sets the rows it stops `paused`, and a resumed run leaves them until he res
 Change your rows with `bmn plan set` and the row's token, `done` meaning verified acceptance
 as below; add one concise Log line with its evidence path to your epic file at acceptance and
 one at delivery, as the default-checkout edit you make for your rows; commit nothing in
-`plan/.git`. A BMAD project is unchanged.
+`plan/.git`. A BMAD project is read and updated as before this format existed: its epics
+and story files, and the `sprint-status.yaml` board the status names.
 
 Read project instructions, original acceptance criteria, relevant architecture and
 dependencies. Reconcile repository, board, handoff and active helpers;
