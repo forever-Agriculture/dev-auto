@@ -168,7 +168,8 @@ unverified boundaries. Give every material finding from all reviews a dispositio
 against the accepted revision, as the review brief defines. Changes for the selected
 scope sit inside the reviewed revision or carry delta evidence, including commits added
 after acceptance; name any unrelated residual change and why. Material findings without
-a disposition, material gaps and mandatory unverified gates block acceptance.
+a disposition, material gaps and mandatory unverified gates block acceptance. A complete epic
+ends with its page from BMN's `team-page` skill.
 
 ## Handoff and recovery
 
