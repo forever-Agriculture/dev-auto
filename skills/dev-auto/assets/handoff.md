@@ -15,7 +15,7 @@
 
 ## Progress
 
-- Sprint board and reconciled state: each selected epic; dependency or blocker
+- Board (format and path from `bmn plan status --json`) and reconciled state: each selected epic; dependency or blocker
 - Implemented:
 - Associated loop (optional; host and native loop/task ID):
 - Active helpers (ID, route, scope, ownership, state):

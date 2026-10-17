@@ -2,9 +2,9 @@
 # MODULE: install-dev-auto.py - link shared skills and register the dev-auto recovery hook
 """Install or check the shared skill links and dev-auto's SessionStart recovery hook.
 
-Links: Codex and Claude Code share ``skills/dev-auto`` and
-``skills/epic-lead-planning`` from this checkout. The GLM profile (``claude glm``)
-also receives both skills when it exists.
+Links: Codex and Claude Code share ``skills/dev-auto`` from this checkout. The GLM
+profile (``claude glm``) also receives it when it exists. ``skills/epic-lead-planning``
+is no longer installed: planning is BMN's ``plan`` skill, which BMN installs itself.
 Existing conflicting files or links are never overwritten.
 
 Hooks (default; skip with ``--links-only``): one ``SessionStart`` group with matcher ``compact|resume``
@@ -30,8 +30,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "skills" / "dev-auto"
-PLANNING_SOURCE = ROOT / "skills" / "epic-lead-planning"
-SKILL_SOURCES = {"dev-auto": SOURCE, "epic-lead-planning": PLANNING_SOURCE}
+SKILL_SOURCES = {"dev-auto": SOURCE}
 HOOK_SCRIPT = ROOT / "hooks" / "dev-auto-session-start.py"
 SKILL_DIRS = (Path(".agents/skills"), Path(".claude/skills"))
 HOOK_FILES = (

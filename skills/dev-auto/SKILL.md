@@ -1,11 +1,11 @@
 ---
 name: dev-auto
-description: Implement, resume, or report selected BMAD-planned epics directly, preserving scope, acceptance evidence and recovery state. Use for explicit dev-auto work in a BMAD project.
+description: Implement, resume, or report selected epics planned in BMN's plan format or BMAD's, directly, preserving scope, acceptance evidence and recovery state. Use for explicit dev-auto work in a planned project.
 ---
 
 # Dev Auto
 
-Deliver the selected BMAD epics with host tools under existing authority, adding no
+Deliver the selected epics (BMN's plan or BMAD's) with host tools under existing authority, adding no
 unnecessary approval stage.
 Optimize accepted quality, total cost, elapsed time and owner attention together. Each
 check earns its place by a failure it prevents; reuse valid evidence.
@@ -60,8 +60,20 @@ cross-epic evaluation), `resume` and `status` in the selected project, defaultin
 current directory when it holds the planning artifacts. `status` is read-only: change no
 files, caches or jobs, report discrepancies and mark prior checks' freshness unverified.
 
+Find the plan with `bmn plan status --json` and report its format and paths; both plans
+present, an unknown schema or a malformed own plan stops the run with that error named. In
+BMN's format (BMN `docs/planning.md`) read `PLAN.md`, the selected epic files and their rows,
+opening references, logs and evidence on demand; a legacy epic reads as its BMAD text, and an
+epic's Truth impact is part of the outcome you verify. There `project` takes the unfinished
+epics in `queue` order, then unqueued ones by number, skipping `paused` and `dropped`; an owner
+stop sets the rows it stops `paused`, and a resumed run leaves them until he resumes them.
+Change your rows with `bmn plan set` and the row's token, `done` meaning verified acceptance
+as below; add one concise Log line with its evidence path to your epic file at acceptance and
+one at delivery, as the default-checkout edit you make for your rows; commit nothing in
+`plan/.git`. A BMAD project is unchanged.
+
 Read project instructions, original acceptance criteria, relevant architecture and
-dependencies. Reconcile repository, sprint board, handoff and active helpers;
+dependencies. Reconcile repository, board, handoff and active helpers;
 completion labels are claims to verify. Before each epic, confirm its outcome fits the
 project and keeps later-epic obligations; use the existing board schema and report
 missing state.

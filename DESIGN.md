@@ -6,7 +6,7 @@ Owner correction after installation: dev-auto runs until the selected scope is a
 
 ## Purpose
 
-Deliver accepted project outcomes with a direct coding lead, useful independent help, and proportionate verification. Optimize quality, total cost, elapsed time and owner attention together. BMAD remains the source of planning intent; its implementation workflow is not invoked.
+Deliver accepted project outcomes with a direct coding lead, useful independent help, and proportionate verification. Optimize quality, total cost, elapsed time and owner attention together. The plan (BMN's format or BMAD's) remains the source of planning intent; BMAD's implementation workflow is not invoked.
 
 ## Evidence shaping this proposal
 
@@ -80,8 +80,8 @@ A model limit is not evidence of implementation difficulty. First distinguish la
 
 ## Development and sprint status
 
-1. Read the selected BMAD plans, architecture, acceptance criteria, dependencies and repository instructions. Identify material ambiguities and existing changes. Build a short acceptance map referencing the original criteria rather than rewriting all planning documents.
-2. Resolve the actual sprint-status.yaml and its documented status vocabulary. Treat it as the canonical story/epic progress board. Use existing transition semantics; do not invent new YAML states.
+1. Read the selected plans (BMN's format or BMAD's, as `bmn plan status --json` reports), architecture, acceptance criteria, dependencies and repository instructions. Identify material ambiguities and existing changes. Build a short acceptance map referencing the original criteria rather than rewriting all planning documents.
+2. Resolve the actual board (`plan/status.yaml` or BMAD's sprint-status.yaml) and its documented status vocabulary. Treat it as the canonical story/epic progress board. Use existing transition semantics; do not invent new YAML states.
 3. Mark a story in progress when implementation starts, review-ready when implementation and focused checks are ready, and done only after required evidence and applicable reviews are satisfied. Epic acceptance follows integrated verification. Maintain any project-specific retrospective semantics.
 4. The lead owns status writes. Preserve unrelated entries, comments and order. Use guarded atomic writes, reread validation and stale-input detection so another actor's changes cannot be overwritten. Workers return evidence; they do not race to update the board.
 5. When a material defect invalidates completed acceptance, reopen the affected story using a supported state and record why. If an epic/project gate is blocked, preserve that fact even when its individual stories passed.
@@ -119,7 +119,7 @@ Consultation briefs reference these instead of reopening them.
 
 ## Small durable run record
 
-Keep the existing sprint board plus one concise run handoff and referenced evidence files. Do not duplicate BMAD story state into a second competing board.
+Keep the existing sprint board plus one concise run handoff and referenced evidence files. Do not duplicate the plan's story state into a second competing board.
 
 The handoff retains: selected scope and planning paths; original deadline; owner restrictions and action-specific permissions; policy revision; model routes; active worker identities; accepted evidence with source fingerprint; unresolved findings; cross-story obligations; next action and blockers. Update at meaningful transitions, before compaction and before yielding.
 

@@ -1,13 +1,13 @@
 # dev-auto
 
-Direct development from BMAD plans, with project-alignment checks, regression tests, independent reviews and useful model delegation. Shared skills for Codex, Claude Code and Claude Code on the GLM route (deactivated since 2026-09-30); no custom orchestration engine.
+Direct development from plans in BMN's format or BMAD's, with project-alignment checks, regression tests, independent reviews and useful model delegation. Shared skills for Codex, Claude Code and Claude Code on the GLM route (deactivated since 2026-09-30); no custom orchestration engine.
 
 Direct Codex/Claude implementation is the foundation. Dev-auto adds a thin layer
 of proportionate quality, security, and recovery checks. Real runs inform the
 ongoing search for the best balance of quality, total cost, elapsed time, and owner
 attention; simplify when evidence shows overhead does not earn its cost.
 
-Dev-auto owns the implementation workflow: consume BMAD plans directly, without
+Dev-auto owns the implementation workflow: consume plans (BMN's `plan/` or BMAD's) directly, without
 nesting another build workflow or introducing a second approval for authorized
 work. Repeated failed outcomes trigger diagnosis of the shared boundary before
 another repair, even when successive errors differ.
@@ -21,7 +21,7 @@ python3 scripts/install-dev-auto.py
 python3 scripts/install-dev-auto.py --check
 ```
 
-The installer links every client to `skills/dev-auto` and `skills/epic-lead-planning` in this checkout. The planning skill adds an advisory suggested lead while drafting BMAD epics in any project; it does not change implementation routing or need a hook. The installer also registers the dev-auto compaction-recovery hook:
+The installer links every client to `skills/dev-auto` in this checkout. Planning is BMN's `plan` skill, which BMN installs into every app by itself; `skills/epic-lead-planning` is kept only as a pointer to it and is no longer installed. The installer also registers the dev-auto compaction-recovery hook:
 
 - Codex: `~/.agents/skills/dev-auto`; hook group in `~/.codex/hooks.json`
 - Claude Code: `~/.claude/skills/dev-auto`; hook group in `~/.claude/settings.json`
@@ -83,9 +83,9 @@ Codex's native skill picker may also expose it. The skill does not switch the cu
 
 ## What it does
 
-1. Reads project instructions and BMAD requirements, architecture, epics/stories and acceptance criteria.
+1. Finds the plan with `bmn plan status --json` and reads project instructions and the plan's requirements, architecture, epics/stories and acceptance criteria.
 2. Checks the selected epic against the project before implementing it directly.
-3. Works on its own branch in its own worktree with its own dependencies, and updates its own `sprint-status.yaml` rows in both the default checkout, where the owner reads them, and its worktree, preserving unrelated entries and comments; the default branch gets the work through an owner-authorized merge.
+3. Works on its own branch in its own worktree with its own dependencies, and updates its own board rows (`bmn plan set` in BMN's format, `sprint-status.yaml` in BMAD's) in both the default checkout, where the owner reads them, and its worktree, preserving unrelated entries and comments; the default branch gets the work through an owner-authorized merge.
 4. Uses focused story tests and appropriate project regression/integration checks; checks existing behavior, not just new tests.
 5. Runs a quick Luna pre-review of the frozen epic alongside its own final checks, repairs once, then one independent Astra whole-epic review with a focused recheck, never editing a candidate while a reviewer reads it. Repair loops are bounded (see [SKILL.md](skills/dev-auto/SKILL.md)); every material finding ends with a disposition, and acceptance confirms each in-scope story's board row.
 6. Preserves pending findings, restrictions, routes, evidence and next actions in a short project handoff.

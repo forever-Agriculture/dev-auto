@@ -170,7 +170,7 @@ class SessionStartHookTests(unittest.TestCase):
             self.assertIn("never GLM", context)
             self.assertIn("retry double-charges", context)
             self.assertIn("run tests for story 2.3", context)
-            self.assertIn("Sprint board", context)
+            self.assertIn("Board (format and path", context)
             self.assertLess(len(context), 14_000)
 
     def test_multiline_field_and_explicit_stop_are_kept_whole(self) -> None:

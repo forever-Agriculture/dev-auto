@@ -6,7 +6,7 @@ Status: initial version published and installed; current owner correction remove
 
 - One canonical `skills/dev-auto/SKILL.md` usable by Codex and Claude Code.
 - A small supporting model-routing reference, loaded when dispatching, with real configured routes and effort levels.
-- A short handoff template for `.dev-auto/handoff.md` in the target project. The existing `sprint-status.yaml` remains its progress board.
+- A short handoff template for `.dev-auto/handoff.md` in the target project. The project's existing board (`plan/status.yaml` or BMAD's `sprint-status.yaml`) remains its progress board.
 - A small install/check helper only to link both clients to the canonical skill without overwriting existing content, and to register one `SessionStart` recovery hook (`compact|resume`) that reinjects the handoff's key fields after compaction. Use native host execution, permissions, background jobs and delegation.
 - A short reviewer brief (`references/review-brief.md`) with adversarial invariant questions, loaded before an independent review.
 
@@ -15,7 +15,7 @@ No controller, scheduler, worker launcher framework, event journal, custom retry
 ## Required behavior
 
 1. Accept selected epic numbers/ranges, project, resume and status; work until the selected scope passes acceptance, without an automatic time limit. Use the native invocation on each host. Scheduling stays outside the skill.
-2. Read BMAD planning artifacts and project instructions. Implement directly, without BMAD implementation workflows. Before each epic, check its fit with project goals, architecture, dependencies, current code and obligations to later epics. Resolve material conflicts within authority; preserve original intent.
+2. Read the planning artifacts (BMN's `plan/` or BMAD's) and project instructions. Implement directly, without BMAD implementation workflows. Before each epic, check its fit with project goals, architecture, dependencies, current code and obligations to later epics. Resolve material conflicts within authority; preserve original intent.
 3. Lead defaults: Sol/xhigh in Codex or Opus/xhigh in Claude Code. The skill cannot magically switch the current model; verify the actual host selection and report a mismatch rather than claiming the requested model is running.
 4. Lead may dispatch any appropriate model for sizeable independent work and GLM Flash/max or Luna/max whenever useful. Debugging assistance: GLM/max. Routine alternative: Sonnet/low or medium. Retain useful safe parallelism with explicit file/resource ownership.
 5. Whole-epic important review and overall project alignment: Astra/medium then Fable/medium as an escalation/fallback tier, not a mandatory pair. Low is appropriate for bounded questions or small well-evidenced epics. Project final evaluation and critical decisions: Astra/high then Fable/high. GLM supports routine work. Record actual routes; GLM is available through Claude Code.
