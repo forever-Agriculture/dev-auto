@@ -24,7 +24,8 @@ again for the same run makes a new revision; his earlier answer holds until he a
 ## Reading and using it
 
 Read `scripts/check.py grant` right before each step a grant would pay for, never the
-handoff or memory. Record the use first, with an id that stays the same on a retry:
+handoff or memory; before each granted merge or push, also read `bmn policy --repo
+OWNER/NAME` again, as for every merge or push. Record the use first, with an id that stays the same on a retry:
 `bmn grant use --run <Run id> --boundary <boundary> --use-id <boundary>:round-<n>` for a
 round, `--item <term id> --use-id <stable id>` for an action. A refused use means the step
 waits as it would without a grant. After an uncertain outcome, read the target's state
@@ -52,7 +53,7 @@ last granted round, ask the consultant for a step-back consult and record it: th
 criteria, the architecture, and every failed method with what it established; its options
 keep the requirements and include a different design, descoping work the story does not
 ask for, and BLOCKED; report the chosen option with `bmn grant report --run <Run id>
---boundary <boundary> --step-back --text <option>`. The last round follows the recorded option, or the boundary parks
+--boundary <boundary> --step-back --text <option>` before that round's use. The last round follows the recorded option, or the boundary parks
 BLOCKED when that option is to stop. With the rounds used, the boundary parks BLOCKED with
 the consult's options and the third-method card waits for him, as without a grant. Back
 during a round lets it finish; no new round starts.
