@@ -27,25 +27,28 @@ Read `scripts/check.py grant` right before each step a grant would pay for, neve
 handoff or memory; before each granted merge or push, also read `bmn policy --repo
 OWNER/NAME` again, as for every merge or push. Record the use first, with an id that stays the same on a retry:
 `bmn grant use --run <Run id> --boundary <boundary> --use-id <boundary>:round-<n>` for a
-round, `--item <term id> --use-id <stable id>` for an action. A refused use means the step
-waits as it would without a grant. After an uncertain outcome, read the target's state
-first and retry only under the same use id when the action did not happen; once he is
-back, that retry is refused and waits. A use id belongs to its run and away period, and his
+round, `--item <term id> --use-id <stable id>` for an action; keep the period it prints with
+the use. A refused use means the step waits as it would without a grant. After an uncertain
+outcome, read the target's state first and retry only under the same use id when the action
+did not happen; once he has answered a new revision, or is back, that retry is refused and
+waits. A use id belongs to its run and away period, and his
 answer to a new revision is a new grant, its actions counted afresh. The boundary
 name is the one the handoff's review allowance uses, so rounds used count across resumes,
 leads and away periods.
 
 After each step, report what it did for his morning summary: `bmn grant report --run
-<Run id> --use-id <id> --result passed|failed|blocked` for a round, `done`, `refused` (with
-`--text` saying why) or `uncertain` for an action; a granted action a rule or GitHub stopped
-before any use is `--item <term id> --text <why>`. A report grants nothing.
+<Run id> --period <its period> --use-id <id> --result passed|failed|blocked` for a round,
+`done`, `refused` (with `--text` saying why) or `uncertain` for an action; a granted action a
+rule or GitHub stopped before any use is `--item <term id> --text <why>`. A report grants
+nothing and is taken after Back too.
 
 ## A granted round at a parked boundary
 
 A boundary parked by the review brake or the away repair takes one granted round at a time:
 
-1. Record the new evidence and a consultant-agreed method in the brake record first.
-2. Record the round with `bmn grant use`.
+1. Record the new evidence and a consultant-agreed method in the brake record, and save the
+   handoff in its own tool call.
+2. Once that save succeeded, record the round with `bmn grant use`.
 3. Make one consolidated repair and one focused recheck.
 
 A third failed method within the granted rounds does not stop for his card. Before the

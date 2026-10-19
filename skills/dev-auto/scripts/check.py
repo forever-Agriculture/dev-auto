@@ -443,6 +443,12 @@ def usage(args: list[str]) -> int:
     return 0
 
 
+# Printed with every grant, read right before the step (BMN Epic 84's recheck: a lead recorded the round, then saved the method).
+GRANT_ORDER = ("ORDER: at a parked boundary, save the evidence and agreed method in the brake record successfully, in its own "
+               "tool call, before `bmn grant use` records the round; keep the period `bmn grant use` prints with the use and "
+               "report its outcome with `bmn grant report --period`.")
+
+
 def grant(project: Path) -> int:
     handoff = find_handoff(project)
     try:
@@ -478,6 +484,7 @@ def grant(project: Path) -> int:
         return 2
     if run.get("active") is True:
         print("GRANT: " + "\n".join(lines))
+        print(GRANT_ORDER)
     else:
         print(f"NO GRANT: {run.get('reason') or 'none answered'}")
     return 0

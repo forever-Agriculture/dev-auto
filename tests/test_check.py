@@ -635,7 +635,11 @@ class GrantTests(unittest.TestCase):
         self.bmn(self.answer(True, lines))
         result = self.grant()
         self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertEqual(result.stdout, "GRANT: " + "\n".join(lines) + "\n")
+        printed, order = result.stdout.rstrip("\n").rsplit("\n", 1)
+        self.assertEqual(printed, "GRANT: " + "\n".join(lines))
+        # BMN Epic 84's recheck: the order is printed where the lead reads the grant, right before the step.
+        self.assertTrue(order.startswith("ORDER: at a parked boundary, save the evidence and agreed method in the brake record"), order)
+        self.assertIn("report its outcome with `bmn grant report --period`", order)
 
     def test_no_grant_says_why_and_the_handoff_grants_nothing(self) -> None:
         reason = "the owner is back; every grant ended at 07:40"
