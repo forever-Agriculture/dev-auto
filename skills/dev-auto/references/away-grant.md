@@ -39,8 +39,8 @@ leads and away periods.
 After each step, report what it did for his morning summary: `bmn grant report --run
 <Run id> --period <its period> --use-id <id> --result passed|failed|blocked` for a round,
 `done`, `refused` (with `--text` saying why) or `uncertain` for an action; a granted action a
-rule or GitHub stopped before any use is `--item <term id> --text <why>`. A report grants
-nothing and is taken after Back too.
+rule or GitHub stopped before any use is `--item <term id> --text <why>`. A report's
+`--text` is at most 1,000 characters. A report grants nothing and is taken after Back too.
 
 ## A granted round at a parked boundary
 
