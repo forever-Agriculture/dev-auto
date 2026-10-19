@@ -15,7 +15,7 @@ BMN's notice that he is leaving or away, ask once, before you forward `bmn away`
 - extra repair rounds per boundary (2, 3 or 4), only when a review or gate boundary is ahead;
 - each reserved action you foresee, with its target: merge a PR (at its head SHA, or up to
   N of this run's PRs when their required checks are green), push a branch to the default
-  branch, or open or update a PR in another repository;
+  branch, or open or update a PR in another repository (its branch or PR number);
 - `bmn grant ask --run <Run id> --nothing` when the remaining work needs none of these.
 
 Other reserved decisions still go on the one departure card the skill describes. Asking
@@ -28,7 +28,8 @@ handoff or memory. Record the use first, with an id that stays the same on a ret
 `bmn grant use --run <Run id> --boundary <boundary> --use-id <boundary>:round-<n>` for a
 round, `--item <term id> --use-id <stable id>` for an action. A refused use means the step
 waits as it would without a grant. After an uncertain outcome, read the target's state
-first and retry only under the same use id when the action did not happen. The boundary
+first and retry only under the same use id when the action did not happen; once he is
+back, that retry is refused and waits. The boundary
 name is the one the handoff's review allowance uses, so rounds used count across resumes,
 leads and away periods.
 
