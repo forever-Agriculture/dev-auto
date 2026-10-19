@@ -129,7 +129,7 @@ Minimal helpers are justified for synchronization checks, safe board edits, work
 
 Report separately: implemented, verified locally, independently reviewed, blocked/unverified external gates and release status. Astra/Fable evaluate correctness evidence, goal satisfaction and proportionality; their approval is not a correctness guarantee.
 
-Commit, push, merge and deploy remain separate permissions. A multi-hour development request does not authorize them. Workers inherit only explicitly allowed access; never silently switch to production credentials or services to make a local test pass.
+Commit and deploy remain separate permissions, and pushes, merges and pull-request writes go only as far as `bmn policy --repo OWNER/NAME` authorizes. A multi-hour development request authorizes none of them. Workers inherit only explicitly allowed access; never silently switch to production credentials or services to make a local test pass.
 
 Capture elapsed time through acceptance, provider/model usage including the lead, helpers and recovery, quota/cost when observable, meaningful defects found, escaped defects and owner interventions. Read them from host records (lead session IDs and receipt paths in the handoff) when runs are evaluated: lead-written tallies were wrong or missing in every run audited on 2026-09-28. Unknown usage stays unknown. Test count, token count or story count alone cannot establish efficiency.
 
