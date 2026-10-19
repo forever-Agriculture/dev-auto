@@ -32,6 +32,11 @@ first and retry only under the same use id when the action did not happen. The b
 name is the one the handoff's review allowance uses, so rounds used count across resumes,
 leads and away periods.
 
+After each step, report what it did for his morning summary: `bmn grant report --run
+<Run id> --use-id <id> --result passed|failed|blocked` for a round, `done`, `refused` (with
+`--text` saying why) or `uncertain` for an action; a granted action a rule or GitHub stopped
+before any use is `--item <term id> --text <why>`. A report grants nothing.
+
 ## A granted round at a parked boundary
 
 A boundary parked by the review brake or the away repair takes one granted round at a time:
@@ -44,7 +49,8 @@ A third failed method within the granted rounds does not stop for his card. Befo
 last granted round, record the step-back consult: the original intent and acceptance
 criteria, the architecture, and every failed method with what it established; its options
 keep the requirements and include a different design, descoping work the story does not
-ask for, and BLOCKED. The last round follows the recorded option, or the boundary parks
+ask for, and BLOCKED; report the chosen option with `bmn grant report --run <Run id>
+--boundary <boundary> --step-back --text <option>`. The last round follows the recorded option, or the boundary parks
 BLOCKED when that option is to stop. With the rounds used, the boundary parks BLOCKED with
 the consult's options and the third-method card waits for him, as without a grant. Back
 during a round lets it finish; no new round starts.
