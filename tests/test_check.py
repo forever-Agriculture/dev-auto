@@ -595,5 +595,80 @@ class AwayTests(unittest.TestCase):
         self.assertIn("NONE: none since - revision 0; the handoff is current", result.stdout)
 
 
+class GrantTests(unittest.TestCase):
+    """`check.py grant`: the run's Away grant read fresh from BMN, never from the handoff (BMN Story 84.5 AC2)."""
+
+    RUN = "dev-auto-epic-80-20261019"
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.bin = Path(self.tmp.name) / "bin"
+        self.bin.mkdir()
+        body = CLEAN.replace("- Status: COMPLETE", "- Status: ACTIVE").replace(
+            "- Explicit user stop", f"- Run id: {self.RUN}\n- Grant: 4 rounds per boundary (a stale copy)\n- Explicit user stop")
+        self.project = Project(body)
+        self.addCleanup(self.project.tmp.cleanup)
+
+    def bmn(self, stdout: str = "", code: int = 0, stderr: str = "") -> None:
+        script = self.bin / "bmn"
+        script.write_text("#!/bin/sh\n"
+                          f"[ \"$*\" = \"grant --run {self.RUN} --json\" ] || exit 9\n"
+                          f"printf '%s' {json.dumps(stdout)}\nprintf '%s' {json.dumps(stderr)} >&2\nexit {code}\n",
+                          encoding="utf-8")
+        script.chmod(0o755)
+
+    def grant(self, socket: bool = True) -> subprocess.CompletedProcess[str]:
+        env = {k: v for k, v in os.environ.items() if k not in ("BMN_CONTROL_SOCKET", "AITERM_CONTROL_SOCKET")}
+        env["PATH"] = f"{self.bin}{os.pathsep}/usr/bin{os.pathsep}/bin"
+        if socket:
+            env["BMN_CONTROL_SOCKET"] = "/nonexistent/control.sock"
+        return run("grant", str(self.project.root), env=env)
+
+    def answer(self, active: bool, lines: list[str], reason: str | None = None) -> str:
+        entry = {"runId": self.RUN, "active": active, "lines": lines, **({} if reason is None else {"reason": reason})}
+        return json.dumps({"departure": None, "runs": [entry]})
+
+    def test_an_active_grant_prints_bmns_lines(self) -> None:
+        lines = [f"Grant for run {self.RUN} (Epic 80), period p-1, while the owner is away; answered on Telegram.",
+                 "  Extra repair rounds: 3 per boundary; epic-80: 1 of 3 used."]
+        self.bmn(self.answer(True, lines))
+        result = self.grant()
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(result.stdout, "GRANT: " + "\n".join(lines) + "\n")
+
+    def test_no_grant_says_why_and_the_handoff_grants_nothing(self) -> None:
+        reason = "the owner is back; every grant ended at 07:40"
+        self.bmn(self.answer(False, [f"No grant for run {self.RUN}: {reason}."], reason))
+        result = self.grant()
+        self.assertEqual((result.returncode, result.stdout), (0, f"NO GRANT: {reason}\n"))
+        self.assertNotIn("4 rounds", result.stdout)
+
+    def test_missing_bmn_or_an_older_bmn_is_no_grant(self) -> None:
+        self.assertEqual(self.grant().stdout, "MISSING: no bmn command or BMN session; NO GRANT: nothing is granted\n")
+        self.bmn(self.answer(True, ["Grant."]))
+        self.assertTrue(self.grant(socket=False).stdout.startswith("MISSING"))
+        self.bmn(code=2, stderr="bmn: unknown command grant\nRun \"bmn help\" for usage.\n")
+        self.assertEqual(self.grant().stdout, "MISSING: this BMN has no Away grant; NO GRANT: nothing is granted\n")
+
+    def test_a_failed_read_is_unavailable_and_grants_nothing(self) -> None:
+        self.bmn(code=1, stderr="bmn: the grant could not be read (IO_ERROR); nothing is granted\n")
+        failed = self.grant()
+        self.assertEqual(failed.returncode, 2, failed.stdout)
+        self.assertIn("UNAVAILABLE: bmn grant failed (exit 1): bmn: the grant could not be read", failed.stdout)
+        self.assertIn("NO GRANT: nothing is granted", failed.stdout)
+        self.bmn("not json")
+        self.assertEqual(self.grant().returncode, 2)
+        self.bmn(json.dumps({"runs": []}))
+        self.assertEqual(self.grant().returncode, 2)
+
+    def test_a_handoff_without_a_run_id_is_unable(self) -> None:
+        self.project.write(CLEAN.replace("- Status: COMPLETE", "- Status: ACTIVE"))
+        self.bmn(self.answer(True, ["Grant."]))
+        result = self.grant()
+        self.assertEqual(result.returncode, 2)
+        self.assertTrue(result.stdout.startswith("UNABLE: the handoff has no `- Run id:`"))
+
+
 if __name__ == "__main__":
     unittest.main()

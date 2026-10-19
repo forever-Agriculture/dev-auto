@@ -21,6 +21,11 @@ away [PROJECT]      read BMN's away state (`bmn away --status --json`: state, si
                     session or away in that BMN (local away mode as before); UNAVAILABLE (exit 2) when the read
                     fails or goes back in revision: the field's state holds with every stop and
                     limit, never read as back.
+grant [PROJECT]     read the run's Away grant fresh from BMN (`bmn grant --run <Run id> --json`, BMN
+                    Epic 84), never from the handoff: GRANT with BMN's lines (terms, period, what is
+                    left), or NO GRANT with the reason. MISSING without `bmn`, a BMN session or a BMN
+                    that has grants; UNAVAILABLE (exit 2) when the read fails. Anything but GRANT
+                    grants nothing.
 
 Exit 0 PASS or SKIP (status not COMPLETE and shape checks pass), 1 FAIL with one reason per line,
 2 UNABLE when a required file or command cannot be read. ``-h`` or ``--help`` prints this text.
@@ -438,6 +443,46 @@ def usage(args: list[str]) -> int:
     return 0
 
 
+def grant(project: Path) -> int:
+    handoff = find_handoff(project)
+    try:
+        body = handoff.read_text(encoding="utf-8", errors="replace") if handoff else ""
+    except OSError as exc:
+        print(f"UNABLE: cannot read {handoff}: {exc}")
+        return 2
+    run_id = (field(body, "Run id") or "").split()
+    if not run_id:
+        print("UNABLE: the handoff has no `- Run id:`; a grant is asked and read by the run's id")
+        return 2
+    env = dict(os.environ)
+    if shutil.which("bmn", path=env.get("PATH")) is None or not (
+            env.get("BMN_CONTROL_SOCKET") or env.get("AITERM_CONTROL_SOCKET")):
+        print("MISSING: no bmn command or BMN session; NO GRANT: nothing is granted")
+        return 0
+    try:
+        done = subprocess.run(["bmn", "grant", "--run", run_id[0], "--json"], capture_output=True, text=True,
+                              env=env, timeout=20)
+        result = json.loads(done.stdout) if done.returncode == 0 else None
+    except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+        print(f"UNAVAILABLE: bmn grant failed: {exc.__class__.__name__}; NO GRANT: nothing is granted")
+        return 2
+    if done.returncode == 2 and "unknown command grant" in done.stderr:  # a BMN from before the grant
+        print("MISSING: this BMN has no Away grant; NO GRANT: nothing is granted")
+        return 0
+    runs = result.get("runs") if isinstance(result, dict) else None
+    run = runs[0] if isinstance(runs, list) and runs and isinstance(runs[0], dict) else None
+    lines = run.get("lines") if run else None
+    if not run or not isinstance(lines, list) or not all(isinstance(line, str) for line in lines):
+        print(f"UNAVAILABLE: bmn grant failed (exit {done.returncode}): {done.stderr.strip()[:200]}; "
+              "NO GRANT: nothing is granted")
+        return 2
+    if run.get("active") is True:
+        print("GRANT: " + "\n".join(lines))
+    else:
+        print(f"NO GRANT: {run.get('reason') or 'none answered'}")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     if {"-h", "--help"} & set(argv):  # `usage --help` once read as a path, and a lead
         print((__doc__ or "").strip())  # then recorded usage as unobservable
@@ -448,6 +493,8 @@ def main(argv: list[str]) -> int:
         return usage(argv[1:])
     if argv[:1] == ["away"] and len(argv) <= 2:
         return away(Path(argv[1]) if len(argv) == 2 else Path.cwd())
+    if argv[:1] == ["grant"] and len(argv) <= 2:
+        return grant(Path(argv[1]) if len(argv) == 2 else Path.cwd())
     print((__doc__ or "").strip())
     return 2
 

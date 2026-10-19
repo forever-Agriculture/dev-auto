@@ -51,7 +51,9 @@ departure you handle, at once state in one short message the selected scope, wha
 proceeds and what waits; unless he forbade questions, add one card for unresolved
 decisions reserved above that remaining work may need. Then record what waits instead of
 asking; anything else reserved to him parks its own boundary. Once per boundary, one further narrow repair and recheck may
-follow a used review allowance; mark it used in the handoff first.
+follow a used review allowance; mark it used in the handoff first. When BMN says he is leaving
+or away, a run asks for its night on one card and a parked boundary takes only the rounds he
+granted: follow [references/away-grant.md](references/away-grant.md).
 
 ## Scope and delivery
 
@@ -111,7 +113,8 @@ the log; later leads continue the record, never restart it. Without such a metho
 stays BLOCKED. Keep changes unrelated to the failure out of these attempts. Once per
 method, a failure in your own harness before product execution counts as a gate run,
 not a failed method: repair and rerun; a second such failure fails the method.
-After every third failed agreed method at one boundary, ask the owner by card: that
+After every third failed agreed method at one boundary (within rounds he granted, the away-grant
+reference instead), ask the owner by card: that
 record, the consultant's odds and cost to pass, and your recommendation among continue
 within a usage budget, descope, report the cause upstream and leave the gate red, or
 BLOCKED. Pause retries at that boundary until his answer authorizes them; inspect
