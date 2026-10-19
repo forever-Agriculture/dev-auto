@@ -29,7 +29,8 @@ handoff or memory. Record the use first, with an id that stays the same on a ret
 round, `--item <term id> --use-id <stable id>` for an action. A refused use means the step
 waits as it would without a grant. After an uncertain outcome, read the target's state
 first and retry only under the same use id when the action did not happen; once he is
-back, that retry is refused and waits. The boundary
+back, that retry is refused and waits. A use id belongs to its run and away period, and his
+answer to a new revision is a new grant, its actions counted afresh. The boundary
 name is the one the handoff's review allowance uses, so rounds used count across resumes,
 leads and away periods.
 
