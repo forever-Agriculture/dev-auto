@@ -48,7 +48,7 @@ A boundary parked by the review brake or the away repair takes one granted round
 3. Make one consolidated repair and one focused recheck.
 
 A third failed method within the granted rounds does not stop for his card. Before the
-last granted round, record the step-back consult: the original intent and acceptance
+last granted round, ask the consultant for a step-back consult and record it: the original intent and acceptance
 criteria, the architecture, and every failed method with what it established; its options
 keep the requirements and include a different design, descoping work the story does not
 ask for, and BLOCKED; report the chosen option with `bmn grant report --run <Run id>
