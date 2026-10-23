@@ -25,6 +25,7 @@
 
 - Original or approved intent changes:
 - Decided for you (decisions taken under the owner's delegation, for his review; one line each, `[dN]` first, `(bmn: SESSION/KEY)` last once BMN recorded it, as `bmn decision record` returned them):
+- Needs your decision (reserved or still uncertain after the consultant; each: evidence, missing decision, affected criteria, untouched and remaining work; asked only when no work can proceed):
 - Material pending findings:
 - Cross-epic obligations:
 

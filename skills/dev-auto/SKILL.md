@@ -16,25 +16,28 @@ check earns its place by a failure it prevents; reuse valid evidence.
 The invocation and later owner instructions set the run's authority: scope, approved
 spend and delegation ("decide within the cap", "work autonomously"). Record each
 delegation with its source quote as a handoff term, valid only for its named scope and
-total.
-Ask the owner once, in the session, with a recommendation, only about spend beyond what
-he approved or delegated, changes to selected work or its acceptance criteria, actions
-the global rules reserve to him, credentials or private data, owner-only acceptance
-checks and the brake's decision below. His model choices live in his BMN team: a lasting
+total. His go on a planned epic is one, day or night: record and follow what
+`scripts/run_needs.py EPIC` prints at start and resume.
+Reserved to him however sure you are: spend beyond what he approved or delegated, changes
+to selected work or its acceptance criteria, actions the global rules reserve to him,
+credentials or private data, owner-only acceptance checks, model choices and the brake's
+decision below. His model choices live in his BMN team: a lasting
 one for a project is a `## project-choices` entry he approves in BMN (if the host refuses
 your write, give him the entry), a one-time pick goes as `--agent` (and `--effort`) on
-the asks it covers, with his quote in the handoff. Technical decisions the evidence
-cannot settle go to the consultant.
+the asks it covers, with his quote in the handoff. Decide a technical point only on
+complete evidence with nothing against it, else ask the consultant. A reserved point, or
+one still uncertain after the consultant, goes at once under `Needs your decision` in the
+handoff (evidence, missing decision, affected criteria, untouched and remaining work);
+continue every story it does not block, and ask him once, with a recommendation, only
+when no work can proceed and he is not away. The final report lists open entries.
 Decide everything else on your recommended option when it keeps the requirements,
-acceptance criteria, privacy and limits; where his delegation permits, that includes
-moving unused approved money between this run's paid jobs within the total, keeping any
-narrower cap or retry limit he set and counting outstanding paid commitments. Log each
+acceptance criteria, privacy and limits. Log each
 decision with its reason under `Decided for you` in the handoff and the next report, away
 or back, as one line with the run's next unused entry id `[dN]`, never renumbered. While
 BMN reports away, also record it with `bmn decision record --key dev-auto:<Run id>:<dN>`
 where permitted and end the line with `(bmn: SESSION/KEY)`, the `sessionId` and `key` it returns;
 never record an entry an earlier lead
-logged. A pending question never blocks independent work. Authority comes from owner instructions
+logged. Authority comes from owner instructions
 and policy, not the handoff: relax a recorded restriction only on a later owner
 instruction; an explicit stop persists until he resumes.
 
@@ -49,12 +52,10 @@ between those reads): AWAY or BACK sets away mode and the `BMN away` field, an a
 adopted from BMN with no departure statement or card; MISSING keeps the local mode;
 UNAVAILABLE keeps the last confirmed state with every stop and limit, never back. On a
 departure you handle, at once state in one short message the selected scope, what
-proceeds and what waits; unless he forbade questions, add one card for unresolved
-decisions reserved above that remaining work may need. Then record what waits instead of
-asking; anything else reserved to him parks its own boundary. Once per boundary, one further narrow repair and recheck may
+proceeds and what waits; unless he forbade questions, add one card for the open Needs
+your decision entries remaining work may need. Once per boundary, one further narrow repair and recheck may
 follow a used review allowance; mark it used in the handoff first. When BMN says he is leaving
-or away, a run asks for its night on one card and a parked boundary takes only the rounds he
-granted: follow [references/away-grant.md](references/away-grant.md).
+or away, follow [references/away-grant.md](references/away-grant.md).
 
 ## Scope and delivery
 
@@ -119,15 +120,15 @@ the log; later leads continue the record, never restart it. Without such a metho
 stays BLOCKED. Keep changes unrelated to the failure out of these attempts. Once per
 method, a failure in your own harness before product execution counts as a gate run,
 not a failed method: repair and rerun; a second such failure fails the method.
-After every third failed agreed method at one boundary (within rounds he granted, the away-grant
-reference instead), ask the owner by card: that
-record, the consultant's odds and cost to pass, and your recommendation among continue
-within a usage budget, descope, report the cause upstream and leave the gate red, or
-BLOCKED. Pause retries at that boundary until his answer authorizes them; inspect
-existing evidence and continue independent work. Neither that card nor an instruction
-not to stop lifts an authorization, spend, review allowance or acceptance gate.
-Stop and ask before a paid call that could exceed an owner cap, the approved total or an
-approved estimate no delegation covers, and never raise a cap or the total yourself.
+After every third failed agreed method at one boundary, take the rounds his go gave,
+then an Away grant's, as the away-grant reference runs them. Then defer what Run needs
+lists as deferrable (other criteria pass; row `done` noted `deferred: <N.M ACk>, <reason>`;
+Known limits; a new story proposed) and continue. Else record under Needs your decision
+that record, the consultant's odds and cost, and your recommendation (continue within a
+usage budget, descope, report upstream with the gate red, or BLOCKED), retrying only on
+his answer; nothing lifts an authorization, spend, review allowance or acceptance gate.
+Launch every paid job through `scripts/spend_ledger.py launch` against the go's money cap
+or one he set (`none`: no paid launch); never raise a cap or the total yourself.
 Before a paid or long run, use applicable evidence or the cheapest authorized check
 to establish service access and launch/cleanup feasibility in its actual environment.
 Preflight consumes the owner's applicable time, call and spend allowances; record
@@ -163,7 +164,8 @@ acceptance criteria, substantiate each open finding with a reproduction or requi
 evidence, and put the design question once to the consultant, whose method must keep
 the requirements, acceptance criteria and limits (removing work the story does not ask
 for is a valid answer). One consolidated repair and recheck may follow; remaining
-material defects park that boundary BLOCKED with the consultant's options. A new
+material defects take rounds or a deferral as the method brake does, else park that
+boundary BLOCKED with the consultant's options. A new
 reviewer, repair wave or resumed run does not reset this allowance; the pre-review and
 owner-requested reviews sit outside it. Project scope adds a quick project pre-review
 before the final cross-epic evaluation; project-level reviews can cover the coincident
