@@ -1,3 +1,4 @@
+# MODULE: handoff.md - current run state, evidence and recovery template
 # Dev Auto handoff
 
 - Project / selected epics:
@@ -18,7 +19,7 @@
 - Board (format and path from `bmn plan status --json`) and reconciled state: each selected epic; dependency or blocker
 - Implemented:
 - Associated loop (optional; host and native loop/task ID):
-- Active helpers (ID, route, scope, ownership, state):
+- Active helpers (ID, route, scope, ownership, state; finished ones go to the log):
 
 ## Decisions and findings
 

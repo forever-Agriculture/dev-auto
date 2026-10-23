@@ -1,3 +1,4 @@
+# MODULE: review-brief.md - evidence and questions for independent reviews
 # Independent review brief
 
 Read this before dispatching a pre-review or the strong full review at an epic or
@@ -6,8 +7,10 @@ text for reviewers without tools. Supply the original requirements, the baseline
 (the revision before this scope's first change) and reviewed revisions or content
 fingerprints with the diff between them (task-owned untracked content included),
 the relevant source and tests, execution evidence, a risk map and test
-instructions. Implementation and test summaries are claims to check, not
-orientation. Exclude credentials and unrelated files. Include the prior review and
+instructions. Use exact paths within the reviewer's readable scope; attach authorized
+task material outside it with `--file`, including required plans and checkpoints.
+Implementation and test summaries are claims to check, not orientation. Exclude
+credentials, raw private transcripts and unrelated files. Include the prior review and
 disposition evidence still relevant to this scope.
 
 ## Quick pre-review

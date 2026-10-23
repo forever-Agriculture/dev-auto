@@ -2,6 +2,7 @@
 name: dev-auto
 description: Implement, resume, or report selected epics planned in BMN's plan format or BMAD's, directly, preserving scope, acceptance evidence and recovery state. Use for explicit dev-auto work in a planned project.
 ---
+# MODULE: SKILL.md - direct implementation with bounded review, acceptance and recovery
 
 # Dev Auto
 
@@ -122,8 +123,11 @@ existing evidence and continue independent work. Neither that card nor an instru
 not to stop lifts an authorization, spend, review allowance or acceptance gate.
 Stop and ask before a paid call that could exceed an owner cap, the approved total or an
 approved estimate no delegation covers, and never raise a cap or the total yourself.
-Before a paid or long run, make the cheapest live call to each external service it
-needs; a stubbed dry run proves nothing about a service.
+Before a paid or long run, use applicable evidence or the cheapest authorized check
+to establish service access and launch/cleanup feasibility in its actual environment.
+Preflight consumes the owner's applicable time, call and spend allowances; record
+any required grant use before it. A denial parks that boundary; stubs do not prove
+real-service access.
 
 ## Helpers and review
 
@@ -162,7 +166,9 @@ final epic.
 
 ## Acceptance
 
-Run required broad gates once at acceptance, reusing valid prior results; before a gate,
+Run required broad gates once at acceptance, reusing valid prior results. Schedule
+heavy local gates one at a time, avoiding overlap with heavy work you control and
+reducing concurrency when sharing the machine. Before a gate,
 confirm the tests import this worktree's code and that local services, ports, compose
 projects and mutable test data belong to this run. During repairs run affected checks,
 broadening only when invalidated or required. New or changed behavior ships with
@@ -199,15 +205,15 @@ hash, never in `/tmp` or session scratch; cite host records (`~/.claude/projects
 Maintain `.dev-auto/handoff.md` from [assets/handoff.md](assets/handoff.md), its
 fields current terms with source coordinates. Honor stops immediately; save each change
 of scope, permission, blocker or stop and each helper dispatch and review outcome before
-dependent work, and update at acceptance and before pausing. Append verbatim owner quotes,
-superseded terms, verbose results and failed attempts to the append-only
+dependent work, and reconcile every section at acceptance and before pausing. Append
+verbatim owner quotes, superseded terms, verbose results and failed attempts to the append-only
 `.dev-auto/log.md`, never restated in `Status` or `Resume`; append what changed, never a
 copy of the handoff.
 
-Keep the handoff within the recovery hook's 9,000-character snapshot by moving
-resolved history and verbose results to the log, never dropping unresolved
-information. Keep one each of `Status` (label and short reason), `Explicit user stop`
-(`none` when absent) and `Next safe action`; a finished run's last line is `- Status:
+Keep the handoff readable and within the recovery hook's 9,000-character snapshot:
+move resolved history and verbose results to the log, preserving all unresolved
+information and exact evidence paths. Keep one each of `Status` (label and short reason),
+`Explicit user stop` (`none` when absent) and `Next safe action`; a finished run's last line is `- Status:
 COMPLETE` with stop `none`, a short note after punctuation reversing neither. Run `scripts/check.py check` after
 every handoff save, in the same tool call where the host allows; fix a FAIL at the next
 save and every FAIL before COMPLETE, and record an UNABLE result.
