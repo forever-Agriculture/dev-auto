@@ -10,13 +10,15 @@ Usage:
   spend_ledger.py release --budget B --job J              the job never ran: its reservation is returned
   spend_ledger.py status --budget B
 
-One ledger per plan root and epic, under $XDG_STATE_HOME/dev-auto/budgets/ (default ~/.local/state), outside every
-worktree, shared by resumes, new leads and replacement runs. The cap in force is the latest go's; `none` refuses
-every paid launch. A reapproval never resets what was settled or reserved: it counts against the new cap. `launch`
+One ledger per plan and epic, under $XDG_STATE_HOME/dev-auto/budgets/ (default ~/.local/state), outside every
+worktree, shared by resumes, new leads and replacement runs: a plan is named by its repository's shared Git folder
+and its path inside it, so every linked worktree finds the same ledger. The cap in force is the latest go's, and a
+go older than (or unrelated to) the one recorded is refused; `none` refuses every paid launch. A reapproval never resets what was settled or reserved: it counts against the new cap. `launch`
 reserves only when settled + outstanding reservations + this maximum stay within the cap, writing atomically under
 a lock, then starts the job detached (`systemd-run --user`, as references/models.md runs paid jobs; `--direct`
 starts it as a detached process instead). A refusal, an invalid amount or a missing maximum starts nothing and exits
-non-zero; a retry under the same job id returns the first answer. An unknown outcome keeps its reservation. The
+non-zero; a retry under the same job id returns the first answer. An unknown outcome, including a launch whose
+acknowledgement timed out, keeps its reservation until it is settled or released. The
 ledger covers dev-auto's own paid launches, not every provider call.
 """
 import fcntl
@@ -81,6 +83,27 @@ class Ledger:
         self.lock.close()
 
 
+def plan_identity(plan_root: str) -> str:
+    """The plan as every linked worktree sees it: its repository's shared Git folder and its path inside it."""
+    root = Path(plan_root).resolve()
+    try:
+        out = subprocess.run(["git", "-C", str(root), "rev-parse", "--show-toplevel", "--git-common-dir"],
+                             capture_output=True, text=True, timeout=10, check=True).stdout.splitlines()
+        common = Path(out[1]) if Path(out[1]).is_absolute() else root / out[1]
+        return f"{common.resolve()}::{root.relative_to(Path(out[0]).resolve())}"
+    except (OSError, subprocess.SubprocessError, IndexError, ValueError):
+        return str(root)  # not in Git: the folder itself
+
+
+def go_follows(plan_root: str, earlier: str, later: str) -> bool:
+    """Whether the go commit `later` comes after `earlier` in the plan's history."""
+    try:
+        return subprocess.run(["git", "-C", plan_root, "merge-base", "--is-ancestor", earlier, later],
+                              capture_output=True, timeout=10).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def cap_in_force(data: dict) -> float | None:
     return data["gos"][-1]["cap"] if data["gos"] else None
 
@@ -104,10 +127,11 @@ def open_budget(args: dict) -> int:
     if not (epic and epic.isdigit()):
         print("USAGE: open needs --epic N")
         return EXIT_USAGE
+    epic = str(int(epic))  # 007 and 7 are one epic
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import run_needs
     needs = run_needs.run_needs(Path(args.get("--project") or Path.cwd()), int(epic))
-    budget = hashlib.sha256(needs["plan_root"].encode()).hexdigest()[:16] + f"-epic-{epic}"
+    budget = hashlib.sha256(plan_identity(needs["plan_root"]).encode()).hexdigest()[:16] + f"-epic-{epic}"
     with (ledger := Ledger(budget)) as data:
         data.setdefault("plan_root", needs["plan_root"])
         data.setdefault("epic", int(epic))
@@ -122,6 +146,11 @@ def open_budget(args: dict) -> int:
             data["gos"].append({"kind": "owner", "cap": cap, "source": args["--source"], "at": now()})
         elif needs["state"] == "GO":
             if not any(go.get("commit") == needs["go_commit"] for go in data["gos"]):
+                latest = next((go for go in reversed(data["gos"]) if go.get("kind") == "go"), None)
+                if latest and not go_follows(needs["plan_root"], latest["commit"], needs["go_commit"]):
+                    print(f"REFUSED: go {needs['go_commit'][:12]} does not follow the recorded go {latest['commit'][:12]}; "
+                          "read the plan's current history; the cap is unchanged")
+                    return EXIT_REFUSED
                 data["gos"].append({"kind": "go", "date": needs["go_date"], "commit": needs["go_commit"],
                                     "cap": needs["parsed"]["money_cap"], "at": now()})
         ledger.save()
@@ -165,7 +194,13 @@ def launch(args: dict, job_argv: list[str]) -> int:
                     raise OSError(done.stderr.strip()[:200] or "systemd-run failed")
                 unit = re.search(r"Running as unit: ([^\s;]+)", done.stderr + done.stdout)
                 data["jobs"][job].update(state="started", unit=unit.group(1) if unit else None)
-        except (OSError, subprocess.TimeoutExpired) as exc:
+        except subprocess.TimeoutExpired as exc:
+            # systemd may have accepted the job before its reply was lost: the outcome is unknown and keeps its money.
+            data["jobs"][job].update(answer="UNKNOWN", state="unknown", error=str(exc)[:200])
+            ledger.save()
+            print(f"UNKNOWN: job {job} may have started ({exc}); its reservation is kept until it is settled or released")
+            return EXIT_REFUSED
+        except OSError as exc:
             data["jobs"][job].update(answer="NOT_STARTED", state="released", error=str(exc)[:200])
             ledger.save()
             print(f"NOT_STARTED: job {job} could not start ({exc}); its reservation is returned")
@@ -179,7 +214,7 @@ def close(args: dict, verb: str) -> int:
     budget, job = args.get("--budget"), args.get("--job")
     with (ledger := Ledger(budget or "")) as data:
         entry = data["jobs"].get(job or "")
-        if not entry or entry["answer"] != "STARTED":
+        if not entry or entry["answer"] not in ("STARTED", "UNKNOWN"):
             print(f"REFUSED: no started job {job} in budget {budget}")
             return EXIT_REFUSED
         if entry["state"] in ("settled", "released"):

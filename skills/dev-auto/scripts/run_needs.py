@@ -23,7 +23,6 @@ import sys
 from pathlib import Path
 
 GO_DATE = re.compile(r"\bgo (\d{4}-\d{2}-\d{2})\b")
-ACTIVE = {"ready", "in-progress", "review", "blocked", "done"}
 SECTIONS = ("Run needs", "Decisions")
 
 
@@ -69,9 +68,8 @@ def find_gos(repo: Path, board: str, epic: int, bmad: bool) -> list[dict]:
             if bmad:
                 new = date is not None and date != last_date
             else:
-                to_ready = status == "ready" and date is not None and (previous is None or previous[0] != "ready" or previous[1] != date)
-                first_seen = status in ACTIVE and date is not None and date != last_date
-                new = to_ready or first_seen
+                # Only the move to ready with a dated go approves (90.3 AC1); a date first seen in a later status delegates nothing.
+                new = status == "ready" and date is not None and (previous is None or previous[0] != "ready" or previous[1] != date)
             if new:
                 gos.append({"date": date, "commit": commit})
                 last_date = date

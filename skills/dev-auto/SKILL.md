@@ -25,9 +25,10 @@ decision below. His model choices live in his BMN team: a lasting
 one for a project is a `## project-choices` entry he approves in BMN (if the host refuses
 your write, give him the entry), a one-time pick goes as `--agent` (and `--effort`) on
 the asks it covers, with his quote in the handoff. Decide a technical point only on
-complete evidence with nothing against it, else ask the consultant. A reserved point, or
-one still uncertain after the consultant, goes at once under `Needs your decision` in the
-handoff (evidence, missing decision, affected criteria, untouched and remaining work);
+complete evidence with nothing against it, else ask the consultant and follow a confident
+answer. A reserved point, or one the consultant cannot settle, goes at once under `Needs
+your decision` in the handoff (evidence, missing decision, affected criteria, untouched
+and remaining work);
 continue every story it does not block, and ask him once, with a recommendation, only
 when no work can proceed and he is not away. The final report lists open entries.
 Decide everything else on your recommended option when it keeps the requirements,

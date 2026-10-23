@@ -109,13 +109,11 @@ class RunNeedsTests(unittest.TestCase):
         self.assertEqual((result["go_commit"], result["go_date"], result["parsed"]["money_cap"]), (newer, "2026-10-22", 25.0))
         self.assertEqual(len(result["earlier_gos"]), 2)
 
-    def test_a_go_date_first_committed_past_ready_counts_once(self) -> None:
+    def test_a_go_date_first_committed_past_ready_delegates_nothing(self) -> None:
         self.plan.write("epic-7: backlog", epic())
-        go = self.plan.write("epic-7: in-progress # go 2026-10-23 (owner /dev-auto 7)")
-        self.plan.write("epic-7: review # notes changed, date gone")
-        self.plan.write("epic-7: in-progress # go 2026-10-23 again in a note")
-        result = self.plan.read()
-        self.assertEqual((result["go_commit"], result["earlier_gos"]), (go, []))
+        self.plan.write("epic-7: in-progress # go 2026-10-23 (owner /dev-auto 7)")
+        self.plan.write("epic-7: review # go 2026-10-24 in a later note")
+        self.assertEqual(self.plan.read()["state"], "NO_GO_RECORD")
 
     def test_missing_section_is_no_run_needs(self) -> None:
         self.plan.write("epic-7: backlog", epic(needs=None))

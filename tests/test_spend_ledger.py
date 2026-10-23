@@ -45,6 +45,12 @@ class LedgerTests(unittest.TestCase):
             code = spend_ledger.main(["open", "--epic", "7", *extra])
         return code, out.getvalue()
 
+    def open_epic(self, epic: str, needs: dict) -> str:
+        out = io.StringIO()
+        with mock.patch.object(run_needs, "run_needs", return_value=needs), contextlib.redirect_stdout(out):
+            self.assertEqual(spend_ledger.main(["open", "--epic", epic]), 0)
+        return out.getvalue().split()[1].rstrip(":")
+
     def budget(self, needs: dict) -> str:
         code, out = self.open(needs)
         self.assertEqual(code, 0, out)
@@ -126,6 +132,7 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(spend_ledger.main(["release", "--budget", budget, "--job", "never"]), 1)
 
     def test_a_reapproval_carries_consumption_and_only_a_go_adds_money(self) -> None:
+        self.enterContext(mock.patch.object(spend_ledger, "go_follows", return_value=True))
         budget = self.budget(go("a" * 40, 10.0))
         self.assertEqual(self.launch(budget, "a", "6").returncode, 0)
         spend_ledger.main(["settle", "--budget", budget, "--job", "a", "--spent", "6"])
@@ -143,6 +150,41 @@ class LedgerTests(unittest.TestCase):
             code = spend_ledger.main(["launch", "--budget", budget, "--job", "unit", "--max", "1", "--", str(self.job), "unit"])
         self.assertEqual(code, 0)
         self.assertEqual(self.ledger(budget)["jobs"]["unit"]["unit"], "run-p1-i2.service")
+
+    def test_a_go_older_than_the_recorded_one_is_refused_and_the_cap_stays(self) -> None:
+        budget = self.budget(go("b" * 40, 1.0, "2026-10-25"))
+        with mock.patch.object(spend_ledger, "go_follows", return_value=False):
+            code, out = self.open(go("a" * 40, 10.0, "2026-10-20"))  # read from a stale checkout
+        self.assertEqual((code, out.split(":")[0]), (1, "REFUSED"))
+        self.assertEqual([g["cap"] for g in self.ledger(budget)["gos"]], [1.0])
+        self.assertEqual(self.launch(budget, "a", "2").returncode, 1)
+
+    def test_one_ledger_for_an_epic_however_spelled_and_from_every_linked_worktree(self) -> None:
+        self.assertEqual(self.budget(go("a" * 40, 5.0)), self.open_epic("007", go("a" * 40, 5.0)))
+        repo = self.root / "repo"
+        run = lambda *argv, cwd=repo: subprocess.run(["git", *argv], cwd=cwd, check=True, capture_output=True)
+        (repo / "plan").mkdir(parents=True)
+        run("init", "-q", cwd=self.root / "repo")
+        (repo / "plan" / "status.yaml").write_text("x\n")
+        run("add", ".")
+        run("-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-qm", "plan")
+        run("worktree", "add", "-q", str(self.root / "other"))
+        self.assertEqual(spend_ledger.plan_identity(str(repo / "plan")), spend_ledger.plan_identity(str(self.root / "other" / "plan")))
+        self.assertNotEqual(spend_ledger.plan_identity(str(repo / "plan")), spend_ledger.plan_identity(str(repo)))
+
+    def test_a_launch_whose_acknowledgement_timed_out_keeps_its_reservation(self) -> None:
+        budget = self.budget(go("a" * 40, 10.0))
+        lost = subprocess.TimeoutExpired(["systemd-run"], 60)
+        with mock.patch.object(spend_ledger.subprocess, "run", side_effect=lost), contextlib.redirect_stdout(io.StringIO()) as out:
+            code = spend_ledger.main(["launch", "--budget", budget, "--job", "a", "--max", "8", "--", str(self.job), "a"])
+        self.assertEqual((code, out.getvalue().split(":")[0]), (1, "UNKNOWN"))
+        self.assertEqual(spend_ledger.totals(self.ledger(budget)), (0.0, 8.0))
+        again = self.launch(budget, "a", "8")  # a retry answers as first and starts nothing
+        self.assertEqual(again.returncode, 1)
+        self.assertIn("UNKNOWN", again.stdout)
+        self.assertEqual(self.launch(budget, "b", "8").returncode, 1)  # the money stays reserved
+        self.assertEqual(spend_ledger.main(["release", "--budget", budget, "--job", "a"]), 0)  # once he knows it never ran
+        self.assertEqual(self.launch(budget, "c", "8").returncode, 0)
 
     def test_an_owner_stated_cap_only_where_no_go_or_cap_exists(self) -> None:
         none = {"state": "NO_GO_RECORD", "plan_root": "/plans/other", "reason": "no go"}
