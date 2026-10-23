@@ -88,7 +88,12 @@ compaction use that worktree's handoff, whatever checkout the session or hook po
 Never commit, stash or edit another run's checkout or dependencies. From a separate
 worktree, touch in the default checkout only your epics' board rows and untracked story records, rereading just before each edit and never
 committing there; read missing or older planning files from it without copying its
-uncommitted files. Never remove a run's worktree yourself. Prefer one lead session per
+uncommitted files. `scripts/check.py worktrees` lists each worktree's branch, run state,
+ancestry, uncommitted count and disk bytes, read-only. Offer only finished, clean,
+merged runs on one card; remove only the exact worktrees he names, with `git worktree
+remove`, never `--force` without his word for that worktree. Log each size and removal
+in `.dev-auto/log.md`;
+preserve its needed evidence first. Prefer one lead session per
 epic.
 
 Implement the smallest complete change and continue authorized work until the whole
@@ -195,6 +200,19 @@ a disposition, material gaps and mandatory unverified gates block acceptance. A 
 ends with its page from BMN's `report-artifact` skill.
 
 ## Handoff and recovery
+
+At each server, daemon or container launch, record its command and launch identity in
+the handoff's `## Started` JSON bullets (template): PID and `/proc/PID/stat` start ticks,
+or full container id and name. Before reporting COMPLETE, BLOCKED or PAUSED, run
+`scripts/check.py leftovers CHECKOUT` for every run checkout. It lists identity-matching
+Owned resources and path-matching Candidates without changing anything; exclude BMN,
+the checker and its ancestors. Confirm a candidate belongs to this run before stopping
+it; a path match grants no authority. Immediately before each stop, rerun the inventory
+and check the recorded identity again. For a process, open a Linux pidfd, verify its
+start ticks again, then signal through that pidfd, never a numeric PID susceptible to
+reuse. For a container use its full recorded id, never its name alone. Stop owned resources
+or record `keep` with its reason, then rerun: only deliberately kept resources may
+remain. An incomplete inventory stays UNVERIFIED; report its limit.
 
 Run state is local to each checkout and never committed; follow `scripts/check.py
 check` notes about `.dev-auto/` and report tracked-state cleanup once. Keep receipts,

@@ -16,7 +16,6 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-import re
 import subprocess
 import sys
 
@@ -29,18 +28,16 @@ SOURCES = {"compact", "resume"}
 # and warns instead: the reminder is short enough for a 9,000-character handoff.
 HANDOFF_LIMIT = 9_000
 OUTPUT_LIMIT = 9_950
-READ_LIMIT = 1_000_000  # enough to judge completion; anything longer is oversize anyway
 SKILL_DIR = Path(__file__).resolve().parents[1] / "skills" / "dev-auto"
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(SKILL_DIR / "scripts"))
+from handoff_state import COMPLETE, NO_STOP, READ_LIMIT, TERMINAL, finished, status_fields
 # A finished run must never wake an unrelated session in the same repository
 # (BMN 2026-09-20: a review session got a 9.8k "run in progress" injection an hour
 # after the epic was COMPLETE). The skill writes `Status: COMPLETE — <reason>` and
 # `Explicit user stop: none — <note>`, so the label and a separated note both count.
 # A label ends at punctuation or the line end and the value stays on one line, so
 # `COMPLETE pending acceptance` and a stop continuation line still wake.
-_NOTE = r"(?:[ \t]*[—–\-;:(.,!][^\n]*)?"
-COMPLETE = re.compile(r"COMPLETE" + _NOTE, re.IGNORECASE)
-NO_STOP = re.compile(r"none" + _NOTE, re.IGNORECASE)
-TERMINAL = re.compile(r"-[ \t]*Status:[ \t]*" + COMPLETE.pattern, re.IGNORECASE)
 
 REMINDER = (
     "[dev-auto recovery hook, owner-installed: hooks/dev-auto-session-start.py] dev-auto "
@@ -90,29 +87,6 @@ def read_body(handoff: Path) -> str | None:
             return handle.read(READ_LIMIT + 1)
     except OSError:
         return None
-
-
-def status_fields(body: str) -> tuple[list[str], list[str]]:
-    # Preserve continuation lines and duplicates when checking terminal state.
-    fields = list(re.finditer(
-        r"^- (Status|Explicit user stop[^:\n]*):([^\n]*(?:\n(?!- |#)[^\n]*)*)",
-        body, re.MULTILINE,
-    ))
-    statuses = [match[2].strip() for match in fields if match[1] == "Status"]
-    stops = [match[2].strip() for match in fields if match[1] != "Status"]
-    return statuses, stops
-
-
-def finished(body: str) -> bool:
-    """Ambiguous/duplicate state must not suppress the recovery reminder; a single
-    COMPLETE status on the last line with no stop is finished whatever its size."""
-    if len(body) > READ_LIMIT:  # a prefix cannot prove completion
-        return False
-    statuses, stops = status_fields(body)
-    terminal_line = body.rstrip().splitlines()[-1] if body.strip() else ""
-    return bool(len(statuses) == 1 and COMPLETE.fullmatch(statuses[0])
-                and len(stops) == 1 and NO_STOP.fullmatch(stops[0])
-                and TERMINAL.fullmatch(terminal_line.strip()))
 
 
 def sibling_runs(cwd: Path, own: Path | None) -> list[str]:

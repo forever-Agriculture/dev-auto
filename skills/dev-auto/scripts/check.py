@@ -26,6 +26,11 @@ grant [PROJECT]     read the run's Away grant fresh from BMN (`bmn grant --run <
                     left), or NO GRANT with the reason. MISSING without `bmn`, a BMN session or a BMN
                     that has grants; UNAVAILABLE (exit 2) when the read fails. Anything but GRANT
                     grants nothing.
+leftovers [PROJECT] read launch identities from ## Started; list live Owned resources and
+                    path-matching Candidates, without stopping anything. Recheck immediately
+                    before a stop; path matches alone never establish ownership.
+worktrees [PROJECT] list branches, run status, ancestry, uncommitted files and disk bytes;
+                    never remove anything. Only finished clean merged runs may be offered.
 
 Exit 0 PASS or SKIP (status not COMPLETE and shape checks pass), 1 FAIL with one reason per line,
 2 UNABLE when a required file or command cannot be read. ``-h`` or ``--help`` prints this text.
@@ -41,6 +46,9 @@ import shutil
 import subprocess
 import sys
 
+sys.dont_write_bytecode = True  # a read-only check must not create local __pycache__ files
+from handoff_state import COMPLETE, FIELD_BLOCK, NO_STOP, TERMINAL
+
 PLACEHOLDERS = ("to be recorded", "tbd", "placeholder", "pending receipt",
                 "from the codex rollout or claude receipt")
 EMPTY_GAPS = re.compile(r";\s*gaps:\s*$")
@@ -55,7 +63,6 @@ GIT_ENV = {**os.environ, "LC_ALL": "C"}  # the not-a-repository test reads git's
 SESSIONS = Path.home() / ".codex" / "sessions"
 SNAPSHOT_LIMIT = 9_000  # hooks/dev-auto-session-start.py injects the whole handoff up to this
 STATUS_LIMIT = 200
-FIELD_BLOCK = re.compile(r"^- ([^:\n]+):([^\n]*(?:\n(?!- |#)[^\n]*)*)", re.MULTILINE)
 REQUIRED = (("Status", "Status"), ("Explicit user stop", r"Explicit user stop[^:\n]*"),
             ("Next safe action", "Next safe action"))
 # The recovery hook's silence grammar (hooks/dev-auto-session-start.py): a run is
@@ -63,10 +70,6 @@ REQUIRED = (("Status", "Status"), ("Explicit user stop", r"Explicit user stop[^:
 # punctuation, the single stop is `none` plus an optional note, and Status is the
 # last line. A looser gate here let `COMPLETE pending acceptance` or a retained stop
 # PASS while the hook kept waking every later session in the repository.
-_NOTE = r"(?:[ \t]*[—–\-;:(.,!][^\n]*)?"
-COMPLETE = re.compile(r"COMPLETE" + _NOTE, re.IGNORECASE)
-NO_STOP = re.compile(r"none" + _NOTE, re.IGNORECASE)
-TERMINAL = re.compile(r"-[ \t]*Status:[ \t]*" + COMPLETE.pattern, re.IGNORECASE)
 
 
 def find_handoff(start: Path) -> Path | None:
@@ -502,6 +505,9 @@ def main(argv: list[str]) -> int:
         return away(Path(argv[1]) if len(argv) == 2 else Path.cwd())
     if argv[:1] == ["grant"] and len(argv) <= 2:
         return grant(Path(argv[1]) if len(argv) == 2 else Path.cwd())
+    if argv[:1] in (["leftovers"], ["worktrees"]) and len(argv) <= 2:
+        from run_resources import leftovers, worktrees
+        return (leftovers if argv[0] == "leftovers" else worktrees)(Path(argv[1]) if len(argv) == 2 else Path.cwd())
     print((__doc__ or "").strip())
     return 2
 

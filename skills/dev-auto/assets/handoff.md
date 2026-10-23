@@ -28,6 +28,16 @@
 - Material pending findings:
 - Cross-epic obligations:
 
+## Started
+
+(Record each server, daemon or container immediately at launch, one JSON bullet per
+identity. Use `none` when empty. Preserve entries after stopping for the audit trail.
+Process: `{"kind":"process","pid":123,"start_ticks":"456","command":"synthetic server"}`;
+`start_ticks` is field 22 of `/proc/PID/stat`. Container: `{"kind":"container","id":"FULL_64_HEX_ID","name":"run-fixture","command":"docker run …"}`.
+An intentionally retained resource adds `"keep":"reason"`.)
+
+- none
+
 ## Evidence
 
 - Checks run and observed results: concise results; detailed receipt paths
