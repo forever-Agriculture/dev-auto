@@ -136,6 +136,14 @@ class LedgerTests(unittest.TestCase):
         code, out = self.open(go("b" * 40, 12.0), "--cap", "100", "--source", "I said so")
         self.assertEqual((code, out.split(":")[0]), (1, "REFUSED"))
 
+    def test_a_systemd_launch_records_the_bare_unit_name(self) -> None:
+        budget = self.budget(go("a" * 40, 10.0))
+        said = subprocess.CompletedProcess([], 0, "", "Running as unit: run-p1-i2.service; invocation ID: 0123abcd\n")
+        with mock.patch.object(spend_ledger.subprocess, "run", return_value=said), contextlib.redirect_stdout(io.StringIO()):
+            code = spend_ledger.main(["launch", "--budget", budget, "--job", "unit", "--max", "1", "--", str(self.job), "unit"])
+        self.assertEqual(code, 0)
+        self.assertEqual(self.ledger(budget)["jobs"]["unit"]["unit"], "run-p1-i2.service")
+
     def test_an_owner_stated_cap_only_where_no_go_or_cap_exists(self) -> None:
         none = {"state": "NO_GO_RECORD", "plan_root": "/plans/other", "reason": "no go"}
         code, out = self.open(none, "--cap", "5", "--source", "owner 2026-10-23: up to $5")

@@ -163,7 +163,7 @@ def launch(args: dict, job_argv: list[str]) -> int:
                                       capture_output=True, text=True, timeout=60)
                 if done.returncode != 0:
                     raise OSError(done.stderr.strip()[:200] or "systemd-run failed")
-                unit = re.search(r"Running as unit: (\S+)", done.stderr + done.stdout)
+                unit = re.search(r"Running as unit: ([^\s;]+)", done.stderr + done.stdout)
                 data["jobs"][job].update(state="started", unit=unit.group(1) if unit else None)
         except (OSError, subprocess.TimeoutExpired) as exc:
             data["jobs"][job].update(answer="NOT_STARTED", state="released", error=str(exc)[:200])
