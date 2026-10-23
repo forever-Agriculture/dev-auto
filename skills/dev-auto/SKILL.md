@@ -196,8 +196,26 @@ unverified boundaries. Give every material finding from all reviews a dispositio
 against the accepted revision, as the review brief defines. Changes for the selected
 scope sit inside the reviewed revision or carry delta evidence, including commits added
 after acceptance; name any unrelated residual change and why. Material findings without
-a disposition, material gaps and mandatory unverified gates block acceptance. A complete epic
-ends with its page from BMN's `report-artifact` skill.
+a disposition, material gaps and mandatory unverified gates block acceptance.
+
+As each epic is accepted (all before COMPLETE), deliver its report, including docs-only
+or workflow changes. A report revision is the checked HTML page's SHA256.
+1. Write, check and publish it privately as BMN's `report-artifact` skill says. With
+   `bmn publish`, keep `.html` in any custom name and use `<epic>-owner-<first12sha>` as
+   the key; changed bytes need a new key, an identical retry keeps its key.
+2. Write one receipt beside the page immediately after each step returns: page path,
+   SHA256, publisher, key if supported, id/link and browser result. Resume reuses successful
+   delivery only when the page's SHA256 matches the receipt.
+3. Request the owner's default browser for the checked local page (`xdg-open` with its
+   quoted absolute path on Linux), without another owner question (requested 2026-10-23).
+   Host permission prompts still apply. Record `launched (exit 0)` after success, which
+   does not mean the owner saw it; skip that launch on resume for the same recorded SHA256.
+4. If publishing or opening is unavailable, refused, fails or returns an uncertain result,
+   record UNAVAILABLE and the reason, give the checked local page path, and use no workaround
+   or new-key retry. This presentation failure does not block product acceptance or COMPLETE.
+5. Under `Reports` in the handoff, keep each receipt path, id/link and browser result; put
+   the id/link in the epic's existing delivery Log line, and link every report in the final
+   reply. Read-only `status` never creates, publishes or opens reports.
 
 ## Handoff and recovery
 

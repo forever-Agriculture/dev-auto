@@ -47,6 +47,7 @@ An intentionally retained resource adds `"keep":"reason"`.)
 - Review allowance per boundary, kept across leads: rechecks used / consultation used / final repair used / away repair used:
 - Brake record per stuck outcome or gate, kept across leads (method history in the log): attempts / gate runs / harness rerun used per method / failed agreed methods / paid spend / latest usage per lead session / last brake card and answer, or pending:
 - Unreviewed or unverified areas:
+- Reports: one per accepted epic: receipt path, id/link and browser result; resume reuses a matching page SHA256
 
 ## Measurement
 

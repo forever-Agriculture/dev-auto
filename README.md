@@ -1,3 +1,4 @@
+<!-- MODULE: README.md - shared dev-auto setup, execution and report delivery -->
 # dev-auto
 
 Direct development from plans in BMN's format or BMAD's, with project-alignment checks, regression tests, independent reviews and useful model delegation. Shared skills for Codex, Claude Code and Claude Code on the GLM route (deactivated since 2026-09-30); no custom orchestration engine.
@@ -90,6 +91,7 @@ Codex's native skill picker may also expose it. The skill does not switch the cu
 5. Runs a quick Luna pre-review of the frozen epic alongside its own final checks, repairs once, then one independent Astra whole-epic review with a focused recheck, never editing a candidate while a reviewer reads it. Repair loops are bounded (see [SKILL.md](skills/dev-auto/SKILL.md)); every material finding ends with a disposition, and acceptance confirms each in-scope story's board row.
 6. Preserves pending findings, restrictions, routes, evidence and next actions in a short project handoff.
 7. Asks the owner only about spend beyond the approved total, scope or acceptance changes, actions his global rules reserve, credentials or private data, owner-only checks and brake decisions; method questions go to the consultant, and everything else is decided on the recommended option and listed under `Decided for you` in the handoff. Away mode permits one more narrow repair and recheck per boundary; the brake's card, spend beyond the total, reserved actions, acceptance changes and owner-only checks still wait for him. His lasting model choices for a project live in his BMN team as project choices he approves.
+8. As each epic is accepted, creates and checks its HTML report, publishes it privately and requests the default browser without another owner question; host permission prompts still apply. A receipt identifies the page by SHA256 so resume reuses successful delivery and avoids another browser launch for the same revision. BMN publication names keep `.html`, and the owner gets every report link/id. Unavailable or failed publishing/opening is reported with the local page path and does not block product acceptance; read-only status opens nothing.
 
 The handoff keeps every selected epic and its dependency visible. At material
 updates, replace stale state and link detailed receipts; append owner quotes,
