@@ -33,8 +33,8 @@ continue every story it does not block, and ask him once, with a recommendation,
 when no work can proceed and he is not away. The final report lists open entries.
 Decide everything else on your recommended option when it keeps the requirements,
 acceptance criteria, privacy and limits. Log each
-decision with its reason under `Decided for you` in the handoff and the next report, away
-or back, as one line with the run's next unused entry id `[dN]`, never renumbered. While
+decision with its reason under `Decided for you` in the handoff and the next report
+(on its page as "Choices you can reverse" in Next steps), away or back, as one line with the run's next unused entry id `[dN]`, never renumbered. While
 BMN reports away, also record it with `bmn decision record --key dev-auto:<Run id>:<dN>`
 where permitted and end the line with `(bmn: SESSION/KEY)`, the `sessionId` and `key` it returns;
 never record an entry an earlier lead
@@ -203,14 +203,16 @@ a disposition, material gaps and mandatory unverified gates block acceptance.
 
 As each epic is accepted (all before COMPLETE), deliver its report, including docs-only
 or workflow changes. A report revision is the checked HTML page's SHA256.
-1. Write, check and publish it privately as BMN's `report-artifact` skill says. With
+1. Write, check and publish it privately as BMN's `report-artifact` skill says. Its
+   second opinion is the full reviewer's opinion as the recheck refreshed it; a review
+   output without one takes the skill's no-review route. With
    `bmn publish`, keep `.html` in any custom name and use `<epic>-owner-<first12sha>` as
    the key; changed bytes need a new key, an identical retry keeps its key.
 2. Write one receipt beside the page immediately after each step returns: page path,
    SHA256, publisher, key if supported, id/link and browser result. Resume reuses successful
    delivery only when the page's SHA256 matches the receipt.
-3. Request the owner's default browser for the checked local page (`xdg-open` with its
-   quoted absolute path on Linux), without another owner question (requested 2026-10-23).
+3. Open it in the owner's default browser as the skill's open rule says (the Artifact
+   link, or the checked local page), without another owner question (requested 2026-10-23).
    Host permission prompts still apply. Record `launched (exit 0)` after success, which
    does not mean the owner saw it; skip that launch on resume for the same recorded SHA256.
 4. If publishing or opening is unavailable, refused, fails or returns an uncertain result,

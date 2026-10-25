@@ -74,4 +74,7 @@ acceptance.
 ## Reviewer output
 
 Examined scope, material findings, checks actually run, unreviewed areas,
-limitations, and anything unverified. End with the single line `RESULT: done`.
+limitations, and anything unverified. A full review also gives an opinion for the
+report: a 1–4-word verdict and 2–3 plain sentences on worth, risk and what to watch.
+A recheck, given the earlier review and the dispositions, refreshes that opinion
+against the final revision. End with the single line `RESULT: done`.
