@@ -29,9 +29,9 @@ go (7.2) or `epic`, never a free name or an unplanned story a new run could pick
 lock only while the latest go's rounds exceed those used at that boundary under every go: a reapproval refills
 nothing used, and two runs cannot take the same round. A retry under the same use id returns the first answer.
 Without a recorded go there are none; a go the ledger lacks although a handoff of the project's worktrees already
-names it, or whose epic row is past ready, has its extra rounds counted as used (BMN 96 D9). Each `open` and
-`round` reads the go again: once the plan withdraws it (a row put back, a hand go after `bmn plan go` took over),
-it gives no round and no paid launch until his next go.
+names it, or whose epic row is past ready, has its extra rounds counted as used (BMN 96 D9). Each `open`, `round`
+and paid `launch` reads the go again: once the plan withdraws it (a row put back, a later hand go after `bmn plan
+go` took over), the withdrawal is recorded and it gives no round and no paid launch until his next go.
 """
 import fcntl
 import hashlib
@@ -145,7 +145,7 @@ def withdraw(data: dict, go: dict, reason: str) -> None:
 
 
 def go_now(data: dict, go: dict) -> tuple[str, str]:
-    """The go in force read again from the plan: `stands`, `withdrawn`, `newer` or `unreadable`, and why."""
+    """The go in force read again from the plan: `stands`, `withdrawn` (the plan gives no GO), `newer` or `unreadable`, and why."""
     import run_needs
     try:
         needs = run_needs.run_needs(Path(data.get("project") or data["plan_root"]), int(data["epic"]))
@@ -153,9 +153,8 @@ def go_now(data: dict, go: dict) -> tuple[str, str]:
         return "unreadable", f"the plan cannot be read now: {exc}"
     if needs["state"] == "GO":
         return ("stands", "") if needs["go_commit"] == go["commit"] else ("newer", f"go {needs['go_commit'][:12]} is newer: open the ledger again")
-    if needs.get("go_commit") == go["commit"]:
-        return "withdrawn", needs.get("reason") or needs["state"]
-    return "unreadable", needs.get("reason") or needs["state"]
+    # Put back, or a later go that names no act (BMN 96 recheck): either way the go in force no longer stands.
+    return "withdrawn", needs.get("reason") or needs["state"]
 
 
 def rounds_used(data: dict, boundary: str) -> int:
@@ -245,7 +244,8 @@ def open_budget(args: dict) -> int:
                 data["gos"].append(entry)
             else:
                 next(go for go in data["gos"] if go.get("commit") == needs["go_commit"]).setdefault("stories", needs.get("stories", []))
-        elif (go := latest_go(data)) and needs.get("go_commit") == go["commit"]:
+        elif go := latest_go(data):
+            # The plan no longer gives the go in force: put back, or a later go that names no act (BMN 96 recheck).
             withdraw(data, go, needs.get("reason") or needs["state"])
         ledger.save()
         print(describe(budget, data))
@@ -312,6 +312,16 @@ def launch(args: dict, job_argv: list[str]) -> int:
             ledger.save()
             print(f"REFUSED: job {job} max {maximum:.2f} does not fit; {describe(budget, data)}; nothing started")
             return EXIT_REFUSED
+        # The go the cap came from is read again, as a round reads it: one withdrawn or not confirmed starts nothing (BMN 96).
+        go = latest_go(data)
+        if go is not None and data["gos"][-1] is go:
+            state, why = go_now(data, go)
+            if state == "withdrawn":
+                withdraw(data, go, why)
+                ledger.save()
+            if state != "stands":
+                print(f"REFUSED: job {job}: the go {go['commit'][:12]} {'was withdrawn' if state == 'withdrawn' else 'cannot be confirmed'}: {why}; nothing started")
+                return EXIT_REFUSED
         data["jobs"][job] = {"answer": "STARTED", "state": "reserved", "max": maximum, "at": now()}
         ledger.save()
         script = [str(Path(job_argv[0]).resolve()), *job_argv[1:]]

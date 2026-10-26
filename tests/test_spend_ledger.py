@@ -92,7 +92,7 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(self.markers(), [])
 
     def test_under_the_cap_it_reserves_then_starts_and_a_retry_returns_the_first_answer(self) -> None:
-        budget = self.budget(go("a" * 40, 10.0))
+        _, budget = self.real_budget(10.0)
         first = self.launch(budget, "review-1", "6")
         self.assertEqual(first.returncode, 0, first.stdout)
         self.assertTrue(first.stdout.startswith("STARTED"))
@@ -114,18 +114,19 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(self.ledger(budget)["jobs"], {})
 
     def test_two_launches_for_the_remainder_start_exactly_one(self) -> None:
-        budget = self.budget(go("a" * 40, 10.0))
+        _, budget = self.real_budget(10.0)
+        opened = self.ledger(budget)
         for round_ in range(5):
             self.marker.unlink(missing_ok=True)
             spend_ledger_path = self.root / "state" / "dev-auto" / "budgets" / f"{budget}.json"
-            spend_ledger_path.write_text(json.dumps({"gos": [{"kind": "go", "commit": "a" * 40, "cap": 10.0}], "jobs": {}}))
+            spend_ledger_path.write_text(json.dumps({**opened, "jobs": {}}))
             runs = [self.launch(budget, f"race-{round_}-{n}", "6", wait=False) for n in range(2)]
             outputs = [run.communicate()[0] for run in runs]
             self.assertEqual(sorted(run.returncode for run in runs), [0, 1], outputs)
             self.assertEqual(len(self.markers()), 1)
 
     def test_settle_release_and_unknown_never_reset_the_total(self) -> None:
-        budget = self.budget(go("a" * 40, 10.0))
+        _, budget = self.real_budget(10.0)
         self.assertEqual(self.launch(budget, "a", "4").returncode, 0)
         self.assertEqual(self.launch(budget, "b", "4").returncode, 0)
         self.assertEqual(spend_ledger.main(["settle", "--budget", budget, "--job", "a", "--spent", "3"]), 0)
@@ -139,11 +140,12 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(spend_ledger.main(["release", "--budget", budget, "--job", "never"]), 1)
 
     def test_a_reapproval_carries_consumption_and_only_a_go_adds_money(self) -> None:
-        self.enterContext(mock.patch.object(spend_ledger, "go_follows", return_value=True))
-        budget = self.budget(go("a" * 40, 10.0))
+        plan, budget = self.real_budget(10.0)
         self.assertEqual(self.launch(budget, "a", "6").returncode, 0)
         spend_ledger.main(["settle", "--budget", budget, "--job", "a", "--spent", "6"])
-        self.assertEqual(self.budget(go("b" * 40, 12.0, "2026-10-25")), budget)
+        plan.write("epic-7: in-progress # go 2026-10-23")
+        plan.write("epic-7: ready # go 2026-10-25", self.epic_text(0, 12), commit=self.go_message(self.epic_text(0, 12), "2026-10-25"))
+        self.assertEqual(self.open_plan(plan)[2], budget)
         self.assertEqual(self.launch(budget, "b", "7").returncode, 1)  # 6 + 7 > 12
         self.assertEqual(self.launch(budget, "c", "6").returncode, 0)  # 6 + 6 = 12
         self.assertEqual([g["cap"] for g in self.ledger(budget)["gos"]], [10.0, 12.0])
@@ -152,6 +154,7 @@ class LedgerTests(unittest.TestCase):
 
     def test_a_systemd_launch_records_the_bare_unit_name(self) -> None:
         budget = self.budget(go("a" * 40, 10.0))
+        self.enterContext(mock.patch.object(spend_ledger, "go_now", return_value=("stands", "")))  # its plan is a stand-in
         said = subprocess.CompletedProcess([], 0, "", "Running as unit: run-p1-i2.service; invocation ID: 0123abcd\n")
         with mock.patch.object(spend_ledger.subprocess, "run", return_value=said), contextlib.redirect_stdout(io.StringIO()):
             code = spend_ledger.main(["launch", "--budget", budget, "--job", "unit", "--max", "1", "--", str(self.job), "unit"])
@@ -180,9 +183,10 @@ class LedgerTests(unittest.TestCase):
         self.assertNotEqual(spend_ledger.plan_identity(str(repo / "plan")), spend_ledger.plan_identity(str(repo)))
 
     def test_a_launch_whose_acknowledgement_timed_out_keeps_its_reservation(self) -> None:
-        budget = self.budget(go("a" * 40, 10.0))
+        _, budget = self.real_budget(10.0)
         lost = subprocess.TimeoutExpired(["systemd-run"], 60)
-        with mock.patch.object(spend_ledger.subprocess, "run", side_effect=lost), contextlib.redirect_stdout(io.StringIO()) as out:
+        with mock.patch.object(spend_ledger.subprocess, "run", side_effect=lost), mock.patch.object(spend_ledger, "go_now", return_value=("stands", "")), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
             code = spend_ledger.main(["launch", "--budget", budget, "--job", "a", "--max", "8", "--", str(self.job), "a"])
         self.assertEqual((code, out.getvalue().split(":")[0]), (1, "UNKNOWN"))
         self.assertEqual(spend_ledger.totals(self.ledger(budget)), (0.0, 8.0))
@@ -210,9 +214,10 @@ class LedgerTests(unittest.TestCase):
 
     # The go's rounds are read through the real run_needs from a plan with its own history: `round` reads the go again.
     @staticmethod
-    def epic_text(rounds: int) -> str:
+    def epic_text(rounds: int, cap: float | None = None) -> str:
+        money = "none" if cap is None else f"${cap:g}"
         needs = (f"- **Extra repair rounds:** {rounds} per boundary.\n- **Deferrable criteria:** none.\n"
-                 "- **Money cap:** none.\n- **Named actions for an Away card:** none.\n")
+                 f"- **Money cap:** {money}.\n- **Named actions for an Away card:** none.\n")
         return test_run_needs.epic(needs).replace("### Story 7.1: One\n", "### Story 7.1: One\n\n### Story 7.2: Two\n\n### Story 7.3: Three\n")
 
     @staticmethod
@@ -221,15 +226,54 @@ class LedgerTests(unittest.TestCase):
         return (f"plan: go for Epic 7 (go {date})\n\nGo-Epic: 7\nGo-Date: {date}\nApproval-Source: card {date}T09:00Z: 'Go'\n"
                 f"Approved-Text: {approved}\nApproved-File: epics/007-fixture.md\n")
 
-    def plan(self, rounds: int) -> "test_run_needs.Plan":
+    def plan(self, rounds: int, cap: float | None = None) -> "test_run_needs.Plan":
         """Epic 7 (stories 7.1-7.3) with his go recorded; the stand-in `bmn` on PATH resolves the project to it."""
         plan = test_run_needs.Plan()
         self.addCleanup(plan.tmp.cleanup)
-        text = self.epic_text(rounds)
+        text = self.epic_text(rounds, cap)
         plan.write("epic-7: backlog", text)
         plan.go = plan.write("epic-7: ready # go 2026-10-23", commit=self.go_message(text))
         (self.root / "status.json").write_text(json.dumps(plan.status()))
         return plan
+
+    def real_budget(self, cap: float, rounds: int = 0) -> tuple["test_run_needs.Plan", str]:
+        """A real plan whose go gives `cap`, its ledger opened: a paid launch reads that go again (BMN 96 recheck)."""
+        plan = self.plan(rounds, cap)
+        code, out, budget = self.open_plan(plan)
+        self.assertEqual(code, 0, out)
+        return plan, budget
+
+    def test_a_paid_launch_reads_the_go_again_and_a_withdrawn_one_starts_nothing(self) -> None:
+        plan, budget = self.real_budget(10.0)
+        self.assertEqual(self.launch(budget, "a", "2").returncode, 0)
+        plan.write("epic-7: backlog # put back", commit=None)  # before any open or round
+        refused = self.launch(budget, "b", "2")
+        self.assertEqual(refused.returncode, 1)
+        self.assertIn("was withdrawn: the go of 2026-10-23 was withdrawn: the row is now backlog", refused.stdout)
+        self.assertEqual(self.ledger(budget)["gos"][-1]["kind"], "withdrawn")
+        self.assertEqual(self.launch(budget, "c", "2").returncode, 1)  # cap none from then on
+        self.assertEqual(self.markers(), ["a"])
+
+    def test_a_later_hand_go_that_names_no_act_withdraws_the_go_in_force_at_open(self) -> None:
+        plan, budget = self.real_budget(10.0, rounds=1)
+        plan.write("epic-7: backlog # put back")
+        plan.write("epic-7: ready # go 2026-10-24", commit="plan: go by hand")  # after a recorded go: it names no act
+        refused = self.launch(budget, "a", "1")  # the first ledger call after it, here a launch, records the withdrawal
+        self.assertEqual(refused.returncode, 1)
+        self.assertIn("was withdrawn", refused.stdout)
+        self.assertEqual(self.ledger(budget)["gos"][-1]["kind"], "withdrawn")
+        code, out, again = self.open_plan(plan)
+        self.assertEqual((code, again), (0, budget), out)
+        self.assertIn("GO: withdrawn", out)
+        self.assertIn("cap none", out)
+        self.assertEqual(self.round(budget, "7.1", "a:7.1")[0], 1)
+        self.assertEqual(self.markers(), [])
+        # Opened first instead, the same plan is withdrawn at open.
+        other, opened = self.real_budget(10.0, rounds=1)
+        other.write("epic-7: backlog # put back")
+        other.write("epic-7: ready # go 2026-10-24", commit="plan: go by hand")
+        self.assertIn("GO: withdrawn", self.open_plan(other)[1])
+        self.assertEqual(self.ledger(opened)["gos"][-1]["kind"], "withdrawn")
 
     def open_plan(self, plan: "test_run_needs.Plan") -> tuple[int, str, str]:
         out = io.StringIO()
