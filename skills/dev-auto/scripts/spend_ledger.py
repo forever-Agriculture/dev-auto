@@ -24,10 +24,12 @@ acknowledgement timed out, keeps its reservation until it is settled or released
 ledger covers dev-auto's own paid launches, not every provider call.
 
 The go's extra repair rounds per boundary (its Run needs) are counted here too, so every resume, replacement lead
-and linked worktree of the epic sees the same rounds left (BMN 96.2). A boundary is one of the epic's stories (7.2)
-or `epic`, never a free name a new run could pick again. `round` takes one under the lock only while the latest go's
-rounds exceed those used at that boundary under every go: a reapproval refills nothing used, and two runs cannot take
-the same round. A retry under the same use id returns the first answer. Without a recorded go there are none.
+and linked worktree of the epic sees the same rounds left (BMN 96.2). A boundary is one of the epic's stories at its
+go (7.2) or `epic`, never a free name or an unplanned story a new run could pick again. `round` takes one under the
+lock only while the latest go's rounds exceed those used at that boundary under every go: a reapproval refills
+nothing used, and two runs cannot take the same round. A retry under the same use id returns the first answer.
+Without a recorded go there are none; a go the ledger lacks although a handoff of the project's worktrees already
+names it (the ledger was lost or moved) has its extra rounds counted as used (BMN 96 D9).
 """
 import fcntl
 import hashlib
@@ -142,7 +144,7 @@ def describe_go(data: dict) -> list[str]:
     used = ", ".join(f"{b} {rounds_used(data, b)} used" for b in boundaries) or "none used"
     return [f"GO: {go['date']} commit {go['commit'][:12]}; source {go.get('source') or 'not recorded'}; "
             f"approved text {go.get('approved_text') or 'not recorded'}",
-            f"ROUNDS: {go.get('rounds', 0)} extra per boundary from this go; {used}"]
+            f"ROUNDS: {go.get('rounds', 0)} extra per boundary from this go; {used}" + (f" ({go['rounds_lost']})" if go.get("rounds_lost") else "")]
 
 
 def describe(budget: str, data: dict) -> str:
@@ -150,6 +152,24 @@ def describe(budget: str, data: dict) -> str:
     settled, outstanding = totals(data)
     remaining = "none: no paid launches" if cap is None else f"{cap - settled - outstanding:.2f}"
     return f"BUDGET {budget}: cap {'none' if cap is None else f'{cap:.2f}'}, settled {settled:.2f}, outstanding {outstanding:.2f}, remaining {remaining}"
+
+
+def named_before(project: Path, commit: str) -> Path | None:
+    """A handoff of the project's checkouts whose Go field already names this go: its rounds may have been used."""
+    checkouts = [project]
+    try:
+        listed = subprocess.run(["git", "-C", str(project), "worktree", "list", "--porcelain"], capture_output=True, text=True, timeout=10)
+        checkouts += [Path(line[9:]) for line in listed.stdout.splitlines() if line.startswith("worktree ")]
+    except (OSError, subprocess.SubprocessError):
+        pass
+    for checkout in checkouts:
+        try:
+            text = (checkout / ".dev-auto" / "handoff.md").read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if any(line.startswith("- Go:") and f"commit {commit[:12]}" in line for line in text.splitlines()):
+            return checkout / ".dev-auto" / "handoff.md"
+    return None
 
 
 def open_budget(args: dict) -> int:
@@ -160,7 +180,8 @@ def open_budget(args: dict) -> int:
     epic = str(int(epic))  # 007 and 7 are one epic
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import run_needs
-    needs = run_needs.run_needs(Path(args.get("--project") or Path.cwd()), int(epic))
+    project = Path(args.get("--project") or Path.cwd())
+    needs = run_needs.run_needs(project, int(epic))
     budget = hashlib.sha256(plan_identity(needs["plan_root"]).encode()).hexdigest()[:16] + f"-epic-{epic}"
     with (ledger := Ledger(budget)) as data:
         data.setdefault("plan_root", needs["plan_root"])
@@ -181,10 +202,16 @@ def open_budget(args: dict) -> int:
                     print(f"REFUSED: go {needs['go_commit'][:12]} does not follow the recorded go {latest['commit'][:12]}; "
                           "read the plan's current history; the cap is unchanged")
                     return EXIT_REFUSED
-                data["gos"].append({"kind": "go", "date": needs["go_date"], "commit": needs["go_commit"],
-                                    "cap": needs["parsed"]["money_cap"], "rounds": needs["parsed"]["rounds"],
-                                    "source": needs.get("approval_source"), "approved_text": needs.get("approved_text"),
-                                    "at": now()})
+                entry = {"kind": "go", "date": needs["go_date"], "commit": needs["go_commit"],
+                         "cap": needs["parsed"]["money_cap"], "rounds": needs["parsed"]["rounds"],
+                         "source": needs.get("approval_source"), "approved_text": needs.get("approved_text"),
+                         "stories": needs.get("stories", []), "at": now()}
+                earlier = named_before(project, needs["go_commit"]) if entry["rounds"] else None
+                if earlier:  # what was used under this go is not here to count: count it all as used
+                    entry.update(rounds=0, rounds_lost=f"{earlier} names this go, the ledger does not: its {needs['parsed']['rounds']} extra counted as used")
+                data["gos"].append(entry)
+            else:
+                next(go for go in data["gos"] if go.get("commit") == needs["go_commit"]).setdefault("stories", needs.get("stories", []))
         ledger.save()
         print(describe(budget, data))
         for line in describe_go(data):
@@ -207,6 +234,9 @@ def take_round(args: dict) -> int:
             print(f"{earlier['answer']}: round {use_id} was answered first at {earlier['at']} ({earlier['boundary']}); nothing taken again")
             return 0 if earlier["answer"] == "TAKEN" else EXIT_REFUSED
         go = latest_go(data)
+        if go and match.group(1) and boundary not in go.get("stories", []):
+            print(f"USAGE: {boundary} is not one of the stories epic {data.get('epic')} had at its go ({', '.join(go.get('stories', [])) or 'none'}); nothing taken")
+            return EXIT_USAGE
         allowed = go.get("rounds", 0) if go else 0
         used = rounds_used(data, boundary)
         answer = "TAKEN" if used < allowed else "REFUSED"

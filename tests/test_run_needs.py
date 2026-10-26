@@ -77,6 +77,7 @@ class RunNeedsTests(unittest.TestCase):
         self.assertEqual(result["parsed"], {"rounds": 2, "deferrable": ["7.2 AC3 when the screen cannot be read."],
                                             "money_cap": 15.0, "named_actions": None})
         self.assertEqual(result["changed_since_go"], [])
+        self.assertEqual(result["stories"], ["7.1"])  # the round boundaries the go planned
 
     def test_an_unrelated_commit_while_ready_keeps_the_same_go(self) -> None:
         self.plan.write("epic-7: backlog", epic())

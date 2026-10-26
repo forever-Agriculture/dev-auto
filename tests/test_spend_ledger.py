@@ -25,7 +25,7 @@ LEDGER = SCRIPTS / "spend_ledger.py"
 def go(commit: str, cap: float | None, date: str = "2026-10-23", rounds: int = 0) -> dict:
     return {"state": "GO", "plan_root": "/plans/fixture", "go_date": date, "go_commit": commit,
             "approval_source": "card 2026-10-23T09:00Z: 'Go'", "approved_text": "sha256:" + "a" * 64,
-            "parsed": {"rounds": rounds, "deferrable": [], "money_cap": cap, "named_actions": None}}
+            "parsed": {"rounds": rounds, "deferrable": [], "money_cap": cap, "named_actions": None}, "stories": ["7.1", "7.2", "7.3"]}
 
 
 class LedgerTests(unittest.TestCase):
@@ -43,13 +43,13 @@ class LedgerTests(unittest.TestCase):
     def open(self, needs: dict, *extra: str) -> tuple[int, str]:
         out = io.StringIO()
         with mock.patch.object(run_needs, "run_needs", return_value=needs), contextlib.redirect_stdout(out):
-            code = spend_ledger.main(["open", "--epic", "7", *extra])
+            code = spend_ledger.main(["open", "--epic", "7", "--project", str(self.root / "project"), *extra])
         return code, out.getvalue()
 
     def open_epic(self, epic: str, needs: dict) -> str:
         out = io.StringIO()
         with mock.patch.object(run_needs, "run_needs", return_value=needs), contextlib.redirect_stdout(out):
-            self.assertEqual(spend_ledger.main(["open", "--epic", epic]), 0)
+            self.assertEqual(spend_ledger.main(["open", "--epic", epic, "--project", str(self.root / "project")]), 0)
         return out.getvalue().split()[1].rstrip(":")
 
     def budget(self, needs: dict) -> str:
@@ -220,9 +220,24 @@ class LedgerTests(unittest.TestCase):
 
     def test_a_free_boundary_name_or_another_epics_story_is_refused(self) -> None:
         budget = self.budget(go("a" * 40, None, rounds=2))
-        for boundary in ("7.2-review", "renamed-gate", "8.1", ""):
+        for boundary in ("7.2-review", "renamed-gate", "8.1", "7.99", ""):  # 7.99: no such story at the go
             self.assertEqual(self.round(budget, boundary, f"{boundary}:1")[0], 2, boundary)
         self.assertEqual(self.ledger(budget)["rounds"], {})
+
+    def test_a_lost_ledger_counts_the_rounds_of_a_go_a_handoff_already_names_as_used(self) -> None:
+        handoff = self.root / "project" / ".dev-auto" / "handoff.md"
+        handoff.parent.mkdir(parents=True)
+        handoff.write_text("- Go: GO: 2026-10-23 commit aaaaaaaaaaaa; source card; ROUNDS: 1 extra per boundary from this go; 7.1 1 used\n")
+        code, out = self.open(go("a" * 40, None, rounds=1))
+        self.assertEqual(code, 0, out)
+        self.assertIn("ROUNDS: 0 extra per boundary from this go; none used", out)
+        self.assertIn("names this go, the ledger does not: its 1 extra counted as used", out)
+        refused = self.round(out.split()[1].rstrip(":"), "7.2", "resumed:7.2")
+        self.assertEqual(refused[0], 1)
+        # A handoff naming another go takes nothing from this one.
+        handoff.write_text("- Go: GO: 2026-10-20 commit bbbbbbbbbbbb; source card\n")
+        code, out = self.open(go("c" * 40, None, rounds=1) | {"plan_root": "/plans/other"})
+        self.assertIn("ROUNDS: 1 extra per boundary from this go; none used", out)
 
     def test_two_leads_taking_the_last_round_at_once_get_exactly_one(self) -> None:
         budget = self.budget(go("a" * 40, None, rounds=1))

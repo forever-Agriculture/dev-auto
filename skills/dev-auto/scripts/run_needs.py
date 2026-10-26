@@ -28,6 +28,7 @@ import sys
 from pathlib import Path
 
 GO_DATE = re.compile(r"\bgo (\d{4}-\d{2}-\d{2})\b")
+STORY = re.compile(r"^#{2,4} Story (\d+\.\d+)\b", re.M)
 SECTIONS = ("Run needs", "Decisions")
 
 
@@ -222,6 +223,7 @@ def run_needs(project: Path, epic: int) -> dict:
     if then["Run needs"] is None:
         return {**result, "state": "NO_RUN_NEEDS", "reason": "the epic had no Run needs at its go"}
     return {**result, "state": "GO", "run_needs": then["Run needs"], "parsed": parse_needs(then["Run needs"]),
+            "stories": STORY.findall(then_text or ""),  # the epic's stories at its go: the only story boundaries for its rounds
             "decisions_at_go": f"git -C {repo} show {go['commit'][:12]}:<epic file>, ## Decisions"}
 
 
