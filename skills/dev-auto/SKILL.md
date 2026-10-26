@@ -17,7 +17,8 @@ The invocation and later owner instructions set the run's authority: scope, appr
 spend and delegation ("decide within the cap", "work autonomously"). Record each
 delegation with its source quote as a handoff term, valid only for its named scope and
 total. His go on a planned epic is one, day or night. At start and each resume run
-`scripts/spend_ledger.py open --epic N` (it reads the go with `scripts/run_needs.py`) and keep
+`scripts/spend_ledger.py open --epic N` (it reads the go with `scripts/run_needs.py`), at start before
+moving the epic's row past `ready`, and keep
 what it prints in the handoff's `Go` field: the same go means its terms, rounds left and money
 as printed, nothing to ask him. Take each of the go's extra rounds with `spend_ledger.py round`
 before using it; that ledger counts them for every lead, resume and worktree. On NO_GO_RECORD

@@ -1,6 +1,7 @@
 # MODULE: test_run_needs.py - BMN Epic 90.3: the owner's go and its Run needs, read from a plan's history; 96.1: its recorded act and approved text
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -36,11 +37,13 @@ class Plan:
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name) / "plan"
         (self.root / "epics").mkdir(parents=True)
+        self.date = "2026-10-20T10:00:00Z"  # commits keep this date, so a hand go stays one from before bmn plan go
         self.git("init", "-qb", "main")
 
     def git(self, *args: str, input: str | None = None) -> str:
         return subprocess.run(["git", "-C", str(self.root), "-c", "user.name=F", "-c", "user.email=f@example.invalid", *args],
-                              check=True, capture_output=True, text=True, input=input).stdout.strip()
+                              check=True, capture_output=True, text=True, input=input,
+                              env={**os.environ, "GIT_COMMITTER_DATE": self.date, "GIT_AUTHOR_DATE": self.date}).stdout.strip()
 
     def write(self, row: str | None = None, text: str | None = None, commit: str | None = "plan") -> str:
         if row is not None:
@@ -149,8 +152,10 @@ class RunNeedsTests(unittest.TestCase):
         root = self.plan.root.parent / "product"
         (root / "_bmad-output" / "implementation-artifacts").mkdir(parents=True)
         (root / "_bmad-output" / "planning-artifacts").mkdir(parents=True)
+        # Committed after HAND_GO_CUTOVER: a BMAD board keeps its dated go comment, which bmn plan go never records.
+        late = {**os.environ, "GIT_COMMITTER_DATE": "2026-10-28T10:00:00Z", "GIT_AUTHOR_DATE": "2026-10-28T10:00:00Z"}
         run = lambda *a: subprocess.run(["git", "-C", str(root), "-c", "user.name=F", "-c", "user.email=f@example.invalid", *a],
-                                        check=True, capture_output=True, text=True).stdout.strip()
+                                        check=True, capture_output=True, text=True, env=late).stdout.strip()
         run("init", "-qb", "main")
         sprint = root / "_bmad-output" / "implementation-artifacts" / "sprint-status.yaml"
         epics = root / "_bmad-output" / "planning-artifacts" / "epics.md"
@@ -166,6 +171,25 @@ class RunNeedsTests(unittest.TestCase):
         with mock.patch.object(run_needs, "resolve", return_value=status):
             result = run_needs.run_needs(root, 7)
         self.assertEqual((result["state"], result["go_commit"], result["parsed"]["rounds"]), ("GO", go, 2))
+
+    def test_a_go_committed_by_hand_once_bmn_plan_go_records_gos_grants_nothing(self) -> None:
+        self.plan.write("epic-7: backlog", epic())
+        self.plan.date = "2026-10-27T08:00:00Z"
+        late = self.plan.write("epic-7: ready # go 2026-10-27")
+        result = self.plan.read()
+        self.assertEqual(result["state"], "NO_GO_RECORD")
+        self.assertIn(f"the go commit {late[:12]} names no act of the owner and was committed by hand on 2026-10-27", result["reason"])
+        # Before the cutover, but after a go bmn plan go recorded in the same history: nothing either.
+        other = Plan()
+        self.addCleanup(other.tmp.cleanup)
+        other.write("epic-7: backlog", epic())
+        approved = f"sha256:{run_needs.approval_text(run_needs.sections(epic()))}"
+        recorded = other.write("epic-7: ready # go 2026-10-20", commit=self.go_message(approved))
+        other.write("epic-7: backlog # withdrawn")
+        other.write("epic-7: ready # go 2026-10-21")
+        result = other.read()
+        self.assertEqual(result["state"], "NO_GO_RECORD")
+        self.assertIn(f"after {recorded[:7]}", result["reason"])
 
     def go_message(self, approved: str, source: str = "card 2026-10-26T09:30Z: owner answered 'Go'") -> str:
         return (f"plan: go for Epic 7 (go 2026-10-26)\n\nGo-Epic: 7\nGo-Date: 2026-10-26\nApproval-Source: {source}\n"

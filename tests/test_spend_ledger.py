@@ -18,6 +18,8 @@ SCRIPTS = REPO / "skills" / "dev-auto" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 import run_needs  # noqa: E402
 import spend_ledger  # noqa: E402
+sys.path.insert(0, str(REPO / "tests"))
+import test_run_needs  # noqa: E402  (its plan fixture)
 
 LEDGER = SCRIPTS / "spend_ledger.py"
 
@@ -33,7 +35,11 @@ class LedgerTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
-        patcher = mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(self.root / "state")})
+        # A stand-in `bmn` resolves every project to the plan a test wrote last (status.json); run_needs reads it for real.
+        (self.root / "bin").mkdir()
+        (self.root / "bin" / "bmn").write_text(f"#!/bin/sh\ncat '{self.root / 'status.json'}'\n")
+        (self.root / "bin" / "bmn").chmod(0o755)
+        patcher = mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(self.root / "state"), "PATH": f"{self.root / 'bin'}:{os.environ['PATH']}"})
         patcher.start()
         self.addCleanup(patcher.stop)
         self.job = self.root / "job.sh"
@@ -202,10 +208,40 @@ class LedgerTests(unittest.TestCase):
                               capture_output=True, text=True, env=os.environ.copy())
         return done.returncode, done.stdout
 
+    # The go's rounds are read through the real run_needs from a plan with its own history: `round` reads the go again.
+    @staticmethod
+    def epic_text(rounds: int) -> str:
+        needs = (f"- **Extra repair rounds:** {rounds} per boundary.\n- **Deferrable criteria:** none.\n"
+                 "- **Money cap:** none.\n- **Named actions for an Away card:** none.\n")
+        return test_run_needs.epic(needs).replace("### Story 7.1: One\n", "### Story 7.1: One\n\n### Story 7.2: Two\n\n### Story 7.3: Three\n")
+
+    @staticmethod
+    def go_message(text: str, date: str = "2026-10-23") -> str:
+        approved = "sha256:" + run_needs.approval_text(run_needs.sections(text))
+        return (f"plan: go for Epic 7 (go {date})\n\nGo-Epic: 7\nGo-Date: {date}\nApproval-Source: card {date}T09:00Z: 'Go'\n"
+                f"Approved-Text: {approved}\nApproved-File: epics/007-fixture.md\n")
+
+    def plan(self, rounds: int) -> "test_run_needs.Plan":
+        """Epic 7 (stories 7.1-7.3) with his go recorded; the stand-in `bmn` on PATH resolves the project to it."""
+        plan = test_run_needs.Plan()
+        self.addCleanup(plan.tmp.cleanup)
+        text = self.epic_text(rounds)
+        plan.write("epic-7: backlog", text)
+        plan.go = plan.write("epic-7: ready # go 2026-10-23", commit=self.go_message(text))
+        (self.root / "status.json").write_text(json.dumps(plan.status()))
+        return plan
+
+    def open_plan(self, plan: "test_run_needs.Plan") -> tuple[int, str, str]:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = spend_ledger.main(["open", "--epic", "7", "--project", str(plan.root.parent)])
+        return code, out.getvalue(), out.getvalue().split()[1].rstrip(":")
+
     def test_the_gos_rounds_are_one_count_for_every_lead_resume_and_retry(self) -> None:
-        code, out = self.open(go("a" * 40, None, rounds=1))
-        budget = out.split()[1].rstrip(":")
-        self.assertIn("GO: 2026-10-23 commit aaaaaaaaaaaa; source card 2026-10-23T09:00Z: 'Go'", out)
+        plan = self.plan(rounds=1)
+        code, out, budget = self.open_plan(plan)
+        self.assertEqual(code, 0, out)
+        self.assertIn(f"GO: 2026-10-23 commit {plan.go[:12]}; source card 2026-10-23T09:00Z: 'Go'", out)
         self.assertIn("ROUNDS: 1 extra per boundary from this go; none used", out)
         self.assertEqual(self.round(budget, "7.2", "7.2:round-1")[0], 0)
         self.assertEqual(self.round(budget, "7.2", "7.2:round-1"), (0, self.round(budget, "7.2", "7.2:round-1")[1]))  # a retry: the first answer
@@ -215,45 +251,71 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(refused[0], 1)
         self.assertIn("1 are used at 7.2", refused[1])
         self.assertEqual(self.round(budget, "epic", "epic:round-1")[0], 0)  # another boundary has its own
-        _, status = self.open(go("a" * 40, None, rounds=1))
+        _, status, _ = self.open_plan(plan)
         self.assertIn("ROUNDS: 1 extra per boundary from this go; 7.2 1 used, epic 1 used", status)
 
     def test_a_free_boundary_name_or_another_epics_story_is_refused(self) -> None:
-        budget = self.budget(go("a" * 40, None, rounds=2))
+        _, _, budget = self.open_plan(self.plan(rounds=2))
         for boundary in ("7.2-review", "renamed-gate", "8.1", "7.99", ""):  # 7.99: no such story at the go
             self.assertEqual(self.round(budget, boundary, f"{boundary}:1")[0], 2, boundary)
         self.assertEqual(self.ledger(budget)["rounds"], {})
 
-    def test_a_lost_ledger_counts_the_rounds_of_a_go_a_handoff_already_names_as_used(self) -> None:
-        handoff = self.root / "project" / ".dev-auto" / "handoff.md"
+    def test_a_lost_ledger_counts_the_rounds_of_a_go_a_run_already_began_under_as_used(self) -> None:
+        plan = self.plan(rounds=1)
+        handoff = plan.root.parent / ".dev-auto" / "handoff.md"
         handoff.parent.mkdir(parents=True)
-        handoff.write_text("- Go: GO: 2026-10-23 commit aaaaaaaaaaaa; source card; ROUNDS: 1 extra per boundary from this go; 7.1 1 used\n")
-        code, out = self.open(go("a" * 40, None, rounds=1))
+        handoff.write_text(f"- Go: GO: 2026-10-23 commit {plan.go[:12]}; source card; ROUNDS: 1 extra per boundary from this go; 7.1 1 used\n")
+        code, out, budget = self.open_plan(plan)
         self.assertEqual(code, 0, out)
         self.assertIn("ROUNDS: 0 extra per boundary from this go; none used", out)
         self.assertIn("names this go, the ledger does not: its 1 extra counted as used", out)
-        refused = self.round(out.split()[1].rstrip(":"), "7.2", "resumed:7.2")
-        self.assertEqual(refused[0], 1)
+        self.assertEqual(self.round(budget, "7.2", "resumed:7.2")[0], 1)
+        # With the handoff gone too, a row already past ready says a run began under this go.
+        started = self.plan(rounds=1)
+        started.write("epic-7: in-progress # go 2026-10-23")
+        _, out, budget = self.open_plan(started)
+        self.assertIn("the epic's row is already in-progress, the ledger does not: its 1 extra counted as used", out)
+        self.assertEqual(self.round(budget, "7.2", "resumed:7.2")[0], 1)
         # A handoff naming another go takes nothing from this one.
-        handoff.write_text("- Go: GO: 2026-10-20 commit bbbbbbbbbbbb; source card\n")
-        code, out = self.open(go("c" * 40, None, rounds=1) | {"plan_root": "/plans/other"})
+        fresh = self.plan(rounds=1)
+        (fresh.root.parent / ".dev-auto").mkdir()
+        (fresh.root.parent / ".dev-auto" / "handoff.md").write_text("- Go: GO: 2026-10-20 commit bbbbbbbbbbbb; source card\n")
+        _, out, _ = self.open_plan(fresh)
         self.assertIn("ROUNDS: 1 extra per boundary from this go; none used", out)
 
+    def test_a_withdrawn_go_gives_no_round_and_no_paid_launch(self) -> None:
+        plan = self.plan(rounds=2)
+        _, _, budget = self.open_plan(plan)
+        self.assertEqual(self.round(budget, "7.1", "a:7.1")[0], 0)
+        plan.write("epic-7: backlog # put back", commit=None)  # the row he put back, not yet committed
+        refused = self.round(budget, "7.1", "b:7.1")
+        self.assertEqual(refused[0], 1)
+        self.assertIn("was withdrawn: the go of 2026-10-23 was withdrawn: the row is now backlog", refused[1])
+        self.assertEqual(self.ledger(budget)["gos"][-1]["kind"], "withdrawn")
+        _, out, _ = self.open_plan(plan)
+        self.assertIn("GO: withdrawn (the go of 2026-10-23 was withdrawn: the row is now backlog)", out)
+        self.assertIn("cap none", out)
+        self.assertEqual(self.round(budget, "7.2", "c:7.2")[0], 1)
+
     def test_two_leads_taking_the_last_round_at_once_get_exactly_one(self) -> None:
-        budget = self.budget(go("a" * 40, None, rounds=1))
+        _, _, budget = self.open_plan(self.plan(rounds=1))
         argv = lambda use: [sys.executable, str(LEDGER), "round", "--budget", budget, "--boundary", "7.1", "--use-id", use]
         runs = [subprocess.Popen(argv(f"lead-{n}:7.1"), stdout=subprocess.PIPE, text=True, env=os.environ.copy()) for n in range(4)]
         codes = sorted(run.wait() for run in runs)
         self.assertEqual(codes, [0, 1, 1, 1])
 
     def test_a_reapproval_refills_no_round_used_and_no_go_gives_none(self) -> None:
-        budget = self.budget(go("a" * 40, None, rounds=1))
+        plan = self.plan(rounds=1)
+        _, _, budget = self.open_plan(plan)
         self.assertEqual(self.round(budget, "7.1", "a:7.1")[0], 0)
-        with mock.patch.object(spend_ledger, "go_follows", return_value=True):
-            self.open(go("b" * 40, None, "2026-10-24", rounds=1))
+        plan.write("epic-7: in-progress # go 2026-10-23")
+        plan.write("epic-7: ready # go 2026-10-24", commit=self.go_message(self.epic_text(1), "2026-10-24"))
+        self.open_plan(plan)
         self.assertEqual(self.round(budget, "7.1", "b:7.1")[0], 1)
-        with mock.patch.object(spend_ledger, "go_follows", return_value=True):
-            self.open(go("c" * 40, None, "2026-10-25", rounds=2))
+        plan.write("epic-7: in-progress # go 2026-10-24")
+        plan.write("epic-7: ready # go 2026-10-25", self.epic_text(2), commit=self.go_message(self.epic_text(2), "2026-10-25"))
+        _, out, _ = self.open_plan(plan)
+        self.assertIn("ROUNDS: 2 extra per boundary from this go; 7.1 1 used", out)
         self.assertEqual(self.round(budget, "7.1", "c:7.1")[0], 0)  # his new go gave one more
         none = {"state": "NO_GO_RECORD", "plan_root": "/plans/other", "reason": "no go"}
         code, out = self.open(none, "--cap", "5", "--source", "owner 2026-10-23: up to $5")
@@ -262,7 +324,6 @@ class LedgerTests(unittest.TestCase):
         refused = self.round(other, "7.1", "x:7.1")
         self.assertEqual(refused[0], 1)
         self.assertIn("no recorded go gives extra rounds", refused[1])
-
 
 if __name__ == "__main__":
     unittest.main()

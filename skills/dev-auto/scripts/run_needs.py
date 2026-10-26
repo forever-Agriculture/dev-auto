@@ -12,8 +12,9 @@ appeared or changed. Later commits keeping the row keep the go; a new go date or
 reapproval, a new go, and what earlier gos let the run use stays used. A go recorded with `bmn plan go`
 (BMN Epic 96.1) names in its commit message the owner's act (Approval-Source) and the SHA-256 of the Run
 needs and Decisions he approved (Approved-Text); one whose text at the commit differs from that hash grants
-nothing, and an older go without them stands with its source unrecorded. A row put back to `backlog` or
-`dropped` after the go withdraws it.
+nothing, and an older go without them stands with its source unrecorded. A BMN-format go committed by hand
+once `bmn plan go` records gos (from HAND_GO_CUTOVER, or after a go it recorded in the same history) names no
+act of his and grants nothing. A row put back to `backlog` or `dropped` after the go withdraws it.
 
 Prints one of GO, NO_GO_RECORD or NO_RUN_NEEDS, then CHANGED_SINCE_GO when Run needs or Decisions differ
 today from the go's commit (the run keeps the go's text and records the change for the owner). Exit 0;
@@ -30,6 +31,8 @@ from pathlib import Path
 GO_DATE = re.compile(r"\bgo (\d{4}-\d{2}-\d{2})\b")
 STORY = re.compile(r"^#{2,4} Story (\d+\.\d+)\b", re.M)
 SECTIONS = ("Run needs", "Decisions")
+# The day after `bmn plan go` was delivered (BMN Epic 96): a go without its recorded act committed from then grants nothing.
+HAND_GO_CUTOVER = "2026-10-27"
 
 
 def git(repo: Path, *args: str) -> str:
@@ -98,6 +101,18 @@ def approval_text(found: dict[str, str | None]) -> str:
     """The SHA-256 a go names for its Run needs and Decisions; `bmn plan go` and `bmn plan status` hash them the same way."""
     text = f"Run needs\n{found['Run needs'] or ''}\nDecisions\n{found['Decisions'] or ''}\n"
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def hand_go_too_late(repo: Path, commit: str) -> str | None:
+    """Why a BMN-format go without a recorded act grants nothing, or None when it predates `bmn plan go` (96 review)."""
+    committed = git(repo, "log", "-1", "--format=%cs", commit).strip()
+    if committed >= HAND_GO_CUTOVER:
+        return f"committed by hand on {committed}, when gos are recorded with bmn plan go (from {HAND_GO_CUTOVER})"
+    try:
+        earlier = git(repo, "log", "-1", "--format=%h", "--grep=^Go-Epic: ", f"{commit}~1").strip()
+    except RuntimeError:
+        earlier = ""  # the go is the history's first commit
+    return f"committed by hand after {earlier}, a go bmn plan go recorded in the same history" if earlier else None
 
 
 def trailers(message: str) -> dict[str, str | None]:
@@ -210,6 +225,10 @@ def run_needs(project: Path, epic: int) -> dict:
         recorded = {"source": None, "approved": None}
     result["approval_source"] = recorded["source"]
     result["provenance"] = "recorded" if recorded["approved"] else "not recorded"
+    late = None if bmad or recorded["approved"] else hand_go_too_late(repo, go["commit"])
+    if late:
+        return {**result, "state": "NO_GO_RECORD",
+                "reason": f"the go commit {go['commit'][:12]} names no act of the owner and was {late}; it grants nothing: record his go with bmn plan go"}
     if recorded["approved"] and recorded["approved"] != result["approved_text"]:
         return {**result, "state": "NO_GO_RECORD",
                 "reason": f"the go commit {go['commit'][:12]} names approved text {recorded['approved'][:19]}…, not the Run needs and Decisions it holds; it grants nothing"}
@@ -224,6 +243,7 @@ def run_needs(project: Path, epic: int) -> dict:
         return {**result, "state": "NO_RUN_NEEDS", "reason": "the epic had no Run needs at its go"}
     return {**result, "state": "GO", "run_needs": then["Run needs"], "parsed": parse_needs(then["Run needs"]),
             "stories": STORY.findall(then_text or ""),  # the epic's stories at its go: the only story boundaries for its rounds
+            "row_status": board_now[0] if board_now else None,
             "decisions_at_go": f"git -C {repo} show {go['commit'][:12]}:<epic file>, ## Decisions"}
 
 

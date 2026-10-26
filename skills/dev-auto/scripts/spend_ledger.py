@@ -29,7 +29,9 @@ go (7.2) or `epic`, never a free name or an unplanned story a new run could pick
 lock only while the latest go's rounds exceed those used at that boundary under every go: a reapproval refills
 nothing used, and two runs cannot take the same round. A retry under the same use id returns the first answer.
 Without a recorded go there are none; a go the ledger lacks although a handoff of the project's worktrees already
-names it (the ledger was lost or moved) has its extra rounds counted as used (BMN 96 D9).
+names it, or whose epic row is past ready, has its extra rounds counted as used (BMN 96 D9). Each `open` and
+`round` reads the go again: once the plan withdraws it (a row put back, a hand go after `bmn plan go` took over),
+it gives no round and no paid launch until his next go.
 """
 import fcntl
 import hashlib
@@ -128,7 +130,32 @@ def totals(data: dict) -> tuple[float, float]:
 
 
 def latest_go(data: dict) -> dict | None:
-    return next((go for go in reversed(data["gos"]) if go.get("kind") == "go"), None)
+    """The go in force: the last one recorded, unless its withdrawal came after it."""
+    for entry in reversed(data["gos"]):
+        if entry.get("kind") == "withdrawn":
+            return None
+        if entry.get("kind") == "go":
+            return entry
+    return None
+
+
+def withdraw(data: dict, go: dict, reason: str) -> None:
+    """The plan no longer holds the go in force: no extra round and no paid launch until his next go (NFR1)."""
+    data["gos"].append({"kind": "withdrawn", "commit": go["commit"], "cap": None, "reason": reason, "at": now()})
+
+
+def go_now(data: dict, go: dict) -> tuple[str, str]:
+    """The go in force read again from the plan: `stands`, `withdrawn`, `newer` or `unreadable`, and why."""
+    import run_needs
+    try:
+        needs = run_needs.run_needs(Path(data.get("project") or data["plan_root"]), int(data["epic"]))
+    except (RuntimeError, OSError, subprocess.SubprocessError, ValueError, KeyError) as exc:
+        return "unreadable", f"the plan cannot be read now: {exc}"
+    if needs["state"] == "GO":
+        return ("stands", "") if needs["go_commit"] == go["commit"] else ("newer", f"go {needs['go_commit'][:12]} is newer: open the ledger again")
+    if needs.get("go_commit") == go["commit"]:
+        return "withdrawn", needs.get("reason") or needs["state"]
+    return "unreadable", needs.get("reason") or needs["state"]
 
 
 def rounds_used(data: dict, boundary: str) -> int:
@@ -138,6 +165,8 @@ def rounds_used(data: dict, boundary: str) -> int:
 def describe_go(data: dict) -> list[str]:
     """The go in force and the rounds it leaves at each boundary used so far, for the handoff's Go field."""
     go = latest_go(data)
+    if go is None and data["gos"] and data["gos"][-1].get("kind") == "withdrawn":
+        return [f"GO: withdrawn ({data['gos'][-1]['reason']}); no extra repair rounds and no paid launch until his next go"]
     if go is None:
         return ["GO: none recorded; no extra repair rounds (the invocation's allowance only)"]
     boundaries = sorted({use["boundary"] for use in data["rounds"].values() if use["answer"] == "TAKEN"})
@@ -186,6 +215,7 @@ def open_budget(args: dict) -> int:
     with (ledger := Ledger(budget)) as data:
         data.setdefault("plan_root", needs["plan_root"])
         data.setdefault("epic", int(epic))
+        data["project"] = str(project.resolve())  # where `round` reads the go again
         if "--cap" in args:
             cap = amount(args.get("--cap"))
             if cap is None or not args.get("--source"):
@@ -206,12 +236,17 @@ def open_budget(args: dict) -> int:
                          "cap": needs["parsed"]["money_cap"], "rounds": needs["parsed"]["rounds"],
                          "source": needs.get("approval_source"), "approved_text": needs.get("approved_text"),
                          "stories": needs.get("stories", []), "at": now()}
+                # What was used under this go is not here to count when a run already began under it: count it all as used (D9).
                 earlier = named_before(project, needs["go_commit"]) if entry["rounds"] else None
-                if earlier:  # what was used under this go is not here to count: count it all as used
-                    entry.update(rounds=0, rounds_lost=f"{earlier} names this go, the ledger does not: its {needs['parsed']['rounds']} extra counted as used")
+                started = needs.get("row_status") if entry["rounds"] and needs.get("row_status") not in (None, "ready") else None
+                if earlier or started:
+                    why = f"{earlier} names this go" if earlier else f"the epic's row is already {started}"
+                    entry.update(rounds=0, rounds_lost=f"{why}, the ledger does not: its {needs['parsed']['rounds']} extra counted as used")
                 data["gos"].append(entry)
             else:
                 next(go for go in data["gos"] if go.get("commit") == needs["go_commit"]).setdefault("stories", needs.get("stories", []))
+        elif (go := latest_go(data)) and needs.get("go_commit") == go["commit"]:
+            withdraw(data, go, needs.get("reason") or needs["state"])
         ledger.save()
         print(describe(budget, data))
         for line in describe_go(data):
@@ -234,6 +269,13 @@ def take_round(args: dict) -> int:
             print(f"{earlier['answer']}: round {use_id} was answered first at {earlier['at']} ({earlier['boundary']}); nothing taken again")
             return 0 if earlier["answer"] == "TAKEN" else EXIT_REFUSED
         go = latest_go(data)
+        state, why = go_now(data, go) if go else ("stands", "")
+        if state == "withdrawn":
+            withdraw(data, go, why)
+            ledger.save()
+        if state != "stands":
+            print(f"REFUSED: round {use_id} at {boundary}: the go {go['commit'][:12]} {'was withdrawn' if state == 'withdrawn' else 'cannot be confirmed'}: {why}; nothing taken")
+            return EXIT_REFUSED
         if go and match.group(1) and boundary not in go.get("stories", []):
             print(f"USAGE: {boundary} is not one of the stories epic {data.get('epic')} had at its go ({', '.join(go.get('stories', [])) or 'none'}); nothing taken")
             return EXIT_USAGE
