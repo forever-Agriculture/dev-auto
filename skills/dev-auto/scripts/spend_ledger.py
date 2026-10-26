@@ -259,6 +259,8 @@ def take_round(args: dict) -> int:
     if not (budget and boundary and use_id):
         print("USAGE: round needs --budget, --boundary STORY|epic and --use-id")
         return EXIT_USAGE
+    if not BUDGET_ID.fullmatch(budget):
+        raise ValueError(f"not a budget id: {budget}")
     match = BOUNDARY.fullmatch(boundary)
     if not match or (match.group(1) and match.group(1) != budget.rsplit("-", 1)[1]):
         print(f"USAGE: the boundary is one of epic {budget.rsplit('-', 1)[1]}'s stories (N.M) or `epic`, not {boundary}")

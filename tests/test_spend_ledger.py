@@ -303,6 +303,8 @@ class LedgerTests(unittest.TestCase):
         for boundary in ("7.2-review", "renamed-gate", "8.1", "7.99", ""):  # 7.99: no such story at the go
             self.assertEqual(self.round(budget, boundary, f"{boundary}:1")[0], 2, boundary)
         self.assertEqual(self.ledger(budget)["rounds"], {})
+        for wrong in ("bmn", "UNABLE:"):  # what a failed open's first line leaves in a caller's variable
+            self.assertEqual(self.round(wrong, "7.1", "7.1:1"), (2, f"UNABLE: not a budget id: {wrong}\n"), wrong)
 
     def test_a_lost_ledger_counts_the_rounds_of_a_go_a_run_already_began_under_as_used(self) -> None:
         plan = self.plan(rounds=1)
