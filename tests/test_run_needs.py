@@ -1,4 +1,4 @@
-# MODULE: test_run_needs.py - BMN Epic 90.3: the owner's go and its Run needs, read from a plan's history
+# MODULE: test_run_needs.py - BMN Epic 90.3: the owner's go and its Run needs, read from a plan's history; 96.1: its recorded act and approved text
 from __future__ import annotations
 
 from pathlib import Path
@@ -38,9 +38,9 @@ class Plan:
         (self.root / "epics").mkdir(parents=True)
         self.git("init", "-qb", "main")
 
-    def git(self, *args: str) -> str:
+    def git(self, *args: str, input: str | None = None) -> str:
         return subprocess.run(["git", "-C", str(self.root), "-c", "user.name=F", "-c", "user.email=f@example.invalid", *args],
-                              check=True, capture_output=True, text=True).stdout.strip()
+                              check=True, capture_output=True, text=True, input=input).stdout.strip()
 
     def write(self, row: str | None = None, text: str | None = None, commit: str | None = "plan") -> str:
         if row is not None:
@@ -50,7 +50,7 @@ class Plan:
         if commit is None:
             return ""
         self.git("add", "-A")
-        self.git("commit", "-qm", commit, "--allow-empty")
+        self.git("commit", "-q", "--allow-empty", "-F", "-", input=commit)
         return self.git("rev-parse", "HEAD")
 
     def status(self) -> dict:
@@ -159,6 +159,48 @@ class RunNeedsTests(unittest.TestCase):
             result = run_needs.run_needs(root, 7)
         self.assertEqual((result["state"], result["go_commit"], result["parsed"]["rounds"]), ("GO", go, 2))
 
+    def go_message(self, approved: str, source: str = "card 2026-10-26T09:30Z: owner answered 'Go'") -> str:
+        return (f"plan: go for Epic 7 (go 2026-10-26)\n\nGo-Epic: 7\nGo-Date: 2026-10-26\nApproval-Source: {source}\n"
+                f"Approved-Text: {approved}\nApproved-File: epics/007-fixture.md\n")
+
+    def test_a_recorded_go_names_his_act_and_the_approved_text(self) -> None:
+        self.plan.write("epic-7: backlog", epic())
+        approved = f"sha256:{run_needs.approval_text(run_needs.sections(epic()))}"
+        go = self.plan.write("epic-7: ready # go 2026-10-26", commit=self.go_message(approved))
+        result = self.plan.read()
+        self.assertEqual((result["state"], result["go_commit"], result["provenance"], result["approved_text"]), ("GO", go, "recorded", approved))
+        self.assertEqual(result["approval_source"], "card 2026-10-26T09:30Z: owner answered 'Go'")
+
+    def test_a_go_whose_text_is_not_what_it_names_grants_nothing(self) -> None:
+        self.plan.write("epic-7: backlog", epic())
+        self.plan.write("epic-7: ready # go 2026-10-26", commit=self.go_message("sha256:" + "0" * 64))
+        result = self.plan.read()
+        self.assertEqual(result["state"], "NO_GO_RECORD")
+        self.assertIn("grants nothing", result["reason"])
+
+    def test_an_older_go_without_a_record_stands_and_says_so(self) -> None:
+        self.plan.write("epic-7: backlog", epic())
+        self.plan.write("epic-7: ready # go 2026-10-20")
+        result = self.plan.read()
+        self.assertEqual((result["state"], result["provenance"], result["approval_source"]), ("GO", "not recorded", None))
+
+    def test_a_row_put_back_to_backlog_or_dropped_withdraws_the_go_and_a_pause_keeps_it(self) -> None:
+        self.plan.write("epic-7: backlog", epic())
+        self.plan.write("epic-7: ready # go 2026-10-20")
+        self.plan.write("epic-7: paused # owner stopped")
+        self.assertEqual(self.plan.read()["state"], "GO")
+        for status in ("backlog", "dropped"):
+            self.plan.write(f"epic-7: {status} # withdrawn", commit=None)
+            result = self.plan.read()
+            self.assertEqual((result["state"], result["withdrawn_go"]), ("NO_GO_RECORD", "2026-10-20"))
+
+    def test_approval_text_matches_bmns_hash(self) -> None:
+        # The same vector as BMN's plan-go.test.ts: bmn plan status and bmn plan go hash these bytes the same way.
+        text = "# Epic 7: X\n\n## Run needs\n\n- **Money cap:** none.\n\n## Decisions\n\n- D1: yes.\n\n## Stories\n"
+        self.assertEqual(run_needs.approval_text(run_needs.sections(text)), "99de4dc862fd74d97adc69107ab01cbb87ab8bfc454f560e6aa7d517e2c107bb")
+        self.assertEqual(run_needs.approval_text(run_needs.sections("# Epic 7: X\n")),
+                         run_needs.approval_text(run_needs.sections("# Epic 7: X\n\n## Run needs\n\n## Decisions\n")))
+
     def test_cli_prints_the_state_and_never_tracebacks(self) -> None:
         self.plan.write("epic-7: backlog", epic())
         self.plan.write("epic-7: ready # go 2026-10-20")
@@ -172,6 +214,7 @@ class RunNeedsTests(unittest.TestCase):
             self.assertEqual(run_needs.main(["7"]), 0)
         printed = "".join(call.args[0] for call in write.call_args_list)
         self.assertIn("GO: epic 7, go 2026-10-20", printed)
+        self.assertIn("APPROVAL: not recorded with the go", printed)
         self.assertIn("**Extra repair rounds:** 2 per boundary.", printed)
 
 

@@ -7,14 +7,19 @@ Usage: run_needs.py EPIC [--project P] [--json]
 The go is the approval event, not a later snapshot: the commit of the board in which the epic's row
 changed to `ready` with `go YYYY-MM-DD` in its note, from a parent where the row had another status or
 another go date. A go date first committed while the row is already past `ready` (the `ready` snapshot was
-never committed) counts as that go. A BMAD board's go is the commit in which the row's dated `go` comment
+never committed) grants nothing. A BMAD board's go is the commit in which the row's dated `go` comment
 appeared or changed. Later commits keeping the row keep the go; a new go date or a return to `ready` is a
-reapproval, a new go, and what earlier gos let the run use stays used.
+reapproval, a new go, and what earlier gos let the run use stays used. A go recorded with `bmn plan go`
+(BMN Epic 96.1) names in its commit message the owner's act (Approval-Source) and the SHA-256 of the Run
+needs and Decisions he approved (Approved-Text); one whose text at the commit differs from that hash grants
+nothing, and an older go without them stands with its source unrecorded. A row put back to `backlog` or
+`dropped` after the go withdraws it.
 
 Prints one of GO, NO_GO_RECORD or NO_RUN_NEEDS, then CHANGED_SINCE_GO when Run needs or Decisions differ
 today from the go's commit (the run keeps the go's text and records the change for the owner). Exit 0;
 2 only when the plan cannot be resolved (UNABLE).
 """
+import hashlib
 import json
 import re
 import shutil
@@ -84,8 +89,22 @@ def sections(text: str | None) -> dict[str, str | None]:
     out = {}
     for name in SECTIONS:
         match = re.search(rf"^(#{{2,4}}) {re.escape(name)}[ \t]*\n(.*?)(?=^#{{1,4}} |\Z)", text or "", re.M | re.S)
-        out[name] = match.group(2).strip() if match else None
+        out[name] = match.group(2).strip(" \t\r\n") if match else None
     return out
+
+
+def approval_text(found: dict[str, str | None]) -> str:
+    """The SHA-256 a go names for its Run needs and Decisions; `bmn plan go` and `bmn plan status` hash them the same way."""
+    text = f"Run needs\n{found['Run needs'] or ''}\nDecisions\n{found['Decisions'] or ''}\n"
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def trailers(message: str) -> dict[str, str | None]:
+    """The owner's act and the approved text a `bmn plan go` commit names (96.1); None for an older go."""
+    def field(name: str) -> str | None:
+        match = re.search(rf"^{name}: (.+)$", message, re.M)
+        return match.group(1).strip() if match else None
+    return {"source": field("Approval-Source"), "approved": field("Approved-Text")}
 
 
 def epic_text_bmn(epic: int, read) -> str | None:
@@ -178,11 +197,23 @@ def run_needs(project: Path, epic: int) -> dict:
     changed = [name for name in SECTIONS if (then[name] or "") != (now[name] or "")]
     result = {**identity, "go_date": go["date"], "go_commit": go["commit"],
               "earlier_gos": [f"{g['date']}@{g['commit'][:12]}" for g in gos[:-1]],
-              "changed_since_go": changed}
+              "changed_since_go": changed, "approved_text": f"sha256:{approval_text(then)}"}
+    try:
+        recorded = trailers(git(repo, "log", "-1", "--format=%B", go["commit"]))
+    except RuntimeError:
+        recorded = {"source": None, "approved": None}
+    result["approval_source"] = recorded["source"]
+    result["provenance"] = "recorded" if recorded["approved"] else "not recorded"
+    if recorded["approved"] and recorded["approved"] != result["approved_text"]:
+        return {**result, "state": "NO_GO_RECORD",
+                "reason": f"the go commit {go['commit'][:12]} names approved text {recorded['approved'][:19]}…, not the Run needs and Decisions it holds; it grants nothing"}
     board_now = row(board.read_text(encoding="utf-8", errors="replace"), epic) if board.exists() else None
     date_now = GO_DATE.search(board_now[1]) if board_now else None
     if date_now and date_now.group(1) != go["date"]:
         result["uncommitted_go"] = date_now.group(1)
+    if board_now and board_now[0] in ("backlog", "dropped"):
+        return {**result, "state": "NO_GO_RECORD", "withdrawn_go": go["date"],
+                "reason": f"the go of {go['date']} was withdrawn: the row is now {board_now[0]}"}
     if then["Run needs"] is None:
         return {**result, "state": "NO_RUN_NEEDS", "reason": "the epic had no Run needs at its go"}
     return {**result, "state": "GO", "run_needs": then["Run needs"], "parsed": parse_needs(then["Run needs"]),
@@ -204,6 +235,10 @@ def main(argv: list[str]) -> int:
         return 0
     if result["state"] == "GO":
         print(f"GO: epic {result['epic']}, go {result['go_date']}, commit {result['go_commit'][:12]} in {result['history_repo']}")
+        if result["provenance"] == "recorded":
+            print(f"APPROVAL: {result['approval_source']}; approved text {result['approved_text']}")
+        else:
+            print(f"APPROVAL: not recorded with the go (a go recorded before bmn plan go); the go stands, approved text at its commit {result['approved_text']}")
         print("RUN NEEDS (his instruction for this epic's runs, as recorded at the go):")
         print(result["run_needs"])
         print(f"DECISIONS: read at the go, {result['decisions_at_go']}")
