@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-# MODULE: spend_ledger.py - BMN Epic 90.4: the go's money cap kept at every paid launch by one reservation ledger per plan and epic
-"""Reserve a paid job's maximum against the epic's money cap before it starts.
+# MODULE: spend_ledger.py - BMN Epic 90.4: the go's money cap kept at every paid launch by one reservation ledger per plan and epic; 96.2: the go's extra repair rounds counted in the same ledger
+"""Reserve a paid job's maximum against the epic's money cap before it starts; count the go's extra repair rounds.
 
 Usage:
-  spend_ledger.py open --epic N [--project P]             record the epic's go and its cap; prints the budget id
+  spend_ledger.py open --epic N [--project P]             record the epic's go, its cap and its rounds; prints the budget id,
+                                                          the go's identity and the rounds left at each boundary
   spend_ledger.py open --epic N --cap USD --source TEXT   an owner-stated cap for an epic with no go and no cap yet
   spend_ledger.py launch --budget B --job J --max USD [--direct] -- JOB_SCRIPT [ARGS...]
   spend_ledger.py settle --budget B --job J (--spent USD | --unknown)
   spend_ledger.py release --budget B --job J              the job never ran: its reservation is returned
+  spend_ledger.py round --budget B --boundary STORY|epic --use-id ID   take one of the go's extra repair rounds
   spend_ledger.py status --budget B
 
 One ledger per plan and epic, under $XDG_STATE_HOME/dev-auto/budgets/ (default ~/.local/state), outside every
@@ -20,6 +22,12 @@ starts it as a detached process instead). A refusal, an invalid amount or a miss
 non-zero; a retry under the same job id returns the first answer. An unknown outcome, including a launch whose
 acknowledgement timed out, keeps its reservation until it is settled or released. The
 ledger covers dev-auto's own paid launches, not every provider call.
+
+The go's extra repair rounds per boundary (its Run needs) are counted here too, so every resume, replacement lead
+and linked worktree of the epic sees the same rounds left (BMN 96.2). A boundary is one of the epic's stories (7.2)
+or `epic`, never a free name a new run could pick again. `round` takes one under the lock only while the latest go's
+rounds exceed those used at that boundary under every go: a reapproval refills nothing used, and two runs cannot take
+the same round. A retry under the same use id returns the first answer. Without a recorded go there are none.
 """
 import fcntl
 import hashlib
@@ -35,6 +43,7 @@ from pathlib import Path
 
 EXIT_REFUSED, EXIT_USAGE = 1, 2
 BUDGET_ID = re.compile(r"[0-9a-f]{16}-epic-\d+")
+BOUNDARY = re.compile(r"(\d+)\.\d+|epic")
 
 
 def budgets() -> Path:
@@ -68,6 +77,7 @@ class Ledger:
     def __enter__(self) -> dict:
         fcntl.flock(self.lock, fcntl.LOCK_EX)
         self.data = json.loads(self.path.read_text()) if self.path.exists() else {"gos": [], "jobs": {}}
+        self.data.setdefault("rounds", {})
         return self.data
 
     def save(self) -> None:
@@ -115,6 +125,26 @@ def totals(data: dict) -> tuple[float, float]:
     return settled, outstanding
 
 
+def latest_go(data: dict) -> dict | None:
+    return next((go for go in reversed(data["gos"]) if go.get("kind") == "go"), None)
+
+
+def rounds_used(data: dict, boundary: str) -> int:
+    return sum(1 for use in data["rounds"].values() if use["answer"] == "TAKEN" and use["boundary"] == boundary)
+
+
+def describe_go(data: dict) -> list[str]:
+    """The go in force and the rounds it leaves at each boundary used so far, for the handoff's Go field."""
+    go = latest_go(data)
+    if go is None:
+        return ["GO: none recorded; no extra repair rounds (the invocation's allowance only)"]
+    boundaries = sorted({use["boundary"] for use in data["rounds"].values() if use["answer"] == "TAKEN"})
+    used = ", ".join(f"{b} {rounds_used(data, b)} used" for b in boundaries) or "none used"
+    return [f"GO: {go['date']} commit {go['commit'][:12]}; source {go.get('source') or 'not recorded'}; "
+            f"approved text {go.get('approved_text') or 'not recorded'}",
+            f"ROUNDS: {go.get('rounds', 0)} extra per boundary from this go; {used}"]
+
+
 def describe(budget: str, data: dict) -> str:
     cap = cap_in_force(data)
     settled, outstanding = totals(data)
@@ -152,9 +182,41 @@ def open_budget(args: dict) -> int:
                           "read the plan's current history; the cap is unchanged")
                     return EXIT_REFUSED
                 data["gos"].append({"kind": "go", "date": needs["go_date"], "commit": needs["go_commit"],
-                                    "cap": needs["parsed"]["money_cap"], "at": now()})
+                                    "cap": needs["parsed"]["money_cap"], "rounds": needs["parsed"]["rounds"],
+                                    "source": needs.get("approval_source"), "approved_text": needs.get("approved_text"),
+                                    "at": now()})
         ledger.save()
         print(describe(budget, data))
+        for line in describe_go(data):
+            print(line)
+    return 0
+
+
+def take_round(args: dict) -> int:
+    budget, boundary, use_id = args.get("--budget"), args.get("--boundary"), args.get("--use-id")
+    if not (budget and boundary and use_id):
+        print("USAGE: round needs --budget, --boundary STORY|epic and --use-id")
+        return EXIT_USAGE
+    match = BOUNDARY.fullmatch(boundary)
+    if not match or (match.group(1) and match.group(1) != budget.rsplit("-", 1)[1]):
+        print(f"USAGE: the boundary is one of epic {budget.rsplit('-', 1)[1]}'s stories (N.M) or `epic`, not {boundary}")
+        return EXIT_USAGE
+    with (ledger := Ledger(budget)) as data:
+        earlier = data["rounds"].get(use_id)
+        if earlier:
+            print(f"{earlier['answer']}: round {use_id} was answered first at {earlier['at']} ({earlier['boundary']}); nothing taken again")
+            return 0 if earlier["answer"] == "TAKEN" else EXIT_REFUSED
+        go = latest_go(data)
+        allowed = go.get("rounds", 0) if go else 0
+        used = rounds_used(data, boundary)
+        answer = "TAKEN" if used < allowed else "REFUSED"
+        data["rounds"][use_id] = {"answer": answer, "boundary": boundary, "go": go["commit"] if go else None, "at": now()}
+        ledger.save()
+        if answer == "REFUSED":
+            reason = "no recorded go gives extra rounds" if go is None else f"the go gives {allowed} extra per boundary and {used} are used at {boundary}"
+            print(f"REFUSED: round {use_id} at {boundary}: {reason}; nothing taken")
+            return EXIT_REFUSED
+        print(f"TAKEN: round {use_id} at {boundary}, {used + 1} of {allowed} from go {go['commit'][:12]}")
     return 0
 
 
@@ -256,9 +318,13 @@ def main(argv: list[str]) -> int:
             return launch(args, job_argv)
         if argv[0] in ("settle", "release"):
             return close(args, argv[0])
+        if argv[0] == "round":
+            return take_round(args)
         if argv[0] == "status":
             with Ledger(args.get("--budget") or "") as data:
                 print(describe(args["--budget"], data))
+                for line in describe_go(data):
+                    print(line)
                 for job, entry in data["jobs"].items():
                     print(f"  {job}: {entry['state']} max {entry['max']:.2f}" + (f" spent {entry['spent']:.2f}" if "spent" in entry else ""))
             return 0

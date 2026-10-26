@@ -16,12 +16,17 @@ check earns its place by a failure it prevents; reuse valid evidence.
 The invocation and later owner instructions set the run's authority: scope, approved
 spend and delegation ("decide within the cap", "work autonomously"). Record each
 delegation with its source quote as a handoff term, valid only for its named scope and
-total. His go on a planned epic is one, day or night: record and follow what
-`scripts/run_needs.py EPIC` prints at start and resume.
+total. His go on a planned epic is one, day or night. At start and each resume run
+`scripts/spend_ledger.py open --epic N` (it reads the go with `scripts/run_needs.py`) and keep
+what it prints in the handoff's `Go` field: the same go means its terms, rounds left and money
+as printed, nothing to ask him. Take each of the go's extra rounds with `spend_ledger.py round`
+before using it; that ledger counts them for every lead, resume and worktree. On NO_GO_RECORD
+go on under the invocation without the extras: approval evidence you find explains the missing
+record in the handoff, grants nothing and never makes you ask him to restate or record a go.
 Reserved to him however sure you are: spend beyond what he approved or delegated, changes
 to selected work or its acceptance criteria, actions the global rules reserve to him,
 credentials or private data, owner-only acceptance checks, model choices and the brake's
-decision below. His model choices live in his BMN team: a lasting
+decision below; a broad "continue" or "work autonomously" answers none of these. His model choices live in his BMN team: a lasting
 one for a project is a `## project-choices` entry he approves in BMN (if the host refuses
 your write, give him the entry), a one-time pick goes as `--agent` (and `--effort`) on
 the asks it covers, with his quote in the handoff. Decide a technical point only on

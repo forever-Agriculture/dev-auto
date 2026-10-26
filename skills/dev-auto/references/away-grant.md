@@ -33,9 +33,9 @@ the use. A refused use waits as without a grant. After an uncertain
 outcome, read the target's state first and retry only under the same use id when the action
 did not happen; once he has answered a new revision, or is back, that retry is refused and
 waits. A use id belongs to its run and away period, and his
-answer to a new revision is a new grant, its actions counted afresh. The boundary
-name is the one the handoff's review allowance uses, so rounds used count across resumes,
-leads, away periods and gos.
+answer to a new revision is a new grant, its actions counted afresh. A boundary is a story
+(`96.3`) or `epic`, as the handoff's review allowance names it, so rounds used count across
+resumes, leads, away periods and gos.
 
 After each step, report it for his morning summary: `bmn grant report --run
 <Run id> --period <its period> --use-id <id> --result passed|failed|blocked` for a round,
@@ -50,8 +50,9 @@ first, without a card:
 
 1. Record the new evidence and a consultant-agreed method in the brake record, and save the
    handoff in its own tool call.
-2. Once that save succeeded, record the round: a go round in the brake record with source
-   `go`, a granted one with `bmn grant use`.
+2. Once that save succeeded, record the round: a go round with `scripts/spend_ledger.py round
+   --budget B --boundary <boundary> --use-id <boundary>:round-<n>` (refused when none is left),
+   noted in the brake record with source `go`; a granted one with `bmn grant use`.
 3. Make one consolidated repair and one focused recheck.
 
 A third failed method within the rounds does not stop for a card. Before the last round,

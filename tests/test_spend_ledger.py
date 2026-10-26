@@ -1,4 +1,4 @@
-# MODULE: test_spend_ledger.py - BMN Epic 90.4: one reservation ledger keeps the go's money cap at every paid launch
+# MODULE: test_spend_ledger.py - BMN Epic 90.4: one reservation ledger keeps the go's money cap at every paid launch; 96.2: and counts the go's extra repair rounds
 from __future__ import annotations
 
 import contextlib
@@ -22,9 +22,10 @@ import spend_ledger  # noqa: E402
 LEDGER = SCRIPTS / "spend_ledger.py"
 
 
-def go(commit: str, cap: float | None, date: str = "2026-10-23") -> dict:
+def go(commit: str, cap: float | None, date: str = "2026-10-23", rounds: int = 0) -> dict:
     return {"state": "GO", "plan_root": "/plans/fixture", "go_date": date, "go_commit": commit,
-            "parsed": {"rounds": 0, "deferrable": [], "money_cap": cap, "named_actions": None}}
+            "approval_source": "card 2026-10-23T09:00Z: 'Go'", "approved_text": "sha256:" + "a" * 64,
+            "parsed": {"rounds": rounds, "deferrable": [], "money_cap": cap, "named_actions": None}}
 
 
 class LedgerTests(unittest.TestCase):
@@ -194,6 +195,58 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(self.launch(budget, "a", "5").returncode, 0)
         self.assertEqual(self.open(none, "--cap", "50", "--source", "more")[0], 1)
         self.assertEqual(self.open(none, "--cap", "5")[0], 2)  # no source
+
+
+    def round(self, budget: str, boundary: str, use_id: str) -> tuple[int, str]:
+        done = subprocess.run([sys.executable, str(LEDGER), "round", "--budget", budget, "--boundary", boundary, "--use-id", use_id],
+                              capture_output=True, text=True, env=os.environ.copy())
+        return done.returncode, done.stdout
+
+    def test_the_gos_rounds_are_one_count_for_every_lead_resume_and_retry(self) -> None:
+        code, out = self.open(go("a" * 40, None, rounds=1))
+        budget = out.split()[1].rstrip(":")
+        self.assertIn("GO: 2026-10-23 commit aaaaaaaaaaaa; source card 2026-10-23T09:00Z: 'Go'", out)
+        self.assertIn("ROUNDS: 1 extra per boundary from this go; none used", out)
+        self.assertEqual(self.round(budget, "7.2", "7.2:round-1")[0], 0)
+        self.assertEqual(self.round(budget, "7.2", "7.2:round-1"), (0, self.round(budget, "7.2", "7.2:round-1")[1]))  # a retry: the first answer
+        self.assertIn("nothing taken again", self.round(budget, "7.2", "7.2:round-1")[1])
+        # A resumed or replacement lead under another run name finds the same count: the boundary is the story, not the run.
+        refused = self.round(budget, "7.2", "replacement-run:7.2:round-1")
+        self.assertEqual(refused[0], 1)
+        self.assertIn("1 are used at 7.2", refused[1])
+        self.assertEqual(self.round(budget, "epic", "epic:round-1")[0], 0)  # another boundary has its own
+        _, status = self.open(go("a" * 40, None, rounds=1))
+        self.assertIn("ROUNDS: 1 extra per boundary from this go; 7.2 1 used, epic 1 used", status)
+
+    def test_a_free_boundary_name_or_another_epics_story_is_refused(self) -> None:
+        budget = self.budget(go("a" * 40, None, rounds=2))
+        for boundary in ("7.2-review", "renamed-gate", "8.1", ""):
+            self.assertEqual(self.round(budget, boundary, f"{boundary}:1")[0], 2, boundary)
+        self.assertEqual(self.ledger(budget)["rounds"], {})
+
+    def test_two_leads_taking_the_last_round_at_once_get_exactly_one(self) -> None:
+        budget = self.budget(go("a" * 40, None, rounds=1))
+        argv = lambda use: [sys.executable, str(LEDGER), "round", "--budget", budget, "--boundary", "7.1", "--use-id", use]
+        runs = [subprocess.Popen(argv(f"lead-{n}:7.1"), stdout=subprocess.PIPE, text=True, env=os.environ.copy()) for n in range(4)]
+        codes = sorted(run.wait() for run in runs)
+        self.assertEqual(codes, [0, 1, 1, 1])
+
+    def test_a_reapproval_refills_no_round_used_and_no_go_gives_none(self) -> None:
+        budget = self.budget(go("a" * 40, None, rounds=1))
+        self.assertEqual(self.round(budget, "7.1", "a:7.1")[0], 0)
+        with mock.patch.object(spend_ledger, "go_follows", return_value=True):
+            self.open(go("b" * 40, None, "2026-10-24", rounds=1))
+        self.assertEqual(self.round(budget, "7.1", "b:7.1")[0], 1)
+        with mock.patch.object(spend_ledger, "go_follows", return_value=True):
+            self.open(go("c" * 40, None, "2026-10-25", rounds=2))
+        self.assertEqual(self.round(budget, "7.1", "c:7.1")[0], 0)  # his new go gave one more
+        none = {"state": "NO_GO_RECORD", "plan_root": "/plans/other", "reason": "no go"}
+        code, out = self.open(none, "--cap", "5", "--source", "owner 2026-10-23: up to $5")
+        other = out.split()[1].rstrip(":")
+        self.assertIn("GO: none recorded; no extra repair rounds", out)
+        refused = self.round(other, "7.1", "x:7.1")
+        self.assertEqual(refused[0], 1)
+        self.assertIn("no recorded go gives extra rounds", refused[1])
 
 
 if __name__ == "__main__":

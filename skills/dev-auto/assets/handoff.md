@@ -10,6 +10,7 @@
 - Explicit user stop (if any; only a later user instruction clears it):
 - BMN away: none (`check.py away` keeps it: away|back since TIME revision R; never the note)
 - Restrictions and authorization boundaries: current limits; source coordinates for approvals
+- Go: what `scripts/spend_ledger.py open --epic N` printed at start and the last resume (GO date, commit, source, approved text; rounds per boundary and used; budget id), or NO_GO_RECORD and why
 - Decision and history log: .dev-auto/log.md (append-only; verbatim approval terms with source coordinates)
 - Authorized provider routes:
 - Lead host / requested model / observed model: from the Codex rollout or Claude receipt

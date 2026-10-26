@@ -175,7 +175,12 @@ def run_needs(project: Path, epic: int) -> dict:
     if not gos:
         if now["Run needs"] is None:
             return {**identity, "state": "NO_RUN_NEEDS", "reason": "the epic has no Run needs"}
-        return {**identity, "state": "NO_GO_RECORD", "reason": "no commit records a go for this epic"}
+        result = {**identity, "state": "NO_GO_RECORD", "reason": "no commit records a go for this epic"}
+        board_now = row(board.read_text(encoding="utf-8", errors="replace"), epic) if board.exists() else None
+        date_now = GO_DATE.search(board_now[1]) if board_now else None
+        if date_now:  # evidence that explains the gap; it grants nothing (96.2 AC5)
+            result["uncommitted_go"] = date_now.group(1)
+        return result
     go = gos[-1]
 
     def read_at(path: str):
@@ -244,12 +249,17 @@ def main(argv: list[str]) -> int:
         print(f"DECISIONS: read at the go, {result['decisions_at_go']}")
     else:
         print(f"{result['state']}: {result['reason']}; nothing is delegated beyond the invocation")
+        if result["state"] == "NO_GO_RECORD":
+            print("NO_GO_RECORD: the run goes on under the invocation without this epic's extra rounds or deferrals; a go is "
+                  "recorded only at planning (bmn plan go), never by the run, and he is never asked to restate an approval: "
+                  "record any approval evidence found in the handoff as the reason the record is missing")
     if result.get("earlier_gos"):
         print(f"REAPPROVAL: earlier gos {', '.join(result['earlier_gos'])}; rounds and money they let the run use stay used")
     if result.get("changed_since_go"):
         print(f"CHANGED_SINCE_GO: {', '.join(result['changed_since_go'])}; the go's text holds, record the change under Needs your decision")
     if result.get("uncommitted_go"):
-        print(f"UNCOMMITTED_GO: the board names go {result['uncommitted_go']}, not yet in the plan's history; the last committed go holds")
+        held = "the last committed go holds" if result["state"] == "GO" else "it grants nothing until bmn plan go records it"
+        print(f"UNCOMMITTED_GO: the board names go {result['uncommitted_go']}, not yet in the plan's history; {held}")
     return 0
 
 

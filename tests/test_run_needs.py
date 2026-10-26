@@ -128,7 +128,14 @@ class RunNeedsTests(unittest.TestCase):
         self.plan.write(text=epic(), commit=None)
         self.assertEqual(self.plan.read()["state"], "NO_GO_RECORD")
         self.plan.write("epic-7: ready # go 2026-10-20", commit=None)  # recorded on the board, not committed
-        self.assertEqual(self.plan.read()["state"], "NO_GO_RECORD")
+        result = self.plan.read()
+        self.assertEqual((result["state"], result["uncommitted_go"]), ("NO_GO_RECORD", "2026-10-20"))  # explains, grants nothing
+        self.assertNotIn("parsed", result)
+        with mock.patch.object(run_needs, "resolve", return_value=self.plan.status()), mock.patch("sys.stdout.write") as write:
+            self.assertEqual(run_needs.main(["7"]), 0)
+        printed = "".join(call.args[0] for call in write.call_args_list)
+        self.assertIn("never by the run, and he is never asked to restate an approval", printed)
+        self.assertIn("UNCOMMITTED_GO: the board names go 2026-10-20", printed)
 
     def test_unreadable_history_is_no_go_record(self) -> None:
         self.plan.write("epic-7: ready # go 2026-10-20", epic())
