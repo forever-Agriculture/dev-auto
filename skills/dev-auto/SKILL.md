@@ -217,10 +217,11 @@ or workflow changes. A report revision is the checked HTML page's SHA256.
 2. Write one receipt beside the page immediately after each step returns: page path,
    SHA256, publisher, key if supported, id/link and browser result. Resume reuses successful
    delivery only when the page's SHA256 matches the receipt.
-3. Open it in the owner's default browser as the skill's open rule says (the Artifact
-   link, or the checked local page), without another owner question (requested 2026-10-23).
-   Host permission prompts still apply. Record `launched (exit 0)` after success, which
-   does not mean the owner saw it; skip that launch on resume for the same recorded SHA256.
+3. Open it once, as the skill's open rule says (a Claude Code Artifact publish opens it
+   itself; otherwise the checked local page in his default browser), without another owner
+   question (requested 2026-10-23). Host permission prompts still apply. Record `opened by
+   publish` or `launched (exit 0)`, which does not mean the owner saw it; skip that launch on
+   resume for the same recorded SHA256.
 4. If publishing or opening is unavailable, refused, fails or returns an uncertain result,
    record UNAVAILABLE and the reason, give the checked local page path, and use no workaround
    or new-key retry. This presentation failure does not block product acceptance or COMPLETE.
