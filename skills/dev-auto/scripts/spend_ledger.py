@@ -29,8 +29,8 @@ go (7.2) or `epic`, never a free name or an unplanned story a new run could pick
 lock only while the latest go's rounds exceed those used at that boundary under every go: a reapproval refills
 nothing used, and two runs cannot take the same round. A retry under the same use id returns the first answer.
 Without a recorded go there are none; a go the ledger lacks although a handoff of the project's worktrees already
-names it, or whose epic row is past ready, has every boundary counted as used up to the largest allowance any of
-its gos gave, kept in the ledger so that no later go refills it (BMN 96 D9). Each `open`, `round`
+names it, or whose epic row is in none of the not-started statuses (NOT_STARTED; an unknown status counts as begun),
+has every boundary counted as used up to the largest allowance any of its gos gave, kept in the ledger so that no later go refills it (BMN 96 D9). Each `open`, `round`
 and paid `launch` reads the go again: once the plan withdraws it (a row put back, a later hand go after `bmn plan
 go` took over), the withdrawal is recorded and it gives no round and no paid launch until his next go.
 """
@@ -47,6 +47,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 EXIT_REFUSED, EXIT_USAGE = 1, 2
+# A row in one of these has not begun its run: BMN's `ready`, BMAD's states before work (a BMAD go is a dated comment, often on
+# a backlog row). Any other status, an unknown or missing one included, says a run may have begun under the go (96 Astra recheck).
+NOT_STARTED = ("ready", "backlog", "ready-for-dev", "contexted", "drafted", "optional")
 BUDGET_ID = re.compile(r"[0-9a-f]{16}-epic-\d+")
 BOUNDARY = re.compile(r"(\d+)\.\d+|epic")
 
@@ -239,9 +242,10 @@ def open_budget(args: dict) -> int:
                 # the largest allowance any go gave (D9), written as used rounds so that no later go refills them (96 Astra review).
                 presumed = max([entry["rounds"], needs.get("earlier_rounds", 0), *(g.get("rounds", 0) for g in data["gos"] if g.get("kind") == "go")])
                 earlier = named_before(project, needs["go_commit"]) if presumed else None
-                started = needs.get("row_status") if presumed and needs.get("row_status") not in (None, "ready") else None
+                status = needs.get("row_status")
+                started = bool(presumed) and status not in NOT_STARTED
                 if earlier or started:
-                    why = f"{earlier} names this go" if earlier else f"the epic's row is already {started}"
+                    why = f"{earlier} names this go" if earlier else f"the epic's row is already {status or 'unknown'}"
                     for boundary in [*entry["stories"], "epic"]:
                         for count in range(rounds_used(data, boundary), presumed):
                             data["rounds"][f"presumed:{needs['go_commit'][:12]}:{boundary}:{count + 1}"] = {

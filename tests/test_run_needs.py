@@ -244,6 +244,23 @@ class RunNeedsTests(unittest.TestCase):
         removed.write(commit="row removed")
         removed.write("epic-7: in-progress # go 2026-10-20")
         self.assertEqual(removed.read()["state"], "NO_GO_RECORD")
+        # Taken off the board now, not yet committed: withdrawn too (96 Astra recheck).
+        uncommitted = Plan()
+        self.addCleanup(uncommitted.tmp.cleanup)
+        uncommitted.write("epic-7: backlog", epic())
+        uncommitted.write("epic-7: ready # go 2026-10-20")
+        uncommitted.write("epic-8: backlog", commit=None)
+        result = uncommitted.read()
+        self.assertEqual((result["state"], result.get("withdrawn_go")), ("NO_GO_RECORD", "2026-10-20"))
+        # No board to read now: nothing confirms the go.
+        gone = Plan()
+        self.addCleanup(gone.tmp.cleanup)
+        gone.write("epic-7: backlog", epic())
+        gone.write("epic-7: ready # go 2026-10-20")
+        (gone.root / "status.yaml").unlink()
+        result = gone.read()
+        self.assertEqual(result["state"], "NO_GO_RECORD")
+        self.assertIn("cannot be read now", result["reason"])
         # His next go stands again.
         self.plan.write("epic-7: ready # go 2026-10-21")
         result = self.plan.read()

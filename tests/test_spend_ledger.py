@@ -367,6 +367,58 @@ class LedgerTests(unittest.TestCase):
         self.assertIn("was withdrawn", refused.stdout)
         self.assertEqual(self.markers(), ["a"])
 
+    def test_a_row_taken_off_the_board_stops_a_paid_launch_without_another_open(self) -> None:
+        # Astra recheck R2: the epic's row removed from the board, not committed; the next launch starts nothing.
+        plan, budget = self.real_budget(10.0)
+        self.assertEqual(self.launch(budget, "a", "2").returncode, 0)
+        plan.write("epic-8: backlog", commit=None)
+        refused = self.launch(budget, "b", "2")
+        self.assertEqual(refused.returncode, 1)
+        self.assertIn("was withdrawn", refused.stdout)
+        self.assertEqual(self.markers(), ["a"])
+
+    def test_a_fresh_bmad_go_at_backlog_keeps_its_rounds(self) -> None:
+        # Astra recheck R3: a BMAD go is a dated comment, often on a backlog row; no run began, so nothing is counted as used.
+        out, budget = self.bmad_open("bmad")
+        self.assertIn("ROUNDS: 1 extra per boundary from this go; none used", out)
+        self.assertEqual(self.round(budget, "7.1", "a:7.1")[0], 0)
+        # A handoff naming the go still says a run began under it, whatever the row's status.
+        out, budget = self.bmad_open("bmad-resumed", handoff=True)
+        self.assertIn("7.1 1 used", out)
+        self.assertEqual(self.round(budget, "7.1", "a:7.1")[0], 1)
+
+    def test_an_unknown_row_status_counts_the_rounds_as_used(self) -> None:
+        plan = self.plan(rounds=1)
+        plan.write("epic-7: weird # go 2026-10-23")
+        _, out, budget = self.open_plan(plan)
+        self.assertIn("the epic's row is already weird", out)
+        self.assertEqual(self.round(budget, "7.1", "a:7.1")[0], 1)
+
+    def bmad_open(self, name: str, handoff: bool = False) -> tuple[str, str]:
+        """A BMAD project whose go is a dated comment on a backlog row, its ledger opened."""
+        root = self.root / name
+        (root / "_bmad-output" / "implementation-artifacts").mkdir(parents=True)
+        (root / "_bmad-output" / "planning-artifacts").mkdir(parents=True)
+        run = lambda *a: subprocess.run(["git", "-C", str(root), "-c", "user.name=F", "-c", "user.email=f@example.invalid", *a],
+                                        check=True, capture_output=True, text=True).stdout.strip()
+        run("init", "-qb", "main")
+        sprint = root / "_bmad-output" / "implementation-artifacts" / "sprint-status.yaml"
+        (root / "_bmad-output" / "planning-artifacts" / "epics.md").write_text(
+            "# Epics\n\n## Epic 7: Fixture\n\n### Run needs\n\n- **Extra repair rounds:** 1 per boundary.\n- **Money cap:** none.\n\n### Story 7.1: One\n")
+        sprint.write_text("development_status:\n  epic-7: backlog\n")
+        run("add", "-A"); run("commit", "-qm", "docs: plan")
+        sprint.write_text("development_status:\n  epic-7: backlog # go 2026-10-21\n")
+        run("commit", "-qam", "docs: go")
+        if handoff:
+            (root / ".dev-auto").mkdir()
+            (root / ".dev-auto" / "handoff.md").write_text(f"- Go: GO: 2026-10-21 commit {run('rev-parse', 'HEAD')[:12]}; source not recorded\n")
+        (self.root / "status.json").write_text(json.dumps({"ok": True, "format": "bmad", "history": "product-repository", "plan_root": None,
+                                                           "board": str(sprint), "board_checkout": str(root), "product_root": str(root)}))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(spend_ledger.main(["open", "--epic", "7", "--project", str(root)]), 0)
+        return out.getvalue(), out.getvalue().split()[1].rstrip(":")
+
     def test_a_second_go_on_the_same_day_with_a_lower_cap_is_the_cap_in_force(self) -> None:
         # Astra review A3: his newer go on the same date lowers the cap; nothing launches above it.
         plan, budget = self.real_budget(10.0)

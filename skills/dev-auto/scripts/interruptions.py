@@ -38,7 +38,24 @@ SLACK = timedelta(minutes=5)
 
 
 class OutOfTime(Exception):
-    """The count's time bound passed while a run was being read or classed."""
+    """The count's time bound passed while a run was in one phase: read, matched, classed or counted."""
+
+    def __init__(self, phase: str) -> None:
+        super().__init__(phase)
+        self.phase = phase
+
+
+def past(deadline: float | None, phase: str) -> bool:
+    """The one clock check every pass of a run makes (96 Astra recheck); `phase` names the pass for the coverage note."""
+    return deadline is not None and time.monotonic() > deadline
+
+
+def checked(items, deadline: float | None, phase: str):
+    """The items, each only while the deadline has not passed."""
+    for item in items:
+        if past(deadline, phase):
+            raise OutOfTime(phase)
+        yield item
 # Copied unchanged from BMN plan/references/090/baseline.py (Story 90.1) so the old count stays the old method.
 HIS = re.compile(r'credential|password|secret|api[ -]?key|access token|bot token|\bsign(ed|s)?[ -]?in\b|\blog ?in\b|github account|http 404|'
                  r'private data|personal data|clarification to|change (to )?(the )?(acceptance|criteri)|acceptance criteri|amend|'
@@ -91,14 +108,14 @@ def key_stem(key: str) -> str:
     return re.sub(r"[-:](?:b|c|again|\d)$", "", key or "")
 
 
-def read_items(connection: sqlite3.Connection, run: dict) -> list[dict]:
+def read_items(connection: sqlite3.Connection, run: dict, deadline: float | None = None) -> list[dict]:
     rows = connection.execute(
         "SELECT request_id, session_id, request_key, kind, opened_at, opened_by, title, substr(coalesce(body, ''), 1, 2000), "
         "substr(coalesce(prompt_json, ''), 1, 300), producer_json FROM attention_request "
         "WHERE kind IN ('question', 'permission') AND opened_at >= ? AND opened_at <= ? ORDER BY opened_at, request_id",
         (run["start"].isoformat().replace("+00:00", "Z"), run["end"].isoformat().replace("+00:00", "Z"))).fetchall()
     items = []
-    for request_id, session, key, kind, opened, opened_by, title, body, prompt, producer in rows:
+    for request_id, session, key, kind, opened, opened_by, title, body, prompt, producer in checked(rows, deadline, "read"):
         try:
             origin = json.loads(producer) if producer else {}
         except ValueError:
@@ -115,18 +132,16 @@ def read_items(connection: sqlite3.Connection, run: dict) -> list[dict]:
 
 def correct(items: list[dict], deadline: float | None = None) -> list[dict]:
     """One entry per question asked: mirrors folded into their card when provenance shows it, then classed."""
-    cards = [i for i in items if i["kind"] == "question" and i["via"].startswith("hook:")]
-    for item in items:
-        if deadline is not None and time.monotonic() > deadline:
-            raise OutOfTime
+    cards = [i for i in checked(items, deadline, "matched") if i["kind"] == "question" and i["via"].startswith("hook:")]
+    for item in checked(items, deadline, "matched"):
         item["mirror_of"] = item["possible_mirror_of"] = None
         if item["kind"] != "question" or item["via"].startswith("hook:"):
             continue
         opened = parse(item["opened"])
-        near = [c for c in cards if c["conversation"] == item["conversation"] and item["conversation"] and opened
+        near = [c for c in checked(cards, deadline, "matched") if c["conversation"] == item["conversation"] and item["conversation"] and opened
                 and (card := parse(c["opened"])) and abs(card - opened) <= MIRROR_WINDOW]
         # Equal empty generations are no provenance: such a pair stays two, a possible mirror (96 Astra review).
-        same = [c for c in near if item["generation"] and c["generation"] == item["generation"]
+        same = [c for c in checked(near, deadline, "matched") if item["generation"] and c["generation"] == item["generation"]
                 and normal(item["_title"]) and normal(item["_title"]) in normal(c["_text"])]
         if same:
             item["mirror_of"] = same[0]["request"]
@@ -134,7 +149,7 @@ def correct(items: list[dict], deadline: float | None = None) -> list[dict]:
             item["possible_mirror_of"] = near[0]["request"]
     asked: dict[str, str] = {}
     stems: dict[str, str] = {}
-    for item in items:
+    for item in checked(items, deadline, "classed"):
         if item["mirror_of"]:
             item["class"] = "mirror"
             continue
@@ -157,43 +172,62 @@ def correct(items: list[dict], deadline: float | None = None) -> list[dict]:
 CLASSES = ("owner-decision", "plan-settleable", "repeated", "unresolved", "native-permission")
 
 
+def summary(run: dict, items: list[dict], deadline: float | None) -> dict:
+    """The run's two counts and its items, in one pass that keeps the deadline."""
+    old: dict[str, int] = {}
+    corrected = {name: 0 for name in CLASSES}
+    mirrors = possible = 0
+    projected = []
+    for item in checked(items, deadline, "counted"):
+        words = old_class(item["kind"], item["_text"])
+        old[words] = old.get(words, 0) + 1
+        corrected[item["class"]] = corrected.get(item["class"], 0) + 1
+        mirrors += item["class"] == "mirror"
+        possible += bool(item["possible_mirror_of"])
+        projected.append({"request": item["request"][:8], "opened": item["opened"][:16], "kind": item["kind"], "class": item["class"],
+                          **({"mirror_of": item["mirror_of"][:8]} if item["mirror_of"] else {}),
+                          **({"possible_mirror_of": item["possible_mirror_of"][:8]} if item["possible_mirror_of"] else {}),
+                          **({"repeats": item["repeats"][:8]} if item.get("repeats") else {})})
+    return {
+        "run": run["id"], "handoff": run["handoff"], "conversations": len(run["conversations"]),
+        "from": run["start"].isoformat(timespec="minutes"), "to": run["end"].isoformat(timespec="minutes"),
+        "old_count": {"total": len(items), **{k: old.get(k, 0) for k in ("his", "push", "plan", "unknown")}},
+        "corrected_count": {"questions_asked": sum(corrected[c] for c in CLASSES[:4]), **{c: corrected[c] for c in CLASSES},
+                            "mirrors_folded": mirrors, "possible_mirrors_kept": possible},
+        "items": projected, "_items": items}
+
+
 def count(handoffs: list[Path], db: Path, seconds: float) -> dict:
     deadline = time.monotonic() + seconds
     connection = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     # The bound holds inside a query too: SQLite abandons it once the deadline passes.
-    connection.set_progress_handler(lambda: int(time.monotonic() > deadline), 1000)
+    connection.set_progress_handler(lambda: int(past(deadline, "read")), 1000)
     out = {"db": str(db), "bound_seconds": seconds, "complete": True, "runs": []}
+    try:
+        runs(handoffs, connection, deadline, out)
+    finally:
+        connection.close()
+    return out
+
+
+def runs(handoffs: list[Path], connection: sqlite3.Connection, deadline: float, out: dict) -> None:
     for handoff in handoffs:
-        if time.monotonic() > deadline:
+        if past(deadline, "read"):
             out["complete"] = False
             out["runs"].append({"handoff": str(handoff), "skipped": "the time bound was reached first"})
             continue
         run = load_run(handoff)
         try:
-            items = correct(read_items(connection, run), deadline)
+            entry = summary(run, correct(read_items(connection, run, deadline), deadline), deadline)
+            if past(deadline, "counted"):
+                raise OutOfTime("counted")
         except (OutOfTime, sqlite3.OperationalError) as exc:
-            if isinstance(exc, sqlite3.OperationalError) and time.monotonic() <= deadline:
+            if isinstance(exc, sqlite3.OperationalError) and not past(deadline, "read"):
                 raise
             out["complete"] = False
-            out["runs"].append({"handoff": str(handoff), "skipped": f"the time bound was reached while it was {'classed' if isinstance(exc, OutOfTime) else 'read'}"})
+            out["runs"].append({"handoff": str(handoff), "skipped": f"the time bound was reached while it was {exc.phase if isinstance(exc, OutOfTime) else 'read'}"})
             continue
-        old: dict[str, int] = {}
-        for item in items:
-            old[old_class(item["kind"], item["_text"])] = old.get(old_class(item["kind"], item["_text"]), 0) + 1
-        corrected = {name: sum(1 for i in items if i["class"] == name) for name in CLASSES}
-        out["runs"].append({
-            "run": run["id"], "handoff": run["handoff"], "conversations": len(run["conversations"]),
-            "from": run["start"].isoformat(timespec="minutes"), "to": run["end"].isoformat(timespec="minutes"),
-            "old_count": {"total": len(items), **{k: old.get(k, 0) for k in ("his", "push", "plan", "unknown")}},
-            "corrected_count": {"questions_asked": sum(corrected[c] for c in CLASSES[:4]), **corrected,
-                                "mirrors_folded": sum(1 for i in items if i["class"] == "mirror"),
-                                "possible_mirrors_kept": sum(1 for i in items if i["possible_mirror_of"])},
-            "items": [{"request": i["request"][:8], "opened": i["opened"][:16], "kind": i["kind"], "class": i["class"],
-                       **({"mirror_of": i["mirror_of"][:8]} if i["mirror_of"] else {}),
-                       **({"possible_mirror_of": i["possible_mirror_of"][:8]} if i["possible_mirror_of"] else {}),
-                       **({"repeats": i["repeats"][:8]} if i.get("repeats") else {})} for i in items],
-            "_items": items})
-    return out
+        out["runs"].append(entry)
 
 
 def main(argv: list[str]) -> int:

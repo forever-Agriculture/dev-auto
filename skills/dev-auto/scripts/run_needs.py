@@ -17,7 +17,8 @@ reapproval, a new go, and what earlier gos let the run use stays used. A go reco
 at the commit differs, grants nothing, and an older go without any of them stands with its source unrecorded. A BMN-format go committed by hand
 once `bmn plan go` records gos (from HAND_GO_CUTOVER, or after a go it recorded in the same history) names no
 act of his and grants nothing. A row put back to `backlog` or `dropped` (or taken off the board) after the
-go withdraws it, in a later commit or on the board now, until his next go. A plan the product repository
+go withdraws it, in a later commit or on the board now, until his next go; a board that cannot be read now
+confirms no go. A plan the product repository
 tracks is read in its default checkout, where gos are recorded and withdrawn, not in a linked worktree's copy.
 
 Prints one of GO, NO_GO_RECORD or NO_RUN_NEEDS, then CHANGED_SINCE_GO when Run needs or Decisions differ
@@ -279,11 +280,17 @@ def run_needs(project: Path, epic: int) -> dict:
         withdrawn = go["withdrawn"]
         return {**result, "state": "NO_GO_RECORD", "withdrawn_go": go["date"],
                 "reason": f"the go of {go['date']} was withdrawn at {withdrawn['commit'][:12]}: the row was put {withdrawn['status']}; it grants nothing until his next go"}
-    board_now = row(board.read_text(encoding="utf-8", errors="replace"), epic) if board.exists() else None
+    if not board.is_file():
+        # No board to read now: nothing says the go still stands (96 Astra recheck).
+        return {**result, "state": "NO_GO_RECORD", "reason": f"the board {board} cannot be read now; the go of {go['date']} cannot be confirmed"}
+    board_now = row(board.read_text(encoding="utf-8", errors="replace"), epic)
     date_now = GO_DATE.search(board_now[1]) if board_now else None
     if date_now and date_now.group(1) != go["date"]:
         result["uncommitted_go"] = date_now.group(1)
-    if board_now and board_now[0] in WITHDRAWN and (committed_row is None or committed_row[0] not in WITHDRAWN):
+    if board_now is None:
+        return {**result, "state": "NO_GO_RECORD", "withdrawn_go": go["date"],
+                "reason": f"the go of {go['date']} was withdrawn: the epic's row is no longer on the board"}
+    if board_now[0] in WITHDRAWN and (committed_row is None or committed_row[0] not in WITHDRAWN):
         return {**result, "state": "NO_GO_RECORD", "withdrawn_go": go["date"],
                 "reason": f"the go of {go['date']} was withdrawn: the row is now {board_now[0]}"}
     if then["Run needs"] is None:
@@ -292,7 +299,7 @@ def run_needs(project: Path, epic: int) -> dict:
             "stories": STORY.findall(then_text or ""),  # the epic's stories at its go: the only story boundaries for its rounds
             # The largest allowance an earlier go gave: what a ledger that lost its count presumes used (96 Astra review).
             "earlier_rounds": max((parse_needs(sections(text_at(g["commit"]))["Run needs"])["rounds"] for g in gos[:-1]), default=0),
-            "row_status": board_now[0] if board_now else None,
+            "row_status": board_now[0],
             "decisions_at_go": f"git -C {repo} show {go['commit'][:12]}:<epic file>, ## Decisions"}
 
 

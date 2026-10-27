@@ -87,22 +87,36 @@ class CountTests(unittest.TestCase):
         self.assertEqual((run["corrected_count"]["questions_asked"], run["corrected_count"]["mirrors_folded"]), (2, 0))
         self.assertIn("possible_mirror_of", {item["request"]: item for item in run["items"]}[mirror])
 
-    def test_the_time_bound_holds_inside_the_read_and_the_classification(self) -> None:
-        # Astra review A7: a deadline reached inside the query or the classing stops it, coverage partial, no traceback.
+    def test_the_time_bound_holds_in_every_pass(self) -> None:
+        # Astra review A7 and recheck R6: a deadline passed while the run is read, matched, classed or counted stops it there,
+        # coverage partial, no traceback and no complete entry.
+        for minute in range(10, 30):
+            self.add(f"10:{minute}", title=f"Claude asks: Question {minute}?", body=f"1. Question {minute}?", generation=f"g{minute}")
+            self.add(f"10:{minute}", via="cli", title=f"Question {minute}?", key=f"k{minute}", generation=f"g{minute}")
+        self.assertTrue(self.run_count())  # the data is complete without a deadline
+        for phase in ("read", "matched", "classed", "counted"):
+            seen = {"read": 0}
+
+            def past(deadline: float | None, where: str, phase: str = phase) -> bool:
+                if where == "read":
+                    seen["read"] += 1
+                    return phase == "read" and seen["read"] > 1  # the check before the run passes; the read itself is late
+                return where == phase
+            with mock.patch.object(interruptions, "past", side_effect=past):
+                result = interruptions.count([self.handoff], self.db, 3)
+            self.assertFalse(result["complete"], phase)
+            self.assertEqual(result["runs"], [{"handoff": str(self.handoff), "skipped": f"the time bound was reached while it was {phase}"}])
+
+    def test_the_time_bound_holds_inside_the_query(self) -> None:
+        # Astra review A7: the SQLite progress handler abandons a query once the deadline passes.
         for minute in range(10, 50):
             self.add(f"10:{minute}", via="cli", title=f"Question {minute}?", key=f"k{minute}")
-        original = interruptions.read_items
-
-        def unbounded(connection: sqlite3.Connection, run: dict) -> list[dict]:  # the query finishes whatever the clock says
-            connection.set_progress_handler(None, 0)
-            return original(connection, run)
-        for where, reader in (("read", original), ("classed", unbounded)):
-            calls = iter(range(1, 1_000_000))  # call 1 sets the deadline, call 2 checks it before the run; later calls are past it
-            with mock.patch.object(interruptions.time, "monotonic", side_effect=lambda: 100.0 if next(calls) > 2 else 0.0), \
-                    mock.patch.object(interruptions, "read_items", side_effect=reader):
-                result = interruptions.count([self.handoff], self.db, 3)
-            self.assertFalse(result["complete"], where)
-            self.assertEqual(result["runs"][0]["skipped"], f"the time bound was reached while it was {where}")
+        calls = iter(range(1, 1_000_000))  # call 1 sets the deadline, call 2 checks it before the run; later calls are past it
+        with mock.patch.object(interruptions.time, "monotonic", side_effect=lambda: 100.0 if next(calls) > 2 else 0.0), \
+                mock.patch.object(interruptions, "checked", side_effect=lambda items, deadline, phase: iter(items)):
+            result = interruptions.count([self.handoff], self.db, 3)
+        self.assertFalse(result["complete"])
+        self.assertEqual(result["runs"][0]["skipped"], "the time bound was reached while it was read")
 
     def test_classes_repeats_and_permission_prompts(self) -> None:
         self.add("09:10", title="Claude asks: Merge PR 12 now?")
