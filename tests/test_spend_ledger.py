@@ -313,14 +313,14 @@ class LedgerTests(unittest.TestCase):
         handoff.write_text(f"- Go: GO: 2026-10-23 commit {plan.go[:12]}; source card; ROUNDS: 1 extra per boundary from this go; 7.1 1 used\n")
         code, out, budget = self.open_plan(plan)
         self.assertEqual(code, 0, out)
-        self.assertIn("ROUNDS: 0 extra per boundary from this go; none used", out)
-        self.assertIn("names this go, the ledger does not: its 1 extra counted as used", out)
+        self.assertIn("ROUNDS: 1 extra per boundary from this go; 7.1 1 used, 7.2 1 used, 7.3 1 used, epic 1 used", out)
+        self.assertIn("names this go, the ledger does not: up to 1 extra per boundary counted as used", out)
         self.assertEqual(self.round(budget, "7.2", "resumed:7.2")[0], 1)
         # With the handoff gone too, a row already past ready says a run began under this go.
         started = self.plan(rounds=1)
         started.write("epic-7: in-progress # go 2026-10-23")
         _, out, budget = self.open_plan(started)
-        self.assertIn("the epic's row is already in-progress, the ledger does not: its 1 extra counted as used", out)
+        self.assertIn("the epic's row is already in-progress, the ledger does not: up to 1 extra per boundary counted as used", out)
         self.assertEqual(self.round(budget, "7.2", "resumed:7.2")[0], 1)
         # A handoff naming another go takes nothing from this one.
         fresh = self.plan(rounds=1)
@@ -328,6 +328,58 @@ class LedgerTests(unittest.TestCase):
         (fresh.root.parent / ".dev-auto" / "handoff.md").write_text("- Go: GO: 2026-10-20 commit bbbbbbbbbbbb; source card\n")
         _, out, _ = self.open_plan(fresh)
         self.assertIn("ROUNDS: 1 extra per boundary from this go; none used", out)
+
+    def test_rounds_counted_as_used_at_recovery_stay_used_after_his_next_go(self) -> None:
+        # Astra review A5: recovery's presumed use is kept in the ledger, so a reapproval refills only what it adds.
+        plan = self.plan(rounds=1)
+        plan.write("epic-7: in-progress # go 2026-10-23")
+        _, out, budget = self.open_plan(plan)
+        self.assertEqual(self.round(budget, "7.1", "a:7.1")[0], 1)
+        plan.write("epic-7: ready # go 2026-10-24", commit=self.go_message(self.epic_text(1), "2026-10-24"))
+        _, out, again = self.open_plan(plan)
+        self.assertEqual(again, budget)
+        self.assertIn("ROUNDS: 1 extra per boundary from this go; 7.1 1 used", out)
+        self.assertEqual(self.round(budget, "7.1", "b:7.1")[0], 1)  # the same allowance: nothing comes back
+        plan.write("epic-7: in-progress # go 2026-10-24")
+        plan.write("epic-7: ready # go 2026-10-25", self.epic_text(2), commit=self.go_message(self.epic_text(2), "2026-10-25"))
+        self.open_plan(plan)
+        self.assertEqual(self.round(budget, "7.1", "c:7.1")[0], 0)  # one more allowed: one more round
+        self.assertEqual(self.round(budget, "7.1", "d:7.1")[0], 1)
+        # A recovery under a go whose earlier go allowed more counts the larger allowance as used.
+        larger = self.plan(rounds=3)
+        larger.write("epic-7: in-progress # go 2026-10-23")
+        larger.write("epic-7: ready # go 2026-10-24", self.epic_text(1), commit=self.go_message(self.epic_text(1), "2026-10-24"))
+        larger.write("epic-7: in-progress # go 2026-10-24")
+        _, out, other = self.open_plan(larger)
+        self.assertIn("7.1 3 used", out)
+        larger.write("epic-7: ready # go 2026-10-25", self.epic_text(3), commit=self.go_message(self.epic_text(3), "2026-10-25"))
+        self.open_plan(larger)
+        self.assertEqual(self.round(other, "7.1", "a:7.1")[0], 1)
+
+    def test_a_withdrawal_in_the_history_stops_a_paid_launch_without_another_open(self) -> None:
+        # Astra review A2: put back and moved on with no new go; the next launch reads the go again and starts nothing.
+        plan, budget = self.real_budget(10.0)
+        self.assertEqual(self.launch(budget, "a", "2").returncode, 0)
+        plan.write("epic-7: backlog # withdrawn")
+        plan.write("epic-7: in-progress # go 2026-10-23")
+        refused = self.launch(budget, "b", "2")
+        self.assertEqual(refused.returncode, 1)
+        self.assertIn("was withdrawn", refused.stdout)
+        self.assertEqual(self.markers(), ["a"])
+
+    def test_a_second_go_on_the_same_day_with_a_lower_cap_is_the_cap_in_force(self) -> None:
+        # Astra review A3: his newer go on the same date lowers the cap; nothing launches above it.
+        plan, budget = self.real_budget(10.0)
+        lower = self.epic_text(0, 3.0)
+        plan.write(text=lower, commit="docs: lower the cap")
+        plan.write(commit=self.go_message(lower).replace("T09:00Z: 'Go'", "T11:00Z: 'Go, $3 only'"))
+        self.assertEqual(self.launch(budget, "a", "5").returncode, 1)  # the go in force is no longer the one opened
+        code, out, again = self.open_plan(plan)
+        self.assertEqual((code, again), (0, budget), out)
+        self.assertIn("cap 3.00", out)
+        self.assertEqual(self.launch(budget, "b", "5").returncode, 1)
+        self.assertEqual(self.launch(budget, "c", "2").returncode, 0)
+        self.assertEqual(self.markers(), ["c"])
 
     def test_a_withdrawn_go_gives_no_round_and_no_paid_launch(self) -> None:
         plan = self.plan(rounds=2)

@@ -29,7 +29,8 @@ go (7.2) or `epic`, never a free name or an unplanned story a new run could pick
 lock only while the latest go's rounds exceed those used at that boundary under every go: a reapproval refills
 nothing used, and two runs cannot take the same round. A retry under the same use id returns the first answer.
 Without a recorded go there are none; a go the ledger lacks although a handoff of the project's worktrees already
-names it, or whose epic row is past ready, has its extra rounds counted as used (BMN 96 D9). Each `open`, `round`
+names it, or whose epic row is past ready, has every boundary counted as used up to the largest allowance any of
+its gos gave, kept in the ledger so that no later go refills it (BMN 96 D9). Each `open`, `round`
 and paid `launch` reads the go again: once the plan withdraws it (a row put back, a later hand go after `bmn plan
 go` took over), the withdrawal is recorded and it gives no round and no paid launch until his next go.
 """
@@ -184,12 +185,11 @@ def describe(budget: str, data: dict) -> str:
 
 def named_before(project: Path, commit: str) -> Path | None:
     """A handoff of the project's checkouts whose Go field already names this go: its rounds may have been used."""
-    checkouts = [project]
+    from run_resources import worktree_list
     try:
-        listed = subprocess.run(["git", "-C", str(project), "worktree", "list", "--porcelain"], capture_output=True, text=True, timeout=10)
-        checkouts += [Path(line[9:]) for line in listed.stdout.splitlines() if line.startswith("worktree ")]
-    except (OSError, subprocess.SubprocessError):
-        pass
+        checkouts = [project, *(Path(values["worktree"]) for values in worktree_list(project))]
+    except (OSError, subprocess.SubprocessError, KeyError):
+        checkouts = [project]
     for checkout in checkouts:
         try:
             text = (checkout / ".dev-auto" / "handoff.md").read_text(encoding="utf-8", errors="replace")
@@ -235,12 +235,18 @@ def open_budget(args: dict) -> int:
                          "cap": needs["parsed"]["money_cap"], "rounds": needs["parsed"]["rounds"],
                          "source": needs.get("approval_source"), "approved_text": needs.get("approved_text"),
                          "stories": needs.get("stories", []), "at": now()}
-                # What was used under this go is not here to count when a run already began under it: count it all as used (D9).
-                earlier = named_before(project, needs["go_commit"]) if entry["rounds"] else None
-                started = needs.get("row_status") if entry["rounds"] and needs.get("row_status") not in (None, "ready") else None
+                # What was used is not here to count when a run already began under this go: every boundary counts as used up to
+                # the largest allowance any go gave (D9), written as used rounds so that no later go refills them (96 Astra review).
+                presumed = max([entry["rounds"], needs.get("earlier_rounds", 0), *(g.get("rounds", 0) for g in data["gos"] if g.get("kind") == "go")])
+                earlier = named_before(project, needs["go_commit"]) if presumed else None
+                started = needs.get("row_status") if presumed and needs.get("row_status") not in (None, "ready") else None
                 if earlier or started:
                     why = f"{earlier} names this go" if earlier else f"the epic's row is already {started}"
-                    entry.update(rounds=0, rounds_lost=f"{why}, the ledger does not: its {needs['parsed']['rounds']} extra counted as used")
+                    for boundary in [*entry["stories"], "epic"]:
+                        for count in range(rounds_used(data, boundary), presumed):
+                            data["rounds"][f"presumed:{needs['go_commit'][:12]}:{boundary}:{count + 1}"] = {
+                                "answer": "TAKEN", "boundary": boundary, "go": needs["go_commit"], "presumed": why, "at": now()}
+                    entry["rounds_lost"] = f"{why}, the ledger does not: up to {presumed} extra per boundary counted as used"
                 data["gos"].append(entry)
             else:
                 next(go for go in data["gos"] if go.get("commit") == needs["go_commit"]).setdefault("stories", needs.get("stories", []))

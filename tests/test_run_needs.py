@@ -226,6 +226,98 @@ class RunNeedsTests(unittest.TestCase):
             result = self.plan.read()
             self.assertEqual((result["state"], result["withdrawn_go"]), ("NO_GO_RECORD", "2026-10-20"))
 
+    def test_a_withdrawal_in_the_history_holds_until_his_next_go(self) -> None:
+        # Astra review A2: ready/go, then put back and moved on without a new go, grants nothing.
+        self.plan.write("epic-7: backlog", epic())
+        self.plan.write("epic-7: ready # go 2026-10-20")
+        withdrawn = self.plan.write("epic-7: backlog # withdrawn")
+        self.plan.write("epic-7: in-progress # go 2026-10-20; run started anyway")
+        result = self.plan.read()
+        self.assertEqual((result["state"], result["withdrawn_go"]), ("NO_GO_RECORD", "2026-10-20"))
+        self.assertIn(f"withdrawn at {withdrawn[:12]}", result["reason"])
+        # A row taken off the board withdraws it too; a pause does not (the test above).
+        removed = Plan()
+        self.addCleanup(removed.tmp.cleanup)
+        removed.write("epic-7: backlog", epic())
+        removed.write("epic-7: ready # go 2026-10-20")
+        (removed.root / "status.yaml").write_text(board("epic-8: backlog"))
+        removed.write(commit="row removed")
+        removed.write("epic-7: in-progress # go 2026-10-20")
+        self.assertEqual(removed.read()["state"], "NO_GO_RECORD")
+        # His next go stands again.
+        self.plan.write("epic-7: ready # go 2026-10-21")
+        result = self.plan.read()
+        self.assertEqual((result["state"], result["go_date"]), ("GO", "2026-10-21"))
+
+    def test_a_tracked_plan_reads_gos_and_withdrawals_where_he_records_them(self) -> None:
+        # Astra review A2 variant: a linked worktree's tracked board is stale; the default checkout holds the withdrawal.
+        main = self.plan.root.parent / "main"
+        (main / "plan" / "epics").mkdir(parents=True)
+        run = lambda where, *a: subprocess.run(["git", "-C", str(where), "-c", "user.name=F", "-c", "user.email=f@example.invalid", *a],
+                                               check=True, capture_output=True, text=True,
+                                               env={**os.environ, "GIT_COMMITTER_DATE": self.plan.date, "GIT_AUTHOR_DATE": self.plan.date}).stdout.strip()
+        run(main, "init", "-qb", "main")
+        (main / "plan" / "epics" / "007-fixture.md").write_text(epic())
+        (main / "plan" / "status.yaml").write_text(board("epic-7: backlog"))
+        run(main, "add", "-A"); run(main, "commit", "-qm", "docs: plan")
+        (main / "plan" / "status.yaml").write_text(board("epic-7: ready # go 2026-10-20"))
+        go = (run(main, "commit", "-qam", "docs: go"), run(main, "rev-parse", "HEAD"))[1]
+        worktree = self.plan.root.parent / "run"
+        run(main, "worktree", "add", "-q", "-b", "run", str(worktree))
+        (main / "plan" / "status.yaml").write_text(board("epic-7: backlog # withdrawn"))
+        status = {"ok": True, "format": "bmn-plan", "history": "product-repository", "tracked": True,
+                  "plan_root": str(worktree / "plan"), "board": str(worktree / "plan" / "status.yaml"),
+                  "board_checkout": str(worktree), "product_root": str(worktree), "default_checkout": str(main)}
+        with mock.patch.object(run_needs, "resolve", return_value=status):
+            self.assertEqual(run_needs.run_needs(worktree, 7)["state"], "NO_GO_RECORD")  # withdrawn on his board, not committed
+            run(main, "commit", "-qam", "docs: withdraw")
+            self.assertEqual(run_needs.run_needs(worktree, 7)["state"], "NO_GO_RECORD")  # committed on his branch only
+            (main / "plan" / "status.yaml").write_text(board("epic-7: ready # go 2026-10-22"))
+            again = (run(main, "commit", "-qam", "docs: go again"), run(main, "rev-parse", "HEAD"))[1]
+            result = run_needs.run_needs(worktree, 7)
+        self.assertEqual((result["state"], result["go_commit"]), ("GO", again))
+        self.assertNotEqual(go, again)
+
+    def test_a_second_recorded_go_on_the_same_day_is_a_new_go(self) -> None:
+        # Astra review A3: bmn plan go again while ready on the same date, with new terms (a lower cap).
+        self.plan.date = "2026-10-26T10:00:00Z"
+        self.plan.write("epic-7: backlog", epic())
+        first = self.plan.write("epic-7: ready # go 2026-10-26", commit=self.go_message(f"sha256:{run_needs.approval_text(run_needs.sections(epic()))}"))
+        lower = epic(NEEDS.replace("$15", "$5"))
+        self.plan.write(text=lower, commit="docs: lower the cap")
+        source = "card 2026-10-26T11:00Z: owner answered 'Go, but only $5'"
+        second = self.plan.write(commit=self.go_message(f"sha256:{run_needs.approval_text(run_needs.sections(lower))}", source))
+        result = self.plan.read()
+        self.assertEqual((result["state"], result["go_commit"], result["parsed"]["money_cap"]), ("GO", second, 5.0))
+        self.assertEqual((result["approval_source"], result["earlier_gos"]), (source, [f"2026-10-26@{first[:12]}"]))
+
+    def test_a_recorded_go_grants_only_with_its_whole_consistent_record(self) -> None:
+        # Astra review A4: Approved-Text alone, or a source, epic, date or file that does not agree, grants nothing.
+        approved = f"sha256:{run_needs.approval_text(run_needs.sections(epic()))}"
+        good = self.go_message(approved)
+        broken = {
+            "only the approved text": f"plan: go\n\nApproved-Text: {approved}\n",
+            "no source": good.replace("Approval-Source: card 2026-10-26T09:30Z: owner answered 'Go'\n", ""),
+            "a source without his quoted words": good.replace("owner answered 'Go'", "owner answered Go"),
+            "a source without a time": good.replace("card 2026-10-26T09:30Z", "card"),
+            "a decision record as the source": good.replace("card 2026-10-26T09:30Z: owner answered 'Go'",
+                                                            "bmn:01234567-89ab-cdef-0123-456789abcdef/dev-auto:run:d1 2026-10-26T09:30Z 'go'"),
+            "another epic": good.replace("Go-Epic: 7", "Go-Epic: 8"),
+            "another date": good.replace("Go-Date: 2026-10-26", "Go-Date: 2026-10-25"),
+            "another file": good.replace("Approved-File: epics/007-fixture.md", "Approved-File: epics/008-other.md"),
+        }
+        for name, message in broken.items():
+            plan = Plan()
+            self.addCleanup(plan.tmp.cleanup)
+            plan.write("epic-7: backlog", epic())
+            plan.write("epic-7: ready # go 2026-10-26", commit=message)
+            result = plan.read()
+            self.assertEqual((result["state"], result.get("provenance")), ("NO_GO_RECORD", "incomplete"), name)
+            self.assertIn("grants nothing", result["reason"], name)
+        self.plan.write("epic-7: backlog", epic())
+        self.plan.write("epic-7: ready # go 2026-10-26", commit=good)
+        self.assertEqual(self.plan.read()["state"], "GO")
+
     def test_approval_text_matches_bmns_hash(self) -> None:
         # The same vector as BMN's plan-go.test.ts: bmn plan status and bmn plan go hash these bytes the same way.
         text = "# Epic 7: X\n\n## Run needs\n\n- **Money cap:** none.\n\n## Decisions\n\n- D1: yes.\n\n## Stories\n"

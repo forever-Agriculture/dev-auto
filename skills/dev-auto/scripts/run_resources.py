@@ -179,10 +179,16 @@ def dirty_count(porcelain: str) -> int:
     return count
 
 
+def worktree_list(root: Path) -> list[dict]:
+    """Every checkout of root's repository as `git worktree list --porcelain` names it, the default first."""
+    listing = command(["git", "-C", str(root), "worktree", "list", "--porcelain", "-z"])
+    return [dict(line.split(" ", 1) if " " in line else (line, "") for line in block.split("\0")) for block in listing.strip("\0").split("\0\0")]
+
+
 def worktrees(root: Path) -> int:
     from handoff_state import finished, status_fields
     try:
-        listing = command(["git", "-C", str(root), "worktree", "list", "--porcelain", "-z"])
+        listed = worktree_list(root)
         try:
             default = command(["git", "-C", str(root), "symbolic-ref", "refs/remotes/origin/HEAD"]).strip().replace("refs/remotes/origin/", "")
         except subprocess.CalledProcessError:
@@ -199,8 +205,7 @@ def worktrees(root: Path) -> int:
                 except subprocess.CalledProcessError:
                     pass
         partial = False
-        for block in listing.strip("\0").split("\0\0"):
-            values = dict(line.split(" ", 1) if " " in line else (line, "") for line in block.split("\0"))
+        for values in listed:
             path = Path(values["worktree"])
             try:
                 dirty = dirty_count(command(["git", "--no-optional-locks", "-C", str(path), "status", "--porcelain=v1", "--untracked-files=all", "-z"]))

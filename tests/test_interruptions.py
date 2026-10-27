@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "skills" / "dev-auto" / "scripts" / "interruptions.py"
@@ -77,6 +78,31 @@ class CountTests(unittest.TestCase):
         self.assertIn("possible_mirror_of", kept[other_generation])
         self.assertNotIn("possible_mirror_of", kept[late])  # more than 120 s after the card
         self.assertEqual(run["corrected_count"]["possible_mirrors_kept"], 2)
+
+    def test_a_matching_pair_without_a_generation_is_not_folded(self) -> None:
+        # Astra review A7: equal empty generations are no provenance; the pair stays two, labelled a possible mirror.
+        self.add("10:00", title="Claude has 2 questions: Epic 7 [n1]: GPU drawing? …", body="1. Epic 7 [n1]: GPU drawing?", generation="")
+        mirror = self.add("10:01", via="cli", title="Epic 7 [n1]: GPU drawing?", key="dev-auto-epic7-n1", generation="")
+        run = self.run_count()
+        self.assertEqual((run["corrected_count"]["questions_asked"], run["corrected_count"]["mirrors_folded"]), (2, 0))
+        self.assertIn("possible_mirror_of", {item["request"]: item for item in run["items"]}[mirror])
+
+    def test_the_time_bound_holds_inside_the_read_and_the_classification(self) -> None:
+        # Astra review A7: a deadline reached inside the query or the classing stops it, coverage partial, no traceback.
+        for minute in range(10, 50):
+            self.add(f"10:{minute}", via="cli", title=f"Question {minute}?", key=f"k{minute}")
+        original = interruptions.read_items
+
+        def unbounded(connection: sqlite3.Connection, run: dict) -> list[dict]:  # the query finishes whatever the clock says
+            connection.set_progress_handler(None, 0)
+            return original(connection, run)
+        for where, reader in (("read", original), ("classed", unbounded)):
+            calls = iter(range(1, 1_000_000))  # call 1 sets the deadline, call 2 checks it before the run; later calls are past it
+            with mock.patch.object(interruptions.time, "monotonic", side_effect=lambda: 100.0 if next(calls) > 2 else 0.0), \
+                    mock.patch.object(interruptions, "read_items", side_effect=reader):
+                result = interruptions.count([self.handoff], self.db, 3)
+            self.assertFalse(result["complete"], where)
+            self.assertEqual(result["runs"][0]["skipped"], f"the time bound was reached while it was {where}")
 
     def test_classes_repeats_and_permission_prompts(self) -> None:
         self.add("09:10", title="Claude asks: Merge PR 12 now?")

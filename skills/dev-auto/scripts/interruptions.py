@@ -7,13 +7,14 @@ Usage: interruptions.py HANDOFF... [--db PATH] [--seconds N] [--json | --spot]
 Each HANDOFF is a run's .dev-auto/handoff.md: its Run id, the lead conversations its Lead sessions and Lead host
 fields name, and its time (the log's own leading stamps to the handoff's last change). Only BMN's attention
 requests (state.sqlite3, opened read-only) of those conversations, or keyed with the run id, opened in that time
-are read; nothing else in the home folder is scanned, and the read stops after --seconds (180) with the coverage
-reached.
+are read; nothing else in the home folder is scanned, and the read stops after --seconds (180), inside a query or
+the classing too, with the coverage reached.
 
 Two counts sit side by side. The old count is BMN Epic 90.1's: every request one item, classed by its words
 (his by nature, push or packaging, settleable by the plan, unknown). The corrected count is one per question the
 owner was asked: a `bmn ask` mirror and the terminal card a hook recorded count once when provenance establishes
-it (the same conversation and generation, opened within 120 seconds, the mirror's question in the card's words);
+it (the same conversation and the same nonempty generation, opened within 120 seconds, the mirror's question in
+the card's words);
 a close pair without that stays two items, labelled a possible mirror. Then each question is an owner decision
 (his by nature or a push/merge/packaging act policy reserves), settleable by the plan, repeated (the same
 question or key asked again in the run) or unresolved; a permission prompt is the host's, never the workflow's.
@@ -34,6 +35,10 @@ UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 STAMP = re.compile(r"^(?:#+ |- )?(20\d\d-\d\d-\d\d[T ]\d\d:\d\d(?::\d\d)?Z?)", re.M)
 MIRROR_WINDOW = timedelta(seconds=120)
 SLACK = timedelta(minutes=5)
+
+
+class OutOfTime(Exception):
+    """The count's time bound passed while a run was being read or classed."""
 # Copied unchanged from BMN plan/references/090/baseline.py (Story 90.1) so the old count stays the old method.
 HIS = re.compile(r'credential|password|secret|api[ -]?key|access token|bot token|\bsign(ed|s)?[ -]?in\b|\blog ?in\b|github account|http 404|'
                  r'private data|personal data|clarification to|change (to )?(the )?(acceptance|criteri)|acceptance criteri|amend|'
@@ -108,17 +113,21 @@ def read_items(connection: sqlite3.Connection, run: dict) -> list[dict]:
     return items
 
 
-def correct(items: list[dict]) -> list[dict]:
+def correct(items: list[dict], deadline: float | None = None) -> list[dict]:
     """One entry per question asked: mirrors folded into their card when provenance shows it, then classed."""
     cards = [i for i in items if i["kind"] == "question" and i["via"].startswith("hook:")]
     for item in items:
+        if deadline is not None and time.monotonic() > deadline:
+            raise OutOfTime
         item["mirror_of"] = item["possible_mirror_of"] = None
         if item["kind"] != "question" or item["via"].startswith("hook:"):
             continue
         opened = parse(item["opened"])
         near = [c for c in cards if c["conversation"] == item["conversation"] and item["conversation"] and opened
                 and (card := parse(c["opened"])) and abs(card - opened) <= MIRROR_WINDOW]
-        same = [c for c in near if c["generation"] == item["generation"] and normal(item["_title"]) and normal(item["_title"]) in normal(c["_text"])]
+        # Equal empty generations are no provenance: such a pair stays two, a possible mirror (96 Astra review).
+        same = [c for c in near if item["generation"] and c["generation"] == item["generation"]
+                and normal(item["_title"]) and normal(item["_title"]) in normal(c["_text"])]
         if same:
             item["mirror_of"] = same[0]["request"]
         elif near:
@@ -151,6 +160,8 @@ CLASSES = ("owner-decision", "plan-settleable", "repeated", "unresolved", "nativ
 def count(handoffs: list[Path], db: Path, seconds: float) -> dict:
     deadline = time.monotonic() + seconds
     connection = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    # The bound holds inside a query too: SQLite abandons it once the deadline passes.
+    connection.set_progress_handler(lambda: int(time.monotonic() > deadline), 1000)
     out = {"db": str(db), "bound_seconds": seconds, "complete": True, "runs": []}
     for handoff in handoffs:
         if time.monotonic() > deadline:
@@ -158,7 +169,14 @@ def count(handoffs: list[Path], db: Path, seconds: float) -> dict:
             out["runs"].append({"handoff": str(handoff), "skipped": "the time bound was reached first"})
             continue
         run = load_run(handoff)
-        items = correct(read_items(connection, run))
+        try:
+            items = correct(read_items(connection, run), deadline)
+        except (OutOfTime, sqlite3.OperationalError) as exc:
+            if isinstance(exc, sqlite3.OperationalError) and time.monotonic() <= deadline:
+                raise
+            out["complete"] = False
+            out["runs"].append({"handoff": str(handoff), "skipped": f"the time bound was reached while it was {'classed' if isinstance(exc, OutOfTime) else 'read'}"})
+            continue
         old: dict[str, int] = {}
         for item in items:
             old[old_class(item["kind"], item["_text"])] = old.get(old_class(item["kind"], item["_text"]), 0) + 1
