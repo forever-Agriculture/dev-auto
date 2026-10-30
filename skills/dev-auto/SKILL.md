@@ -154,14 +154,16 @@ record do not tally time, usage or owner prompts.
 
 Freeze the candidate and run the quick pre-review from
 [references/review-brief.md](references/review-brief.md) alongside your own final
-acceptance checks; make one consolidated repair of its material findings and failing
-checks and rerun affected checks, with no second pre-review. An independent strong
+acceptance checks and the [manual QA phase](references/qa-brief.md) on its running interface;
+QA findings join the same consolidated repair. Retest repaired flows in the existing recheck,
+and affected flows after every later material repair; QA adds no round. A missing/invalid
+report, mandatory verification gap or unachieved goal blocks acceptance unless approved Run
+needs defer it. Without an interface record QA not applicable. Make one consolidated repair
+and rerun affected checks, with no second pre-review. An independent strong
 reviewer then checks the epic against original intent, architecture and goals with the
 same brief, using the pre-review map and your dispositions as navigation, not proof:
 one full review, consolidated repairs and one focused recheck, the candidate unedited
-while a reviewer or gate reads it. For web UI changes, add a browser check of the
-running candidate at the lead-started loopback origin, against the acceptance criteria
-with synthetic data. Further review needs a named material risk or a consequential new
+while a reviewer or gate reads it. Further review needs a named material risk or a consequential new
 change or evidence, reusing unaffected results.
 
 From the full review on, at one acceptance boundary: if a recheck finds a material
@@ -206,6 +208,10 @@ against the accepted revision, as the review brief defines. Changes for the sele
 scope sit inside the reviewed revision or carry delta evidence, including commits added
 after acceptance; name any unrelated residual change and why. Material findings without
 a disposition, material gaps and mandatory unverified gates block acceptance.
+
+Keep QA's verdict, goal check, findings and their fate on the report page, with synthetic
+or sanitized evidence only. A QA-focused epic may finish its planned audit/triage mission
+while retaining the tested product's unresolved NO-GO; it never rewrites that product verdict.
 
 As each epic is accepted (all before COMPLETE), deliver its report, including docs-only
 or workflow changes. A report revision is the checked HTML page's SHA256.

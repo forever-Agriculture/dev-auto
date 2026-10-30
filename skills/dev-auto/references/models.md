@@ -19,7 +19,7 @@ names no models. Ask the team for the role:
 | --- | --- |
 | Routine chores | `helper` |
 | Focused review: a bounded area, or a failure the lead is debugging | `focused-reviewer` |
-| Browser checks | `browser` |
+| Manual QA of the running interface | `qa` |
 | Epic pre-review (quick) | `pre-reviewer` |
 | Epic review | `epic-reviewer` |
 | Project pre-review (quick) | `project-pre-reviewer` |
@@ -72,7 +72,7 @@ names no models. Ask the team for the role:
   lookups, evidence gathering, log and test-output triage, checklist rechecks.
   **Focused review**: another model's eyes on a bounded area when the lead wants
   them, or a diagnosis of a failure from the source and logs the lead supplies.
-  **Browser checks**: a local app the lead started.
+  **Manual QA**: the running goal, criteria, exploration and retests in [qa-brief.md](qa-brief.md).
 - **Consultant**: a critical decision, a reviewer disagreement, or stuck after two
   failed approaches.
 - **Review sequence and its bounds**: SKILL.md, Helpers and review.
@@ -155,9 +155,9 @@ presenting evidence, cite the existing authorization once when it covers that ex
 action and payload; otherwise report the reason and request approval. Never change
 routes or permissions to evade a refusal.
 
-Browser checks ask the `browser` role with `--origin "$ORIGIN" --disposable` about a
-loopback app the lead started, with synthetic data; add `--interact` where the check
-must click, type or fill in. Its pages and screenshots are in the exported record.
+QA asks use the approved `qa` role with a curated brief and a disposable running target;
+[qa-brief.md](qa-brief.md) defines inputs, saved evidence, retests and unavailable targets.
+The existing `browser` role remains in the owner's roster until he removes it.
 
 ## GLM (deactivated)
 
