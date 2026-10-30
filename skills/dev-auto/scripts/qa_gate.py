@@ -44,12 +44,21 @@ def checked_record(root: Path, bmn: str, session_run: Path | None = None) -> tup
         if not isinstance(qa, dict) or qa.get("valid") is not True or qa.get("errors") != [] or qa.get("report") != report:
             raise Invalid("native QA session report is missing, invalid or changed")
     else:
-        outcome, request = load(root / "outcome.json"), load(root / "request.json")
+        outcome, request, manifest = load(root / "outcome.json"), load(root / "request.json"), load(root / "inputs/manifest.json")
         qa = outcome.get("qa")
-        if request.get("role") != "qa" or request.get("id") != outcome.get("id") or outcome.get("state") != "answered":
+        if (request.get("role") != "qa" or request.get("id") != outcome.get("id") or manifest.get("id") != request.get("id")
+                or outcome.get("state") != "answered"):
             raise Invalid("QA route did not return an attributed answer")
         if not isinstance(qa, dict) or qa.get("valid") is not True or qa.get("brief") != "qa/brief.json" or qa.get("report") != "qa/report.json":
             raise Invalid("native QA report is missing or invalid")
+        # BMN writes qa/ from its own input manifest and the retained native answer; a relabelled copy differs from both.
+        origin = request.get("browser", {}).get("origin") if isinstance(request.get("browser"), dict) else None
+        if (not isinstance(manifest.get("qa"), dict) or manifest["qa"].get("brief") != brief or not isinstance(manifest.get("browser"), dict)
+                or not origin or manifest["browser"].get("origin") != origin or brief.get("target") != origin):
+            raise Invalid("QA brief or target differs from the native ask's input manifest and browser request")
+        answer = root / "answer.md"
+        if answer.stat().st_size > 2 * 1024 * 1024 or json.loads(answer.read_text(encoding="utf-8")) != report:
+            raise Invalid("QA report differs from the retained native answer")
     command = [bmn, "qa", "report", "check", str(report_path), "--brief", str(brief_path)]
     if brief.get("version") == 2:
         receipt_path = root / "host-summary.json"
@@ -71,6 +80,8 @@ def checked_record(root: Path, bmn: str, session_run: Path | None = None) -> tup
     if qa.get("verdict") != report.get("verdict"):
         raise Invalid("the report verdict differs from its native outcome")
     browser = load(root / "browser.json")
+    if browser.get("origin") != brief.get("target"):
+        raise Invalid("native browser evidence belongs to a different target")
     if run:
         connection = browser.get("connection")
         if (not isinstance(connection, dict) or browser.get("qaId") != run.get("id")

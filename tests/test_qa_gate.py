@@ -27,6 +27,13 @@ class QaGateTests(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(value))
 
+    def write_qa(self, root, name, value):
+        """A genuine quick export: BMN wrote qa/ from its input manifest and the retained native answer."""
+        self.write(root, name, value)
+        brief, report = self.load(root, "qa/brief.json"), self.load(root, "qa/report.json")
+        self.write(root, "inputs/manifest.json", {"id": root.name, "qa": {"brief": brief}, "browser": {"origin": brief["target"]}})
+        (root / "answer.md").write_text(json.dumps(report, indent=2) + "\n")
+
     def record(self, name="current", revision="candidate-2", verdict="GO", finding=None):
         root = self.root / name
         brief = {"revision": revision, "target": "http://127.0.0.1:4173", "prior_findings": []}
@@ -34,13 +41,13 @@ class QaGateTests(unittest.TestCase):
                   "criteria": [{"id": "AC1", "evidence": ["browser/cart.png"]}],
                   "findings": [] if finding is None else [finding]}
         self.write(root, "qa/brief.json", brief)
-        self.write(root, "qa/report.json", report)
-        self.write(root, "request.json", {"id": name, "role": "qa"})
+        self.write_qa(root, "qa/report.json", report)
+        self.write(root, "request.json", {"id": name, "role": "qa", "browser": {"origin": brief["target"]}})
         self.write(root, "outcome.json", {"id": name, "state": "answered", "qa": {"valid": True, "verdict": verdict,
                    "brief": "qa/brief.json", "report": "qa/report.json"}})
         image = root / "browser/cart.png"
         image.parent.mkdir(); image.write_bytes(b"synthetic-native-image-fixture")
-        self.write(root, "browser.json", {"calls": 3, "screenshots": [{"name": "cart.png", "bytes": image.stat().st_size,
+        self.write(root, "browser.json", {"origin": brief["target"], "calls": 3, "screenshots": [{"name": "cart.png", "bytes": image.stat().st_size,
                    "sha256": hashlib.sha256(image.read_bytes()).hexdigest()}]})
         return root
 
@@ -65,7 +72,7 @@ class QaGateTests(unittest.TestCase):
                               finding=self.finding(resolved, observed))
         brief = self.load(current, "qa/brief.json")
         brief["prior_findings"] = [{"finding": original, "disposition": "Repaired selection; QA must verify"}]
-        self.write(current, "qa/brief.json", brief)
+        self.write_qa(current, "qa/brief.json", brief)
         return prior, current
 
     def test_bound_go_passes_identically_on_resume_without_writing(self):
@@ -85,6 +92,27 @@ class QaGateTests(unittest.TestCase):
         for revision, target in [("other", "http://127.0.0.1:4173"), ("candidate-2", "http://127.0.0.1:4174")]:
             with self.subTest(revision=revision, target=target):
                 self.assertEqual(self.invoke(record, revision, target)[1]["status"], "invalid")
+
+    def test_relabelled_quick_export_never_passes(self):
+        # Astra's reproduction: qa/ rewritten consistently for an untested candidate while BMN's native record is unchanged.
+        for change in ["candidate", "criteria", "report", "answer", "browser"]:
+            with self.subTest(change=change):
+                root = self.record(name=change)
+                brief, report, revision, target = self.load(root, "qa/brief.json"), self.load(root, "qa/report.json"), "candidate-2", "http://127.0.0.1:4173"
+                if change == "candidate":
+                    revision, target = "never-tested-candidate", "http://127.0.0.1:49999"
+                    brief.update(revision=revision, target=target)
+                    browser = self.load(root, "browser.json"); browser["origin"] = target; self.write(root, "browser.json", browser)
+                elif change == "criteria": brief["criteria"] = [{"id": "AC1", "description": "Something easier", "mandatory": True}]
+                elif change == "report": report["goal_check"]["status"] = "uncertain"
+                elif change == "answer": (root / "answer.md").write_text("not the report")
+                elif change == "browser":
+                    browser = self.load(root, "browser.json"); browser["origin"] = "http://127.0.0.1:49999"; self.write(root, "browser.json", browser)
+                self.write(root, "qa/brief.json", brief); self.write(root, "qa/report.json", report)
+                self.assertEqual(self.invoke(root, revision, target)[1]["status"], "invalid")
+        root = self.record(name="moved-request")
+        request = self.load(root, "request.json"); request["browser"]["origin"] = "http://127.0.0.1:49999"; self.write(root, "request.json", request)
+        self.assertIn("browser request", self.invoke(root)[1]["reason"])
 
     def test_missing_and_unavailable_qa_records_never_pass(self):
         record = self.record()
@@ -128,21 +156,21 @@ class QaGateTests(unittest.TestCase):
     def test_prior_finding_facts_cannot_be_downgraded_in_the_recheck_brief(self):
         prior, current = self.retest()
         brief = self.load(current, "qa/brief.json"); brief["prior_findings"][0]["finding"]["severity"] = "minor"
-        self.write(current, "qa/brief.json", brief)
+        self.write_qa(current, "qa/brief.json", brief)
         self.assertIn("facts are missing or changed", self.invoke(current, "candidate-2", "http://127.0.0.1:4173", "--prior", prior)[1]["reason"])
 
     def minor_retest(self, same_revision=False, resolved=True, observed=True):
         prior, current = self.retest(same_revision, resolved, observed)
         old = self.load(prior, "qa/report.json"); old["findings"][0]["severity"] = "minor"
-        old["verdict"] = "GO WITH ISSUES"; self.write(prior, "qa/report.json", old)
+        old["verdict"] = "GO WITH ISSUES"; self.write_qa(prior, "qa/report.json", old)
         outcome = self.load(prior, "outcome.json"); outcome["qa"]["verdict"] = old["verdict"]
         self.write(prior, "outcome.json", outcome)
         new = self.load(current, "qa/report.json"); new["findings"][0]["severity"] = "minor"
-        new["verdict"] = "GO" if resolved else "GO WITH ISSUES"; self.write(current, "qa/report.json", new)
+        new["verdict"] = "GO" if resolved else "GO WITH ISSUES"; self.write_qa(current, "qa/report.json", new)
         outcome = self.load(current, "outcome.json"); outcome["qa"]["verdict"] = new["verdict"]
         self.write(current, "outcome.json", outcome)
         brief = self.load(current, "qa/brief.json"); brief["prior_findings"][0]["finding"] = old["findings"][0]
-        self.write(current, "qa/brief.json", brief)
+        self.write_qa(current, "qa/brief.json", brief)
         return prior, current
 
     def test_open_minor_still_needs_current_repro_observations(self):
@@ -158,7 +186,7 @@ class QaGateTests(unittest.TestCase):
     def test_prior_minor_cannot_silently_disappear_from_the_recheck(self):
         prior, current = self.minor_retest()
         report = self.load(current, "qa/report.json"); report["findings"] = []
-        self.write(current, "qa/report.json", report)
+        self.write_qa(current, "qa/report.json", report)
         self.assertEqual(self.invoke(current, "candidate-2", "http://127.0.0.1:4173", "--prior", prior)[1]["status"], "invalid")
         self.assertIn("no current original-repro retest", self.invoke(current, "candidate-2", "http://127.0.0.1:4173", "--prior", prior)[1]["reason"])
 

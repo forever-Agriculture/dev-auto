@@ -32,6 +32,8 @@ bmn team asks export "$ID" --output "$RECORD"
 python3 "$SKILL/scripts/qa_gate.py" "$RECORD" --revision "$REVISION" --target "$ORIGIN"
 ```
 
+The gate admits the export only when its brief equals BMN's input manifest, its report equals the
+retained native answer and its target equals the ask's browser request and browser record.
 `--disposable` states that the target and its services contain synthetic data and no production
 backend or credentials. QA has no unsafe browser callbacks. Read the native record and inspect
 relevant screenshots before accepting its observations; a consistent report is not proof of a
