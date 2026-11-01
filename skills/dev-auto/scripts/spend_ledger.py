@@ -6,6 +6,8 @@ Usage:
   spend_ledger.py open --epic N [--project P]             record the epic's go, its cap and its rounds; prints the budget id,
                                                           the go's identity and the rounds left at each boundary
   spend_ledger.py open --epic N --cap USD --source TEXT   an owner-stated cap for an epic with no go and no cap yet
+  spend_ledger.py open --epic N --cap USD --expect-cap OLD --source TEXT
+                                                        record an explicit increase of a direct owner cap; preserve all usage
   spend_ledger.py launch --budget B --job J --max USD [--direct] -- JOB_SCRIPT [ARGS...]
   spend_ledger.py settle --budget B --job J (--spent USD | --unknown)
   spend_ledger.py release --budget B --job J              the job never ran: its reservation is returned
@@ -208,6 +210,9 @@ def open_budget(args: dict) -> int:
     if not (epic and epic.isdigit()):
         print("USAGE: open needs --epic N")
         return EXIT_USAGE
+    if "--expect-cap" in args and "--cap" not in args:
+        print("USAGE: --expect-cap needs --cap and the owner's words in --source")
+        return EXIT_USAGE
     epic = str(int(epic))  # 007 and 7 are one epic
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import run_needs
@@ -220,13 +225,39 @@ def open_budget(args: dict) -> int:
         data["project"] = str(project.resolve())  # where `round` reads the go again
         if "--cap" in args:
             cap = amount(args.get("--cap"))
-            if cap is None or not args.get("--source"):
+            source = (args.get("--source") or "").strip()
+            if cap is None or not source:
                 print("REFUSED: an owner-stated cap needs a positive --cap and his words in --source")
                 return EXIT_USAGE
-            if needs["state"] == "GO" or data["gos"]:
-                print("REFUSED: a cap is already set by his go or earlier; more money takes his new go")
+            if needs["state"] == "GO" or any(go.get("kind") != "owner" for go in data["gos"]):
+                print("REFUSED: a recorded or withdrawn go needs his new go; a direct cap cannot override it")
                 return EXIT_REFUSED
-            data["gos"].append({"kind": "owner", "cap": cap, "source": args["--source"], "at": now()})
+            previous = data["gos"][-1] if data["gos"] else None
+            expected = amount(args.get("--expect-cap"))
+            repeated = False
+            if "--expect-cap" in args:
+                if expected is None:
+                    print("USAGE: --expect-cap needs a positive prior owner cap")
+                    return EXIT_USAGE
+                if previous is None:
+                    print("REFUSED: no direct owner cap exists to reapprove")
+                    return EXIT_REFUSED
+                repeated = (previous.get("previous_cap") == expected and previous["cap"] == cap
+                            and previous["source"] == source)
+                if not repeated and previous["cap"] != expected:
+                    print("REFUSED: the direct owner cap changed; reread it before recording his approval")
+                    return EXIT_REFUSED
+                if not repeated and cap <= previous["cap"]:
+                    print("REFUSED: this reapproval records additional money only; it cannot reduce or cycle a cap")
+                    return EXIT_REFUSED
+            elif previous is not None:
+                print("REFUSED: a direct owner cap exists; his later approval needs --expect-cap")
+                return EXIT_REFUSED
+            if not repeated:
+                entry = {"kind": "owner", "cap": cap, "source": source, "at": now()}
+                if previous is not None:
+                    entry["previous_cap"] = previous["cap"]
+                data["gos"].append(entry)
         elif needs["state"] == "GO":
             if not any(go.get("commit") == needs["go_commit"] for go in data["gos"]):
                 latest = next((go for go in reversed(data["gos"]) if go.get("kind") == "go"), None)

@@ -207,6 +207,69 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(self.open(none, "--cap", "5")[0], 2)  # no source
 
 
+    def test_direct_owner_reapproval_preserves_unknown_holds_and_used_rounds(self) -> None:
+        needs = {"state": "NO_GO_RECORD", "plan_root": "/plans/direct", "reason": "legacy plan"}
+        code, out = self.open(needs, "--cap", "30", "--source", "owner: $30")
+        self.assertEqual(code, 0, out)
+        budget = out.split()[1].rstrip(":")
+        with (ledger := spend_ledger.Ledger(budget)) as data:
+            data["jobs"]["unknown"] = {"state": "unknown", "max": 25.0}
+            data["rounds"]["used"] = {"answer": "TAKEN", "boundary": "epic"}
+            ledger.save()
+        seeded = self.ledger(budget)
+        code, out = self.open(needs, "--cap", "45", "--expect-cap", "30", "--source", "owner card: +$15")
+        self.assertEqual(code, 0, out)
+        changed = self.ledger(budget)
+        self.assertEqual(spend_ledger.cap_in_force(changed), 45.0)
+        self.assertEqual(changed["jobs"], seeded["jobs"])
+        self.assertEqual(changed["rounds"], seeded["rounds"])
+        self.assertEqual(spend_ledger.totals(changed), (0.0, 25.0))
+        self.assertEqual(self.open(needs, "--cap", "45", "--expect-cap", "30", "--source", "owner card: +$15")[0], 0)
+        self.assertEqual(self.ledger(budget), changed)
+        self.assertEqual(self.open(needs, "--cap", "50", "--expect-cap", "30", "--source", "stale approval")[0], 1)
+        self.assertEqual(self.ledger(budget), changed)
+        self.assertEqual(self.launch(budget, "over", "21").returncode, 1)
+        self.assertEqual(self.launch(budget, "fits", "20").returncode, 0)
+        self.assertEqual(self.markers(), ["fits"])
+
+    def test_direct_owner_reapproval_requires_an_existing_owner_cap_and_expected_value(self) -> None:
+        needs = {"state": "NO_GO_RECORD", "plan_root": "/plans/direct", "reason": "legacy plan"}
+        self.assertEqual(self.open(needs, "--cap", "45", "--expect-cap", "30", "--source", "owner")[0], 1)
+        self.assertEqual(self.open(needs, "--cap", "30", "--source", "owner")[0], 0)
+        for extra in [("--cap", "45", "--source", "owner"),
+                      ("--cap", "45", "--expect-cap", "20", "--source", "owner"),
+                      ("--cap", "45", "--expect-cap", "nan", "--source", "owner"),
+                      ("--cap", "45", "--expect-cap", "30"),
+                      ("--expect-cap", "30", "--source", "owner")]:
+            self.assertNotEqual(self.open(needs, *extra)[0], 0, extra)
+        self.assertEqual(self.open(go("a" * 40, 30), "--cap", "45", "--expect-cap", "30", "--source", "owner")[0], 1)
+
+    def test_additional_money_reapproval_cannot_reduce_or_cycle_caps(self) -> None:
+        needs = {"state": "NO_GO_RECORD", "plan_root": "/plans/direct", "reason": "legacy plan"}
+        code, out = self.open(needs, "--cap", "30", "--source", "initial")
+        self.assertEqual(code, 0, out)
+        budget = out.split()[1].rstrip(":")
+        self.assertEqual(self.open(needs, "--cap", "45", "--expect-cap", "30", "--source", "approval A")[0], 0)
+        approved = self.ledger(budget)
+        # A return to 30 would let stale A raise it again, so this extra-money path cannot lower caps.
+        self.assertEqual(self.open(needs, "--cap", "30", "--expect-cap", "45", "--source", "later B")[0], 1)
+        self.assertEqual(self.open(needs, "--cap", "45", "--expect-cap", "45", "--source", "same amount")[0], 1)
+        self.assertEqual(self.ledger(budget), approved)
+        self.assertEqual(self.open(needs, "--cap", "45", "--expect-cap", "30", "--source", "approval A")[0], 0)
+        self.assertEqual(self.ledger(budget), approved)
+
+    def test_owner_reapproval_cannot_override_a_recorded_or_withdrawn_go(self) -> None:
+        plan, budget = self.real_budget(30.0, rounds=1)
+        self.assertEqual(self.open_plan(plan)[0], 0)
+        for kind in ("go", "withdrawn"):
+            if kind == "withdrawn":
+                plan.write("epic-7: backlog # put back", commit=None)
+                self.launch(budget, "withdrawn", "1")
+            before = self.ledger(budget)
+            self.assertNotEqual(self.open({"state": "NO_GO_RECORD", "plan_root": str(plan.root),
+                "reason": "unavailable"}, "--cap", "45", "--expect-cap", "30", "--source", "owner")[0], 0)
+            self.assertEqual(self.ledger(budget), before)
+
     def round(self, budget: str, boundary: str, use_id: str) -> tuple[int, str]:
         done = subprocess.run([sys.executable, str(LEDGER), "round", "--budget", budget, "--boundary", boundary, "--use-id", use_id],
                               capture_output=True, text=True, env=os.environ.copy())
