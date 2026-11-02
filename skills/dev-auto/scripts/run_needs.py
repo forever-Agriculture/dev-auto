@@ -47,7 +47,9 @@ HAND_GO_CUTOVER = "2026-10-27"
 PREPARED_KINDS = "account|credential|service|command|message|owner step"
 PREPARED_NEED = re.compile(rf"^((?:{PREPARED_KINDS})(?:\s*,\s*(?:{PREPARED_KINDS}))*)\s*:\s*(.*)$", re.I | re.S)
 NONE_BECAUSE = re.compile(r"^none\s*,?\s*because\s+(.+)$", re.I | re.S)
-CHECKED_ON = re.compile(r"\bchecked\s+(\d{4}-\d{2}-\d{2})")
+CHECKED_ON = re.compile(r"\bchecked\s+(\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01]))\b")
+# One form with BMN's plan check (bin/plan-board.mjs PREPARED_LINE): a `-` or `*` mark or none; tests on both sides read one table.
+PREPARED_LINE = re.compile(r"\s*(?:[-*]\s*)?\*\*prepared:?\*\*:?\s*(.*)", re.I)
 
 
 def git(repo: Path, *args: str) -> str:
@@ -219,9 +221,38 @@ def parse_prepared(value: str) -> list[dict]:
     return found
 
 
+def prepared_problems(found: list[dict]) -> list[str]:
+    """What each parsed need lacks, in the words of BMN's plan check (R103-FR1): the lead reads them, and the run goes on."""
+    problems = []
+    for one in found:
+        target = one["target"] or ""
+        if one.get("unparsed"):
+            problems.append(f'"{target[:60]}" is not <kind>: <target>, check: <how>, checked <date>')
+        elif one["none_because"]:
+            continue
+        elif re.match(r"none\b", target, re.I):
+            problems.append(f'{one["kind"]} says "{target}": say none, because <reason>')
+        elif not target:
+            problems.append(f'{one["kind"]} names no target')
+        elif one["kind"] == "owner step":
+            continue
+        elif not one["check"]:
+            problems.append(f'{one["kind"]}: {target[:40]} needs a check: how the run checks it')
+        elif not one["checked"]:
+            problems.append(f'{one["kind"]}: {target[:40]} needs a date: checked YYYY-MM-DD')
+    return problems
+
+
 def parse_needs(text: str | None) -> dict:
     needs = {"rounds": 0, "deferrable": [], "money_cap": None, "named_actions": None, "prepared": []}
+    seen_prepared = False
     for line in (text or "").splitlines():
+        prepared = PREPARED_LINE.fullmatch(line.rstrip())
+        if prepared:
+            # The first line of the section, as BMN's plan check reads it.
+            if not seen_prepared:
+                needs["prepared"], seen_prepared = parse_prepared(prepared.group(1).strip()), True
+            continue
         item = re.match(r"\s*-\s*\*\*([^*]+?):?\*\*:?\s*(.*)", line)
         if not item:
             continue
@@ -236,8 +267,6 @@ def parse_needs(text: str | None) -> dict:
             needs["money_cap"] = None if value.lower().startswith("none") or not amount else float(amount.group(1) or amount.group(2))
         elif "named action" in name:
             needs["named_actions"] = None if value.lower().startswith("none") else value
-        elif "prepared" in name:
-            needs["prepared"] = parse_prepared(value)
     return needs
 
 
@@ -390,6 +419,8 @@ def main(argv: list[str]) -> int:
                     last = f"; checked {one['checked']}" if one["checked"] else ""
                     how = f"check: {one['check']}" if one["check"] else ("his step, no check" if one["kind"] == "owner step" else "no check named: say how you checked it")
                     print(f"- {one['kind']}: {one['target']}; {how}{last}")
+            for problem in prepared_problems(prepared):
+                print(f"PREPARED GAP, read it yourself: {problem}")
     else:
         print(f"{result['state']}: {result['reason']}; nothing is delegated beyond the invocation")
         if result["state"] == "NO_GO_RECORD":

@@ -112,14 +112,26 @@ def key_stem(key: str) -> str:
     return re.sub(r"[-:](?:b|c|again|\d)$", "", key or "")
 
 
+def question_texts(prompt_json: str | None, title: str) -> list[str]:
+    """Each question of a card: a hook's row holds them in its prompt, every one with its own word; a `bmn ask` card is its title."""
+    try:
+        questions = json.loads(prompt_json or "{}").get("questions")
+    except (ValueError, AttributeError):
+        return [title]
+    if not isinstance(questions, list) or not questions:
+        return [title]
+    texts = [one.get("text") for one in questions if isinstance(one, dict) and isinstance(one.get("text"), str)]
+    return texts if len(texts) == len(questions) else [title]
+
+
 def read_items(connection: sqlite3.Connection, run: dict, deadline: float | None = None) -> list[dict]:
     rows = connection.execute(
         "SELECT request_id, session_id, request_key, kind, opened_at, opened_by, title, substr(coalesce(body, ''), 1, 2000), "
-        "substr(coalesce(prompt_json, ''), 1, 300), producer_json, resolved_at FROM attention_request "
+        "substr(coalesce(prompt_json, ''), 1, 300), producer_json, resolved_at, CASE WHEN kind = 'question' THEN prompt_json END FROM attention_request "
         "WHERE kind IN ('question', 'permission') AND opened_at >= ? AND opened_at <= ? ORDER BY opened_at, request_id",
         (run["start"].isoformat().replace("+00:00", "Z"), run["end"].isoformat().replace("+00:00", "Z"))).fetchall()
     items = []
-    for request_id, session, key, kind, opened, opened_by, title, body, prompt, producer, resolved in checked(rows, deadline, "read"):
+    for request_id, session, key, kind, opened, opened_by, title, body, prompt, producer, resolved, whole in checked(rows, deadline, "read"):
         try:
             origin = json.loads(producer) if producer else {}
         except ValueError:
@@ -130,7 +142,7 @@ def read_items(connection: sqlite3.Connection, run: dict, deadline: float | None
             continue
         items.append({"request": request_id, "opened": opened, "resolved": resolved, "kind": kind, "via": opened_by or "", "key": key or "",
                       "conversation": conversation, "generation": origin.get("generation") or "",
-                      "_title": title or "", "_text": " ".join(filter(None, [title, body, prompt if kind == "permission" else ""]))})
+                      "_title": title or "", "_questions": question_texts(whole, title or ""), "_text": " ".join(filter(None, [title, body, prompt if kind == "permission" else ""]))})
     return items
 
 
@@ -188,13 +200,18 @@ def reasons(items: list[dict], deadline: float | None) -> dict[str, int]:
     found: dict[str, int] = {}
     for item in checked(items, deadline, "counted"):
         if item["kind"] == "question" and item["class"] != "mirror":
-            word = reason_word(item["_title"])
-            found[word] = found.get(word, 0) + 1
+            for text in item["_questions"]:
+                word = reason_word(text)
+                found[word] = found.get(word, 0) + 1
     return found
 
 
 def native_prompts(items: list[dict], deadline: float | None) -> dict:
-    """The apps' own permission prompts, which hold the agent until answered; a card from `bmn ask` does not."""
+    """The apps' own permission prompts, which hold the agent until answered; a card from `bmn ask` does not.
+
+    At most: a prompt's row closes when the command has finished (PostToolUse, bmn-hooks.mjs), and no app reports the moment he
+    answered, so a slow command after a quick yes counts in full. A row over 30 minutes needs its transcript to say which.
+    """
     count = over = still_open = 0
     held = timedelta()
     for item in checked(items, deadline, "counted"):
@@ -207,15 +224,16 @@ def native_prompts(items: list[dict], deadline: float | None) -> dict:
             continue
         held += resolved - opened
         over += resolved - opened > LONG_PROMPT
-    return {"count": count, "over_30_minutes": over, "hours_held": round(held.total_seconds() / 3600, 1), "open": still_open}
+    return {"count": count, "over_30_minutes_at_most": over, "hours_held_at_most": round(held.total_seconds() / 3600, 1), "open": still_open}
 
 
 def hand_backs(connection: sqlite3.Connection, run: dict) -> dict:
     """BMN's count of question cards handed back and repeated in this run's conversations and time; an older BMN has none."""
-    found = {"handed_back": 0, "repeated": 0, "readable": False}
+    found = {"handed_back": 0, "repeated": 0, "readable": False, "may_have_lost": 0}
     try:
         row = connection.execute("SELECT value_json FROM app_setting WHERE key = ?", (HAND_BACKS_KEY,)).fetchone()
-        entries = json.loads(row[0])["entries"] if row else None
+        kept = json.loads(row[0]) if row else None
+        entries, dropped = (kept["entries"], kept.get("dropped", 0)) if kept else (None, 0)
     except (sqlite3.OperationalError, ValueError, KeyError, TypeError) as exc:
         if isinstance(exc, sqlite3.OperationalError) and "no such" not in str(exc):
             raise
@@ -223,6 +241,10 @@ def hand_backs(connection: sqlite3.Connection, run: dict) -> dict:
     if not isinstance(entries, list):
         return found
     found["readable"] = True
+    # BMN keeps the newest entries: older ones that fell off can belong to this run only if what is kept starts after it began.
+    times = [at for at in (parse(entry.get("at")) if isinstance(entry, dict) else None for entry in entries) if at is not None]
+    if isinstance(dropped, int) and dropped > 0 and (not times or min(times) > run["start"]):
+        found["may_have_lost"] = dropped
     for entry in entries:
         at = parse(entry.get("at")) if isinstance(entry, dict) else None
         if at is None or not run["start"] <= at <= run["end"]:
@@ -330,9 +352,12 @@ def main(argv: list[str]) -> int:
         words = ", ".join(f"{word} {count}" for word, count in sorted(run["reasons"].items(), key=lambda pair: (-pair[1], pair[0]))) or "none asked"
         back, prompts = run["hand_backs"], run["native_prompts"]
         kept = "" if back["readable"] else " (no count in this database)"
+        if back["may_have_lost"]:
+            kept = f" (at least; {back['may_have_lost']} older entries are no longer kept)"
         still = f", {prompts['open']} still open" if prompts["open"] else ""
         print(f"  reasons: {words}; handed back {back['handed_back']}, repeated {back['repeated']}{kept}; "
-              f"native prompts {prompts['count']}, {prompts['over_30_minutes']} over 30 minutes, {prompts['hours_held']} hours held{still}")
+              f"native prompts {prompts['count']}, at most {prompts['over_30_minutes_at_most']} over 30 minutes, at most "
+              f"{prompts['hours_held_at_most']} hours held, to the command's end{still}")
     print("COVERAGE: complete" if result["complete"] else "COVERAGE: partial, the time bound was reached")
     return 0
 

@@ -391,6 +391,53 @@ class PreparedTests(unittest.TestCase):
         found = self.parse("ask Bob about it")
         self.assertEqual(found, [{"kind": None, "target": "ask Bob about it", "check": None, "checked": None, "none_because": None, "unparsed": True}])
 
+    # The same table as BMN's apps/desktop/src/utility/plan-board.test.ts: what it takes, this reads; what it reports, this names.
+    GRAMMAR_GOOD = (
+        "* **Prepared:** none, because x.",
+        "**Prepared:** none, because x.",
+        "- **Prepared**: none, because x.",
+        "- **Prepared:** service: the host, check: `curl host`, checked 2026-11-02.",
+        "- **Prepared:** service, account: the host, check: `curl host`, checked 2026-11-02.",
+        "- **Prepared:** command: `a; b`, check: `which a`, checked 2026-11-02; message, credential: none, because a stub.",
+        "- **Prepared:** owner step: close BMN at the end.",
+        "- **Prepared:** owner step: close BMN at the end; account: none, because a stub.",
+    )
+    GRAMMAR_BAD = (
+        ("- **Prepared:** service: staging", "needs a check"),
+        ("- **Prepared:** service: staging, checked 2026-11-02", "needs a check"),
+        ("- **Prepared:** service: staging, check: `curl staging`", "needs a date"),
+        ("- **Prepared:** service: staging, check: `curl staging`, checked 2026-13-45", "needs a date"),
+        ("- **Prepared:** service: staging, check: `curl staging`, checked yesterday", "needs a date"),
+        ("- **Prepared:** check: `curl staging`, checked 2026-11-02", "not <kind>"),
+        ("- **Prepared:** service: , check: `curl staging`, checked 2026-11-02", "names no target"),
+        ("- **Prepared:** account: none", "none, because"),
+        ("- **Prepared:** account: none, because", "none, because"),
+        ("- **Prepared:** owner step: none", "none, because"),
+        ("- **Prepared:** owner step:", "names no target"),
+        ("- **Prepared:** ask Bob about it", "not <kind>"),
+        ("- **Prepared:** service, owner step: staging", "needs a check"),
+    )
+
+    def test_every_form_bmn_takes_is_read_with_nothing_to_report(self) -> None:
+        for line in self.GRAMMAR_GOOD:
+            with self.subTest(line=line):
+                found = run_needs.parse_needs(line + "\n")["prepared"]
+                self.assertTrue(found)
+                self.assertEqual(run_needs.prepared_problems(found), [])
+
+    def test_every_form_bmn_reports_is_named_not_dropped(self) -> None:
+        for line, why in self.GRAMMAR_BAD:
+            with self.subTest(line=line):
+                found = run_needs.parse_needs(line + "\n")["prepared"]
+                self.assertTrue(found)
+                problems = run_needs.prepared_problems(found)
+                self.assertEqual(len(problems), 1)
+                self.assertIn(why, problems[0])
+
+    def test_the_first_line_of_the_section_is_the_one_read_as_bmn_reads_it(self) -> None:
+        found = run_needs.parse_needs("- **Prepared:** service: the first, check: `a`, checked 2026-11-02.\n* **Prepared:** none, because later.\n")["prepared"]
+        self.assertEqual([one["target"] for one in found], ["the first"])
+
     def test_no_line_is_an_empty_list(self) -> None:
         self.assertEqual(run_needs.parse_needs("- **Deferrable:** none.\n")["prepared"], [])
 
@@ -398,6 +445,10 @@ class PreparedTests(unittest.TestCase):
         found = self.parse("service: the isolated test profile of `scripts/test/away-grant-live.mjs`, checked 2026-11-02 (it exists; 103.1 runs it); command: `claude --version` and `codex --version`, read by 103.1's first step; account, credential, message, owner step: none, because every proof uses a disposable repository and a stub tool.")
         self.assertEqual([one["kind"] for one in found], ["service", "command", "account", "credential", "message", "owner step"])
         self.assertEqual(found[0]["checked"], "2026-11-02")
+
+    def test_this_epics_own_line_prints_its_gaps_without_failing_the_run(self) -> None:
+        found = self.parse("service: the profile, checked 2026-11-02; command: `claude --version`, read by the first step")
+        self.assertEqual([("needs a check" in one) for one in run_needs.prepared_problems(found)], [True, True])
 
     def test_the_printed_go_lists_each_need_from_the_gos_commit(self) -> None:
         plan = Plan()
