@@ -29,7 +29,7 @@ class CountTests(unittest.TestCase):
         self.db = root / "state.sqlite3"
         connection = sqlite3.connect(self.db)
         connection.execute("CREATE TABLE attention_request (request_id TEXT, session_id TEXT, request_key TEXT, kind TEXT, title TEXT, "
-                           "body TEXT, opened_at TEXT, opened_by TEXT, prompt_json TEXT, producer_json TEXT)")
+                           "body TEXT, opened_at TEXT, opened_by TEXT, prompt_json TEXT, producer_json TEXT, resolved_at TEXT)")
         connection.commit()
         connection.close()
         run = root / "run" / ".dev-auto"
@@ -46,7 +46,7 @@ class CountTests(unittest.TestCase):
         self.n += 1
         request = f"{self.n:08x}-0000-4000-8000-000000000000"
         connection = sqlite3.connect(self.db)
-        connection.execute("INSERT INTO attention_request VALUES (?,?,?,?,?,?,?,?,?,?)",
+        connection.execute("INSERT INTO attention_request VALUES (?,?,?,?,?,?,?,?,?,?,NULL)",
                            (request, session, key, kind, title, body, f"2026-10-26T{opened}:00.000Z", via, "{}",
                             json.dumps({"conversationReference": conversation, "generation": generation})))
         connection.commit()
@@ -55,6 +55,63 @@ class CountTests(unittest.TestCase):
 
     def run_count(self, seconds: float = 180) -> dict:
         return interruptions.count([self.handoff], self.db, seconds)["runs"][0]
+
+    def hand_backs(self, *entries: tuple[str, str, str]) -> None:
+        connection = sqlite3.connect(self.db)
+        connection.execute("CREATE TABLE IF NOT EXISTS app_setting (key TEXT PRIMARY KEY, value_json TEXT)")
+        rows = [{"at": f"2026-10-26T{at}:00.000Z", "sessionId": "s", "conversation": conversation, "agentCli": "claude", "outcome": outcome} for at, conversation, outcome in entries]
+        connection.execute("INSERT OR REPLACE INTO app_setting VALUES ('question-hand-backs-v1', ?)", (json.dumps({"version": 1, "dropped": 0, "entries": rows}),))
+        connection.commit()
+        connection.close()
+
+    def resolve(self, request: str, at: str) -> None:
+        connection = sqlite3.connect(self.db)
+        connection.execute("UPDATE attention_request SET resolved_at = ? WHERE request_id LIKE ?", (f"2026-10-26T{at}:00.000Z", f"{request}%"))
+        connection.commit()
+        connection.close()
+
+    def test_questions_by_their_reason_word_with_none_for_a_bare_one(self) -> None:
+        self.add("10:00", title="Claude asks: Scope: drop the screen?")
+        self.add("10:05", title="Claude asks: scope: drop the other screen?", generation="g2")
+        self.add("10:10", via="cli", title="Go: ship it?", key="go-1", generation="g3")
+        self.add("10:15", title="Claude asks: Which colour?", generation="g4")
+        self.add("10:20", kind="permission", via="hook:claude:PermissionRequest", title="Claude wants to run git push")
+        self.assertEqual(self.run_count()["reasons"], {"Scope": 2, "Go": 1, "none": 1})
+
+    def test_a_mirror_is_one_question_in_the_reason_count(self) -> None:
+        self.add("10:00", title="Claude asks: Go: restart now?")
+        self.add("10:00", via="cli", title="Go: restart now?", key="dev-auto-r")
+        self.assertEqual(self.run_count()["reasons"], {"Go": 1})
+
+    def test_hand_backs_and_repeats_of_this_run_only(self) -> None:
+        self.hand_backs(("10:00", LEAD, "handed-back"), ("10:01", LEAD, "repeat"), ("10:02", LEAD, "handed-back"),
+                        ("10:03", OTHER, "handed-back"), ("03:00", LEAD, "handed-back"))
+        self.assertEqual(self.run_count()["hand_backs"], {"handed_back": 2, "repeated": 1, "readable": True})
+
+    def test_an_older_database_without_the_count_says_so_and_counts_the_rest(self) -> None:
+        self.add("10:00", title="Claude asks: Go: restart now?")
+        run = self.run_count()
+        self.assertEqual(run["hand_backs"], {"handed_back": 0, "repeated": 0, "readable": False})
+        self.assertEqual(run["reasons"], {"Go": 1})
+
+    def test_hours_native_prompts_held_and_those_over_thirty_minutes(self) -> None:
+        one = self.add("10:00", kind="permission", via="hook:claude:PermissionRequest", title="git push")
+        self.resolve(one, "11:30")
+        two = self.add("11:00", kind="permission", via="hook:codex:PermissionRequest", title="something")
+        self.resolve(two, "11:06")
+        self.add("11:10", kind="permission", via="cli", title="a card is not a native prompt", key="card", generation="g5")
+        self.assertEqual(self.run_count()["native_prompts"], {"count": 2, "over_30_minutes": 1, "hours_held": 1.6, "open": 0})
+
+    def test_a_prompt_still_open_is_named_not_summed(self) -> None:
+        self.add("10:00", kind="permission", via="hook:claude:PermissionRequest", title="git push")
+        self.assertEqual(self.run_count()["native_prompts"], {"count": 1, "over_30_minutes": 0, "hours_held": 0.0, "open": 1})
+
+    def test_the_words_a_person_reads(self) -> None:
+        self.add("10:00", title="Claude asks: Go: restart now?")
+        printed = subprocess.run([sys.executable, str(SCRIPT), str(self.handoff), "--db", str(self.db)], capture_output=True, text=True, check=True).stdout
+        self.assertIn("reasons: Go 1", printed)
+        self.assertIn("handed back 0, repeated 0 (no count in this database)", printed)
+        self.assertIn("native prompts 0, 0 over 30 minutes, 0.0 hours held", printed)
 
     def test_a_mirror_with_its_cards_provenance_counts_once_and_the_old_count_counts_both(self) -> None:
         card = self.add("10:00", title="Claude has 2 questions: Epic 7 [n1]: GPU drawing? …", body="1. Epic 7 [n1]: GPU drawing? 2. Defer 7.2 AC3?")

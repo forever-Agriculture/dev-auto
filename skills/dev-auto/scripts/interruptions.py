@@ -18,6 +18,10 @@ the card's words);
 a close pair without that stays two items, labelled a possible mirror. Then each question is an owner decision
 (his by nature or a push/merge/packaging act policy reserves), settleable by the plan, repeated (the same
 question or key asked again in the run) or unresolved; a permission prompt is the host's, never the workflow's.
+Beside them, for BMN Epic 103: questions by the reason word they start with (`none` for a bare one, a mirror once),
+the question cards BMN handed back and the repeats that then reached him (its count, which holds no question's text),
+and how long the apps' native permission prompts held the agent (a `bmn ask` permission card holds nothing, so it is
+not one; a prompt still open is named, not summed).
 Output holds ids, times and classes only; --spot prints the questions' titles on screen for the lead's own
 check and is never to be saved.
 """
@@ -111,11 +115,11 @@ def key_stem(key: str) -> str:
 def read_items(connection: sqlite3.Connection, run: dict, deadline: float | None = None) -> list[dict]:
     rows = connection.execute(
         "SELECT request_id, session_id, request_key, kind, opened_at, opened_by, title, substr(coalesce(body, ''), 1, 2000), "
-        "substr(coalesce(prompt_json, ''), 1, 300), producer_json FROM attention_request "
+        "substr(coalesce(prompt_json, ''), 1, 300), producer_json, resolved_at FROM attention_request "
         "WHERE kind IN ('question', 'permission') AND opened_at >= ? AND opened_at <= ? ORDER BY opened_at, request_id",
         (run["start"].isoformat().replace("+00:00", "Z"), run["end"].isoformat().replace("+00:00", "Z"))).fetchall()
     items = []
-    for request_id, session, key, kind, opened, opened_by, title, body, prompt, producer in checked(rows, deadline, "read"):
+    for request_id, session, key, kind, opened, opened_by, title, body, prompt, producer, resolved in checked(rows, deadline, "read"):
         try:
             origin = json.loads(producer) if producer else {}
         except ValueError:
@@ -124,7 +128,7 @@ def read_items(connection: sqlite3.Connection, run: dict, deadline: float | None
         # The run's own: a lead conversation or BMN session its handoff names, or a key carrying its run id.
         if conversation not in run["conversations"] and session not in run["conversations"] and run["id"].lower() not in (key or "").lower():
             continue
-        items.append({"request": request_id, "opened": opened, "kind": kind, "via": opened_by or "", "key": key or "",
+        items.append({"request": request_id, "opened": opened, "resolved": resolved, "kind": kind, "via": opened_by or "", "key": key or "",
                       "conversation": conversation, "generation": origin.get("generation") or "",
                       "_title": title or "", "_text": " ".join(filter(None, [title, body, prompt if kind == "permission" else ""]))})
     return items
@@ -167,6 +171,65 @@ def correct(items: list[dict], deadline: float | None = None) -> list[dict]:
         words = old_class("question", item["_text"])
         item["class"] = "owner-decision" if words in ("his", "push") else "plan-settleable" if words == "plan" else "unresolved"
     return items
+
+
+REASON_WORDS = ("Go", "Money", "Scope", "Privacy", "Interface", "Irreversible", "Access", "Taste", "Asked")
+HAND_BACKS_KEY = "question-hand-backs-v1"
+LONG_PROMPT = timedelta(minutes=30)
+
+
+def reason_word(title: str) -> str:
+    """The word a question's title starts with after its app's prefix, as BMN's list spells it (D6), or `none`."""
+    match = re.match(r"([a-z]+):\s*\S", normal(title))
+    return next((word for word in REASON_WORDS if match and word.lower() == match.group(1)), "none")
+
+
+def reasons(items: list[dict], deadline: float | None) -> dict[str, int]:
+    found: dict[str, int] = {}
+    for item in checked(items, deadline, "counted"):
+        if item["kind"] == "question" and item["class"] != "mirror":
+            word = reason_word(item["_title"])
+            found[word] = found.get(word, 0) + 1
+    return found
+
+
+def native_prompts(items: list[dict], deadline: float | None) -> dict:
+    """The apps' own permission prompts, which hold the agent until answered; a card from `bmn ask` does not."""
+    count = over = still_open = 0
+    held = timedelta()
+    for item in checked(items, deadline, "counted"):
+        if item["kind"] != "permission" or not re.match(r"hook:[^:]+:PermissionRequest$", item["via"]):
+            continue
+        count += 1
+        opened, resolved = parse(item["opened"]), parse(item["resolved"])
+        if opened is None or resolved is None:
+            still_open += 1
+            continue
+        held += resolved - opened
+        over += resolved - opened > LONG_PROMPT
+    return {"count": count, "over_30_minutes": over, "hours_held": round(held.total_seconds() / 3600, 1), "open": still_open}
+
+
+def hand_backs(connection: sqlite3.Connection, run: dict) -> dict:
+    """BMN's count of question cards handed back and repeated in this run's conversations and time; an older BMN has none."""
+    found = {"handed_back": 0, "repeated": 0, "readable": False}
+    try:
+        row = connection.execute("SELECT value_json FROM app_setting WHERE key = ?", (HAND_BACKS_KEY,)).fetchone()
+        entries = json.loads(row[0])["entries"] if row else None
+    except (sqlite3.OperationalError, ValueError, KeyError, TypeError) as exc:
+        if isinstance(exc, sqlite3.OperationalError) and "no such" not in str(exc):
+            raise
+        return found
+    if not isinstance(entries, list):
+        return found
+    found["readable"] = True
+    for entry in entries:
+        at = parse(entry.get("at")) if isinstance(entry, dict) else None
+        if at is None or not run["start"] <= at <= run["end"]:
+            continue
+        if entry.get("conversation") in run["conversations"] or entry.get("sessionId") in run["conversations"]:
+            found["handed_back" if entry.get("outcome") == "handed-back" else "repeated"] += 1
+    return found
 
 
 CLASSES = ("owner-decision", "plan-settleable", "repeated", "unresolved", "native-permission")
@@ -219,6 +282,9 @@ def runs(handoffs: list[Path], connection: sqlite3.Connection, deadline: float, 
         run = load_run(handoff)
         try:
             entry = summary(run, correct(read_items(connection, run, deadline), deadline), deadline)
+            entry["reasons"] = reasons(entry["_items"], deadline)
+            entry["native_prompts"] = native_prompts(entry["_items"], deadline)
+            entry["hand_backs"] = hand_backs(connection, run)
             if past(deadline, "counted"):
                 raise OutOfTime("counted")
         except (OutOfTime, sqlite3.OperationalError) as exc:
@@ -261,6 +327,12 @@ def main(argv: list[str]) -> int:
               f"corrected: {new['questions_asked']} questions asked (owner decisions {new['owner-decision']}, plan-settleable "
               f"{new['plan-settleable']}, repeated {new['repeated']}, unresolved {new['unresolved']}), {new['native-permission']} "
               f"permission prompts, {new['mirrors_folded']} mirrors folded, {new['possible_mirrors_kept']} possible mirrors kept apart")
+        words = ", ".join(f"{word} {count}" for word, count in sorted(run["reasons"].items(), key=lambda pair: (-pair[1], pair[0]))) or "none asked"
+        back, prompts = run["hand_backs"], run["native_prompts"]
+        kept = "" if back["readable"] else " (no count in this database)"
+        still = f", {prompts['open']} still open" if prompts["open"] else ""
+        print(f"  reasons: {words}; handed back {back['handed_back']}, repeated {back['repeated']}{kept}; "
+              f"native prompts {prompts['count']}, {prompts['over_30_minutes']} over 30 minutes, {prompts['hours_held']} hours held{still}")
     print("COVERAGE: complete" if result["complete"] else "COVERAGE: partial, the time bound was reached")
     return 0
 
