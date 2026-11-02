@@ -13,11 +13,17 @@ its shape): the title, the remaining scope and only the terms that work needs, e
 its reason:
 
 - with a go (`scripts/run_needs.py`), its Run needs' named actions with their targets and
-  no rounds; with none, `bmn grant ask --run <Run id> --nothing`;
+  no rounds, an exact `command` or `message` included; with none, `bmn grant ask --run <Run id>
+  --nothing`;
 - without a go, extra repair rounds per boundary (2, 3 or 4) when a review or gate boundary
   is ahead, and each reserved action you foresee with its target (a PR merge at its head
-  SHA, a push to the default branch, a PR in another repository); `--nothing` when the work
+  SHA, a push to the default branch, a PR in another repository, one exact command with its
+  folder, one exact message with its tool, target and whole text); `--nothing` when the work
   needs none.
+
+A message whose text you do not know yet goes as a draft on one non-blocking `bmn ask` card,
+and the run continues. Before he leaves, run the go's `Prepared` checks again (SKILL.md, Owner
+decisions).
 
 Asking again for the same
 run makes a new revision; his earlier answer holds until he answers it.
@@ -26,7 +32,8 @@ run makes a new revision; his earlier answer holds until he answers it.
 
 Read `scripts/check.py grant` right before each step a grant would pay for, never the
 handoff or memory; before each granted merge or push, also read `bmn policy --repo
-OWNER/NAME` again. Record the use first, with an id stable across retries:
+OWNER/NAME` again. For a command or a message, run or send exactly the text `bmn grant use`
+prints, and if the app prompts on it anyway, the step waits and the report says so. Record the use first, with an id stable across retries:
 `bmn grant use --run <Run id> --boundary <boundary> --use-id <boundary>:round-<n>` for a
 round, `--item <term id> --use-id <stable id>` for an action; keep the period it prints with
 the use. A refused use waits as without a grant. After an uncertain

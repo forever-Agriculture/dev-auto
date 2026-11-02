@@ -43,6 +43,11 @@ STORY = re.compile(r"^#{2,4} Story (\d+\.\d+)\b", re.M)
 SECTIONS = ("Run needs", "Decisions")
 # The day after `bmn plan go` was delivered (BMN Epic 96): a go without its recorded act committed from then grants nothing.
 HAND_GO_CUTOVER = "2026-10-27"
+# BMN Story 103.4's Prepared line: the kinds its template names.
+PREPARED_KINDS = "account|credential|service|command|message|owner step"
+PREPARED_NEED = re.compile(rf"^((?:{PREPARED_KINDS})(?:\s*,\s*(?:{PREPARED_KINDS}))*)\s*:\s*(.*)$", re.I | re.S)
+NONE_BECAUSE = re.compile(r"^none\s*,?\s*because\s+(.+)$", re.I | re.S)
+CHECKED_ON = re.compile(r"\bchecked\s+(\d{4}-\d{2}-\d{2})")
 
 
 def git(repo: Path, *args: str) -> str:
@@ -168,8 +173,54 @@ def epic_text_bmad(text: str | None, epic: int) -> str | None:
     return match.group(0) if match else None
 
 
+def split_needs(value: str) -> list[str]:
+    """A Prepared line's needs: split at each `;` outside backticks and parentheses, which a target or a command may hold."""
+    parts, current, depth, quoted = [], "", 0, False
+    for char in value:
+        if char == "`":
+            quoted = not quoted
+        elif not quoted and char == "(":
+            depth += 1
+        elif not quoted and char == ")":
+            depth = max(0, depth - 1)
+        if char == ";" and not quoted and depth == 0:
+            parts.append(current)
+            current = ""
+        else:
+            current += char
+    parts.append(current)
+    return [part.strip() for part in parts if part.strip()]
+
+
+def parse_prepared(value: str) -> list[dict]:
+    """BMN Story 103.5 AC1: `<kind>: <target>, check: <how>, checked <date>`, or kinds or the whole line `none, because <reason>`."""
+    def need(kind: str | None, target: str | None = None, check: str | None = None, checked: str | None = None, because: str | None = None) -> dict:
+        return {"kind": kind, "target": target, "check": check, "checked": checked, "none_because": because}
+    whole = NONE_BECAUSE.match(value.strip())
+    if whole:
+        return [need(None, because=whole.group(1).strip().rstrip("."))]
+    found = []
+    for part in split_needs(value):
+        named = PREPARED_NEED.match(part)
+        if not named:
+            found.append({**need(None, part.rstrip(".")), "unparsed": True})
+            continue
+        kinds, rest = [kind.strip() for kind in named.group(1).split(",")], named.group(2).strip()
+        none = NONE_BECAUSE.match(rest)
+        if none:
+            found.extend(need(kind, because=none.group(1).strip().rstrip(".")) for kind in kinds)
+            continue
+        date = CHECKED_ON.search(rest)
+        checked = date.group(1) if date else None
+        check = re.search(r",?\s*\bcheck:\s*(.+?)(?=,\s*checked\s+\d{4}-\d{2}-\d{2}|\.?\s*$)", rest)
+        cut = min(match.start() for match in (check, date) if match) if check or date else None
+        target = (rest if cut is None else rest[:cut]).strip().rstrip(".,")
+        found.extend(need(kind, target, check.group(1).strip() if check else None, checked) for kind in kinds)
+    return found
+
+
 def parse_needs(text: str | None) -> dict:
-    needs = {"rounds": 0, "deferrable": [], "money_cap": None, "named_actions": None}
+    needs = {"rounds": 0, "deferrable": [], "money_cap": None, "named_actions": None, "prepared": []}
     for line in (text or "").splitlines():
         item = re.match(r"\s*-\s*\*\*([^*]+?):?\*\*:?\s*(.*)", line)
         if not item:
@@ -185,6 +236,8 @@ def parse_needs(text: str | None) -> dict:
             needs["money_cap"] = None if value.lower().startswith("none") or not amount else float(amount.group(1) or amount.group(2))
         elif "named action" in name:
             needs["named_actions"] = None if value.lower().startswith("none") else value
+        elif "prepared" in name:
+            needs["prepared"] = parse_prepared(value)
     return needs
 
 
@@ -325,6 +378,18 @@ def main(argv: list[str]) -> int:
         print("RUN NEEDS (his instruction for this epic's runs, as recorded at the go):")
         print(result["run_needs"])
         print(f"DECISIONS: read at the go, {result['decisions_at_go']}")
+        prepared = result["parsed"]["prepared"]
+        if prepared:
+            print("PREPARED (run each check yourself, as its own tool call; a failed need parks only the stories that name it):")
+            for one in prepared:
+                if one.get("unparsed"):
+                    print(f"- unparsed, read it yourself: {one['target']}")
+                elif one["none_because"]:
+                    print(f"- {one['kind'] or 'nothing'}: none, because {one['none_because']}")
+                else:
+                    last = f"; checked {one['checked']}" if one["checked"] else ""
+                    how = f"check: {one['check']}" if one["check"] else ("his step, no check" if one["kind"] == "owner step" else "no check named: say how you checked it")
+                    print(f"- {one['kind']}: {one['target']}; {how}{last}")
     else:
         print(f"{result['state']}: {result['reason']}; nothing is delegated beyond the invocation")
         if result["state"] == "NO_GO_RECORD":

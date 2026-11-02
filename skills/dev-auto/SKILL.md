@@ -24,6 +24,11 @@ as printed, nothing to ask him. Take each of the go's extra rounds with `spend_l
 before using it; that ledger counts them for every lead, resume and worktree. On NO_GO_RECORD
 go on under the invocation without the extras: approval evidence you find explains the missing
 record in the handoff, grants nothing and never makes you ask him to restate or record a go.
+Its Run needs may list `Prepared` (BMN Epic 103), printed by `run_needs.py`. At the run's start and at
+his departure, run each `check:` yourself, as its own tool call under the app's and the guard's
+rules (BMN never runs one), and write each result to the handoff. A failed need, or an owner step
+not done, goes under `Needs your decision` with the stories that name it: those stories park and
+every other story continues; at his departure say a step not done once, in one line.
 Reserved to him however sure you are: spend beyond what he approved or delegated, changes
 to selected work or its acceptance criteria, actions the global rules reserve to him,
 credentials or private data, owner-only acceptance checks, model choices and the brake's

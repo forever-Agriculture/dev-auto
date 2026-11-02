@@ -1,6 +1,8 @@
 # MODULE: test_run_needs.py - BMN Epic 90.3: the owner's go and its Run needs, read from a plan's history; 96.1: its recorded act and approved text
 from __future__ import annotations
 
+import contextlib
+import io
 import os
 from pathlib import Path
 import subprocess
@@ -78,7 +80,7 @@ class RunNeedsTests(unittest.TestCase):
         result = self.plan.read()
         self.assertEqual((result["state"], result["go_date"], result["go_commit"]), ("GO", "2026-10-20", go))
         self.assertEqual(result["parsed"], {"rounds": 2, "deferrable": ["7.2 AC3 when the screen cannot be read."],
-                                            "money_cap": 15.0, "named_actions": None})
+                                            "money_cap": 15.0, "named_actions": None, "prepared": []})
         self.assertEqual(result["changed_since_go"], [])
         self.assertEqual(result["stories"], ["7.1"])  # the round boundaries the go planned
 
@@ -357,6 +359,60 @@ class RunNeedsTests(unittest.TestCase):
         self.assertIn("GO: epic 7, go 2026-10-20", printed)
         self.assertIn("APPROVAL: not recorded with the go", printed)
         self.assertIn("**Extra repair rounds:** 2 per boundary.", printed)
+
+
+class PreparedTests(unittest.TestCase):
+    """BMN Story 103.5 AC1: each need with its kind, target and check, parsed, from the go's commit."""
+
+    def parse(self, value: str) -> list[dict]:
+        return run_needs.parse_needs(f"- **Prepared:** {value}\n")["prepared"]
+
+    def test_a_need_with_its_check_and_date(self) -> None:
+        self.assertEqual(self.parse("service: the staging host, check: `curl -fsS https://staging.test/health`, checked 2026-11-02."), [
+            {"kind": "service", "target": "the staging host", "check": "`curl -fsS https://staging.test/health`", "checked": "2026-11-02", "none_because": None}])
+
+    def test_several_needs_keep_a_semicolon_inside_parentheses_or_backticks(self) -> None:
+        found = self.parse("service: the profile (it exists; 103.1 runs it), checked 2026-11-02; command: `a; b`, check: `which a`; owner step: close BMN at the end")
+        self.assertEqual([(one["kind"], one["target"]) for one in found], [
+            ("service", "the profile (it exists; 103.1 runs it)"), ("command", "`a; b`"), ("owner step", "close BMN at the end")])
+        self.assertEqual(found[1]["check"], "`which a`")
+        self.assertIsNone(found[2]["check"])
+
+    def test_kinds_named_none_with_their_reason(self) -> None:
+        found = self.parse("account, owner step: none, because every proof uses a stub.")
+        self.assertEqual([(one["kind"], one["target"], one["none_because"]) for one in found], [
+            ("account", None, "every proof uses a stub"), ("owner step", None, "every proof uses a stub")])
+
+    def test_the_whole_line_none_with_its_reason(self) -> None:
+        self.assertEqual(self.parse("none, because nothing leaves the machine."), [
+            {"kind": None, "target": None, "check": None, "checked": None, "none_because": "nothing leaves the machine"}])
+
+    def test_an_unknown_form_is_kept_whole_and_named_not_dropped(self) -> None:
+        found = self.parse("ask Bob about it")
+        self.assertEqual(found, [{"kind": None, "target": "ask Bob about it", "check": None, "checked": None, "none_because": None, "unparsed": True}])
+
+    def test_no_line_is_an_empty_list(self) -> None:
+        self.assertEqual(run_needs.parse_needs("- **Deferrable:** none.\n")["prepared"], [])
+
+    def test_this_epics_own_approved_line_parses(self) -> None:
+        found = self.parse("service: the isolated test profile of `scripts/test/away-grant-live.mjs`, checked 2026-11-02 (it exists; 103.1 runs it); command: `claude --version` and `codex --version`, read by 103.1's first step; account, credential, message, owner step: none, because every proof uses a disposable repository and a stub tool.")
+        self.assertEqual([one["kind"] for one in found], ["service", "command", "account", "credential", "message", "owner step"])
+        self.assertEqual(found[0]["checked"], "2026-11-02")
+
+    def test_the_printed_go_lists_each_need_from_the_gos_commit(self) -> None:
+        plan = Plan()
+        self.addCleanup(plan.tmp.cleanup)
+        needs = NEEDS + "- **Prepared:** service: the host, check: `curl host`, checked 2026-11-02; owner step: close BMN.\n"
+        plan.write("epic-7: ready # go 2026-11-02", epic(needs))
+        plan.write("epic-7: in-progress # go 2026-11-02", epic(needs.replace("the host", "another host")))
+        printed = io.StringIO()
+        with mock.patch.object(run_needs, "resolve", return_value=plan.status()), contextlib.redirect_stdout(printed):
+            self.assertEqual(run_needs.main(["7", "--project", str(plan.root.parent)]), 0)
+        text = printed.getvalue()
+        self.assertIn("PREPARED (run each check yourself, as its own tool call; a failed need parks only the stories that name it):", text)
+        self.assertIn("- service: the host; check: `curl host`; checked 2026-11-02", text)
+        self.assertIn("- owner step: close BMN; his step, no check", text)
+        self.assertNotIn("- service: another host", text)
 
 
 if __name__ == "__main__":
