@@ -26,6 +26,11 @@ names no models. Ask the team for the role:
 | Project final review | `final-reviewer` |
 | Consultant | `consultant` |
 
+A project's own PR review asks its lenses through the routes the project's rules name
+(ProjectP: `~/code/ProjectP/.claude/CLAUDE.md`), an exception to the first-eligible chain
+under BMN's eligibility and any project choice; a route that cannot answer leaves that ticket
+BLOCKED, never substituted.
+
 - **Ask.** `bmn roster role <role> --project "$PROJECT" --json` gives the approved
   chain: `candidates` in order, each with its `efforts` (with `effort_choice` the lead
   picks: the lowest listed unless the question is critical or complex) and whether it is

@@ -45,6 +45,7 @@ An intentionally retained resource adds `"keep":"reason"`.)
 - Checks run and observed results: concise results; detailed receipt paths
 - Tests: commands run and results; untested behavior (or `none`)
 - Reviewed scope and route:
+- Project PR reviews, one line each (ticket, final head, READY or BLOCKED, comment link), or `none`:
 - Baseline and reviewed revisions / material finding dispositions / recheck or delta evidence:
 - Review allowance per boundary, kept across leads: rechecks used / consultation used / final repair used / away repair used:
 - Brake record per stuck outcome or gate, kept across leads (method history in the log): attempts / gate runs / harness rerun used per method / failed agreed methods / paid spend / latest usage per lead session / last brake card and answer, or pending:

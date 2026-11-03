@@ -180,8 +180,10 @@ the requirements, acceptance criteria and limits (removing work the story does n
 for is a valid answer). One consolidated repair and recheck may follow; remaining
 material defects take rounds or a deferral as the method brake does, else park that
 boundary BLOCKED with the consultant's options. A new
-reviewer, repair wave or resumed run does not reset this allowance; the pre-review and
-owner-requested reviews sit outside it. Project scope adds a quick project pre-review
+reviewer, repair wave or resumed run does not reset this allowance; the pre-review,
+owner-requested reviews and a project's own PR review sit outside it. That review runs
+as the project's rules say, once, with one re-review only after a blocker or major fix;
+its Do items join repair before merge and its fixes carry delta evidence. Project scope adds a quick project pre-review
 before the final cross-epic evaluation; project-level reviews can cover the coincident
 final epic.
 
