@@ -81,7 +81,7 @@ class ReviewMissesTests(unittest.TestCase):
         return {
             "prs": [pr(a, 1, "T100 reviewed and caught"), pr(b, 2, "fix(T100): second half"), pr(a, 3, "T200 docs only"),
                     pr(a, 4, "No ticket here", labels=("release:blocked",)), pr(a, 5, "T300 not reviewed"), pr(a, 6, "T400 closed unmerged", state="closed"),
-                    pr(a, 7, "T500 reverted", state="open")],
+                    pr(a, 7, "T500 reverted", state="open"), pr(a, 9, "T600 label removed since"), pr(a, 10, "T700 blocked before the review")],
             "reverts": [{"repository": {"nameWithOwner": a}, "title": 'Revert "T500 reverted"', "body": f"Reverts {a}#7", "url": f"https://github.com/{a}/pull/8"}],
             "commits": [{"repository": {"fullName": a}, "commit": {"message": 'Revert "T500 reverted (#7)"\n\nThis reverts'}, "url": f"https://github.com/{a}/commit/abc"},
                         {"repository": {"fullName": a}, "commit": {"message": "Merge pull request #5 mentioning a revert"}, "url": f"https://github.com/{a}/commit/def"}],
@@ -104,6 +104,13 @@ class ReviewMissesTests(unittest.TestCase):
                 f"repos/{a}/issues/5/comments": [{"body": "Agent review, sort of: looks fine", "created_at": "2026-10-25T12:00:00Z"}],
                 f"repos/{a}/pulls/5/reviews": [{**person_event("dana", "2026-10-25T11:30:00Z", "https://example.invalid/unreviewed"), "state": "CHANGES_REQUESTED"}],
                 f"repos/{a}/pulls/7/files": [{"filename": "e.py", "additions": 1, "patch": "+x"}],
+                f"repos/{a}/pulls/9/files": [{"filename": "f.py", "additions": 1, "patch": "+x"}],
+                f"repos/{a}/issues/9/events": [{"event": "labeled", "label": {"name": "release:ready"}, "created_at": "2026-10-25T10:00:00Z"},
+                                               {"event": "labeled", "label": {"name": "release:blocked"}, "created_at": "2026-10-26T10:00:00Z"},
+                                               {"event": "unlabeled", "label": {"name": "release:blocked"}, "created_at": "2026-10-27T10:00:00Z"}],
+                f"repos/{a}/pulls/10/files": [{"filename": "g.py", "additions": 1, "patch": "+x"}],
+                f"repos/{a}/issues/10/comments": [{"body": RECORD, "created_at": "2026-10-26T12:00:00Z", "html_url": "https://example.invalid/record10"}],
+                f"repos/{a}/issues/10/events": [{"event": "labeled", "label": {"name": "release:blocked"}, "created_at": "2026-10-26T10:00:00Z"}],
             },
         }
 
@@ -113,7 +120,7 @@ class ReviewMissesTests(unittest.TestCase):
     def test_groups_by_ticket_else_alone_and_skips_closed_unmerged(self) -> None:
         result = self.read_json(self.fixture())
         names = {group["group"]: [pr["number"] for pr in group["prs"]] for group in result["groups"]}
-        self.assertEqual(names, {"T100": [1, 2], "T200": [3], "example-org/project-p.services.alpha#4": [4], "T300": [5], "T500": [7]})
+        self.assertEqual(names, {"T100": [1, 2], "T200": [3], "example-org/project-p.services.alpha#4": [4], "T300": [5], "T500": [7], "T600": [9], "T700": [10]})
 
     def test_docs_only_is_all_md_or_under_docs(self) -> None:
         prs = self.by_key(self.read_json(self.fixture()))
@@ -145,6 +152,11 @@ class ReviewMissesTests(unittest.TestCase):
         self.assertEqual([event["kind"] for event in reverted], ["revert"])
         self.assertEqual(prs[("project-p.services.alpha", 5)]["events"][0]["kind"], "changes-requested", "a merge commit mentioning #5 is no revert")
 
+    def test_a_block_label_removed_since_still_counts_and_one_before_the_review_does_not(self) -> None:
+        prs = self.by_key(self.read_json(self.fixture()))
+        self.assertEqual([(event["kind"], event["at"]) for event in prs[("project-p.services.alpha", 9)]["events"]], [("release:blocked", "2026-10-26T10:00:00Z")])
+        self.assertEqual(prs[("project-p.services.alpha", 10)]["events"], [])
+
     def test_banner_lines_added_across_pages_and_a_patch_too_large_is_named(self) -> None:
         prs = self.by_key(self.read_json(self.fixture()))
         one = prs[("project-p.services.alpha", 1)]
@@ -153,7 +165,7 @@ class ReviewMissesTests(unittest.TestCase):
 
     def test_totals_read_as_the_story_says(self) -> None:
         totals = self.read_json(self.fixture())["totals"]
-        self.assertEqual(totals, {"groups": 5, "eligible": 5, "reviewed": 1, "candidates": 5, "banners_added": 4, "confirmed_misses": 0})
+        self.assertEqual(totals, {"groups": 7, "eligible": 7, "reviewed": 2, "candidates": 6, "banners_added": 4, "confirmed_misses": 0})
 
     def test_only_an_escape_line_naming_a_listed_pull_request_confirms_a_miss(self) -> None:
         self.lessons.write_text("escape: missed x, see y https://github.com/example-org/project-p.services.alpha/pull/1\n"
@@ -168,7 +180,7 @@ class ReviewMissesTests(unittest.TestCase):
         done = self.run_it(self.fixture())
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertIn("candidate: changes-requested dana https://example.invalid/after", done.stdout)
-        self.assertIn("Totals: groups 5, eligible 5, reviewed 1, candidates 5, banners added 4, confirmed misses 0.", done.stdout)
+        self.assertIn("Totals: groups 7, eligible 7, reviewed 2, candidates 6, banners added 4, confirmed misses 0.", done.stdout)
         self.assertIn("eligible, not reviewed", done.stdout)
         self.assertIn("docs-only, skipped", done.stdout)
         self.assertIn("Covered: example-org/project-p.services.alpha, example-org/project-p.website.", done.stdout)

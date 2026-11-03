@@ -10,8 +10,8 @@ the record comment, whose first line starts `Agent review (review-tools:review) 
 request without it is not reviewed, whatever else happened on it.
 
 Candidates are events a person should look at, never misses: CHANGES_REQUESTED or a line comment by a person other
-than its author, after the review comment (on a pull request with no review comment, all of them), the
-`release:blocked` label, and a revert naming the pull request. Only a lessons-file line starting `escape:` that links
+than its author, and the `release:blocked` label, even one removed since, each after the review comment (on a pull
+request with no review comment, all of them), and a revert naming the pull request. Only a lessons-file line starting `escape:` that links
 a listed pull request counts as a confirmed miss. Added `MODULE` banner lines are counted beside them.
 
 It only reads through `gh` and stops after --seconds (180), naming the repositories it covered and any it did not.
@@ -101,6 +101,7 @@ def read_pr(found: dict, deadline: float) -> dict:
     comments = rest(f"issues/{number}/comments")
     reviews = rest(f"pulls/{number}/reviews")
     line_comments = rest(f"pulls/{number}/comments")
+    issue_events = rest(f"issues/{number}/events")
     names = [str(file.get("filename", "")) for file in files]
     docs_only = bool(names) and all(name.endswith(".md") or name.startswith("docs/") for name in names)
     records = [(comment, RECORD.match(str(comment.get("body", "")))) for comment in comments]
@@ -108,9 +109,15 @@ def read_pr(found: dict, deadline: float) -> dict:
     comment, match = records[-1] if records else (None, None)
     banner_lines = sum(1 for file in files for line in str(file.get("patch", "")).splitlines() if BANNER.match(line))
     unread_patches = sum(1 for file in files if file.get("additions") and "patch" not in file)
-    events = later_events(reviews, line_comments, author, comment.get("created_at", "") if comment else "")
-    if any(label.get("name") == "release:blocked" for label in found.get("labels") or []):
-        events.append({"kind": "release:blocked", "by": "", "at": found.get("updatedAt", ""), "url": found.get("url", "")})
+    since = comment.get("created_at", "") if comment else ""
+    events = later_events(reviews, line_comments, author, since)
+    labeled = [str(event.get("created_at", "")) for event in issue_events
+               if event.get("event") == "labeled" and (event.get("label") or {}).get("name") == "release:blocked"]
+    if not labeled and any(label.get("name") == "release:blocked" for label in found.get("labels") or []):
+        labeled = [str(found.get("updatedAt", ""))]
+    later = [at for at in labeled if at > since]
+    if later:
+        events.append({"kind": "release:blocked", "by": "", "at": min(later), "url": found.get("url", "")})
     return {"repo": repo, "number": number, "url": found.get("url", ""), "title": found.get("title", ""), "state": found.get("state", ""),
             "author": author, "docs_only": docs_only, "eligible": not docs_only, "reviewed": bool(match),
             "reviewed_head": match.group(1) if match else None, "final_head": match.group(2) if match else None,
