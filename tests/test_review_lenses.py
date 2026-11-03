@@ -151,6 +151,12 @@ class Run(unittest.TestCase):
         stops = [c[3] for c in self.calls() if c[:3] == ["team", "asks", "stop"]]
         self.assertEqual(stops, ["run-bugs"])
 
+    def test_a_lens_still_busy_at_the_deadline_stops_nothing(self) -> None:
+        done = self.run_it({"bugs": {"busy": 100000}}, ["bugs"], "--busy-seconds", "30", "--seconds", "0.3")
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("BLOCKED: bugs: no answer by the deadline", done.stdout)
+        self.assertFalse(any(c[:3] == ["team", "asks", "stop"] for c in self.calls()))
+
     def test_a_hung_call_cannot_outlive_its_deadline(self) -> None:
         source = SCRIPT.read_text()
         self.assertIn("timeout=CALL_SECONDS", source)
