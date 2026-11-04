@@ -56,73 +56,11 @@ class CountTests(unittest.TestCase):
     def run_count(self, seconds: float = 180) -> dict:
         return interruptions.count([self.handoff], self.db, seconds)["runs"][0]
 
-    def hand_backs(self, *entries: tuple[str, str, str], dropped: int = 0) -> None:
-        connection = sqlite3.connect(self.db)
-        connection.execute("CREATE TABLE IF NOT EXISTS app_setting (key TEXT PRIMARY KEY, value_json TEXT)")
-        rows = [{"at": f"2026-10-26T{at}:00.000Z", "sessionId": "s", "conversation": conversation, "agentCli": "claude", "outcome": outcome} for at, conversation, outcome in entries]
-        connection.execute("INSERT OR REPLACE INTO app_setting VALUES ('question-hand-backs-v1', ?)", (json.dumps({"version": 1, "dropped": dropped, "entries": rows}),))
-        connection.commit()
-        connection.close()
-
     def resolve(self, request: str, at: str) -> None:
         connection = sqlite3.connect(self.db)
         connection.execute("UPDATE attention_request SET resolved_at = ? WHERE request_id LIKE ?", (f"2026-10-26T{at}:00.000Z", f"{request}%"))
         connection.commit()
         connection.close()
-
-    def test_questions_by_their_reason_word_with_none_for_a_bare_one(self) -> None:
-        self.add("10:00", title="Claude asks: Scope: drop the screen?")
-        self.add("10:05", title="Claude asks: scope: drop the other screen?", generation="g2")
-        self.add("10:10", via="cli", title="Go: ship it?", key="go-1", generation="g3")
-        self.add("10:15", title="Claude asks: Which colour?", generation="g4")
-        self.add("10:20", kind="permission", via="hook:claude:PermissionRequest", title="Claude wants to run git push")
-        self.assertEqual(self.run_count()["reasons"], {"Scope": 2, "Go": 1, "none": 1})
-
-    def test_each_question_of_a_batch_counts_under_its_own_word(self) -> None:
-        questions = {"type": "questions", "questions": [{"text": "Scope: drop the screen?"}, {"text": "Money: pay for it?"}, {"text": "Which colour?"}]}
-        self.add("10:00", title="Claude asks: Scope: drop the screen?", prompt=json.dumps(questions))
-        self.assertEqual(self.run_count()["reasons"], {"Scope": 1, "Money": 1, "none": 1})
-
-    def test_a_long_batch_is_read_whole_not_cut_at_a_permission_prompts_length(self) -> None:
-        questions = {"type": "questions", "questions": [{"text": "Scope: " + "x" * 500}, {"text": "Go: ship it?"}]}
-        self.add("10:00", title="Claude asks: Scope: x", prompt=json.dumps(questions))
-        self.assertEqual(self.run_count()["reasons"], {"Scope": 1, "Go": 1})
-
-    def test_a_prompt_that_is_not_questions_counts_by_its_title(self) -> None:
-        self.add("10:00", title="Claude asks: Go: ship it?", prompt='{"type":"questions","questions":"nonsense"}')
-        self.add("10:05", title="Go: ship the other?", via="cli", key="go-2", generation="g2", prompt="not json")
-        self.assertEqual(self.run_count()["reasons"], {"Go": 2})
-
-    def test_a_mirror_of_a_batch_is_folded_into_its_card(self) -> None:
-        questions = {"type": "questions", "questions": [{"text": "Go: restart now?"}, {"text": "Money: pay?"}]}
-        self.add("10:00", title="Claude asks: Go: restart now?", prompt=json.dumps(questions))
-        self.add("10:00", via="cli", title="Go: restart now?", key="dev-auto-r")
-        self.assertEqual(self.run_count()["reasons"], {"Go": 1, "Money": 1})
-
-    def test_a_mirror_is_one_question_in_the_reason_count(self) -> None:
-        self.add("10:00", title="Claude asks: Go: restart now?")
-        self.add("10:00", via="cli", title="Go: restart now?", key="dev-auto-r")
-        self.assertEqual(self.run_count()["reasons"], {"Go": 1})
-
-    def test_hand_backs_and_repeats_of_this_run_only(self) -> None:
-        self.hand_backs(("10:00", LEAD, "handed-back"), ("10:01", LEAD, "repeat"), ("10:02", LEAD, "handed-back"),
-                        ("10:03", OTHER, "handed-back"), ("03:00", LEAD, "handed-back"))
-        self.assertEqual(self.run_count()["hand_backs"], {"handed_back": 2, "repeated": 1, "readable": True, "may_have_lost": 0})
-
-    def test_entries_dropped_from_before_what_is_kept_say_the_count_may_be_low(self) -> None:
-        self.hand_backs(("10:30", LEAD, "handed-back"), dropped=7)
-        run = self.run_count()
-        self.assertEqual(run["hand_backs"], {"handed_back": 1, "repeated": 0, "readable": True, "may_have_lost": 7})
-
-    def test_entries_dropped_before_the_run_began_lose_it_nothing(self) -> None:
-        self.hand_backs(("03:00", OTHER, "handed-back"), ("10:30", LEAD, "handed-back"), dropped=7)
-        self.assertEqual(self.run_count()["hand_backs"]["may_have_lost"], 0)
-
-    def test_an_older_database_without_the_count_says_so_and_counts_the_rest(self) -> None:
-        self.add("10:00", title="Claude asks: Go: restart now?")
-        run = self.run_count()
-        self.assertEqual(run["hand_backs"], {"handed_back": 0, "repeated": 0, "readable": False, "may_have_lost": 0})
-        self.assertEqual(run["reasons"], {"Go": 1})
 
     def test_hours_native_prompts_held_and_those_over_thirty_minutes(self) -> None:
         one = self.add("10:00", kind="permission", via="hook:claude:PermissionRequest", title="git push")
@@ -147,10 +85,69 @@ class CountTests(unittest.TestCase):
     def test_the_words_a_person_reads(self) -> None:
         self.add("10:00", title="Claude asks: Go: restart now?")
         printed = subprocess.run([sys.executable, str(SCRIPT), str(self.handoff), "--db", str(self.db)], capture_output=True, text=True, check=True).stdout
-        self.assertIn("reasons: Go 1", printed)
-        self.assertIn("at most", printed)
-        self.assertIn("handed back 0, repeated 0 (no count in this database)", printed)
-        self.assertIn("native prompts 0, at most 0 over 30 minutes, at most 0.0 hours held, to the command's end", printed)
+        self.assertNotIn("reasons", printed)
+        self.assertNotIn("handed back", printed)
+        self.assertIn("phantoms 0, duplicates 0, repeated requests 0; rounds no ledger, step-backs no ledger", printed)
+        self.assertIn("native waits 0, at most 0 over 30 minutes, at most 0.0 hours held, to the command's end", printed)
+        self.assertIn("stories: no board; usage 0 asks, 0 in, 0 out, 2 lead sessions", printed)
+
+    def test_two_cards_for_one_tool_call_are_a_phantom_asked_once(self) -> None:
+        first = self.add("10:00", title="Codex asks: Which colour?", via="hook:codex:PreToolUse")
+        self.add("10:01", title="Codex asks: Which colour?", via="hook:codex:PreToolUse")
+        run = self.run_count()
+        self.assertEqual(run["corrected_count"]["phantom"], 1)
+        self.assertEqual(run["corrected_count"]["questions_asked"], 1)
+        self.assertEqual(run["items"][1]["phantom_of"], first)
+
+    def test_the_same_question_later_or_in_another_generation_is_no_phantom(self) -> None:
+        self.add("10:00", title="Codex asks: Which colour?")
+        self.add("10:01", title="Codex asks: Which colour?", generation="g2")
+        self.add("10:30", title="Codex asks: Which colour?")
+        self.assertEqual(self.run_count()["corrected_count"]["phantom"], 0)
+
+    def outcome_fixture(self, states: dict[str, str]) -> None:
+        board = self.handoff.parent.parent / "plan" / "status.yaml"
+        board.parent.mkdir()
+        board.write_text("development_status:\n" + "".join(f"  {row}: {state}\n" for row, state in states.items()))
+        text = self.handoff.read_text()
+        self.handoff.write_text(text + f"- Board: bmn-plan, `{board}`\n- Budget: abcdef0123456789-epic-7\n")
+        os.utime(self.handoff, (1793017800, 1793017800))
+
+    def test_a_run_with_few_cards_and_most_stories_parked_is_no_success(self) -> None:
+        self.outcome_fixture({"epic-7": "in-progress", "7-1-a": "done", "7-2-b": "blocked", "7-3-c": "paused", "7-4-d": "dropped", "8-1-other": "done"})
+        with (self.handoff.with_name("log.md")).open("a") as log:
+            log.write("- 2026-10-26T10:00Z parked 7.2 on its gate\n- 2026-10-26T11:30Z parked 7.3 on its gate\n- 2026-10-26T10:30Z unparked 7.9\n")
+        os.utime(self.handoff, (1793017800, 1793017800))
+        stories = self.run_count()["stories"]
+        self.assertEqual(stories["done"], 1)
+        self.assertEqual(stories["parked"], ["7.2", "7.3"])
+        self.assertEqual(stories["counts_as_success"], False)
+        self.assertEqual(stories["parked_hours"], 3.7, "from each parked line to the run's end plus the slack")
+
+    def test_a_story_unparked_counts_only_while_it_was_parked(self) -> None:
+        self.outcome_fixture({"7-1-a": "done", "7-2-b": "done", "7-3-c": "blocked"})
+        with (self.handoff.with_name("log.md")).open("a") as log:
+            log.write("- 2026-10-26T09:00Z parked 7.2\n- 2026-10-26T10:00Z unparked 7.2\n")
+        os.utime(self.handoff, (1793017800, 1793017800))
+        stories = self.run_count()["stories"]
+        self.assertEqual(stories["parked_hours"], 1.0)
+        self.assertEqual(stories["counts_as_success"], True)
+
+    def test_rounds_and_step_backs_come_from_the_ledger(self) -> None:
+        self.outcome_fixture({"7-1-a": "done"})
+        state = Path(self.tmp.name) / "state" / "dev-auto" / "budgets"
+        state.mkdir(parents=True)
+        (state / "abcdef0123456789-epic-7.json").write_text(json.dumps({"rounds": {
+            "a": {"answer": "TAKEN", "boundary": "7.1"}, "b": {"answer": "TAKEN", "boundary": "7.1", "step_back": "2026"}, "c": {"answer": "REFUSED", "boundary": "7.1"}}}))
+        with mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(state.parents[1])}):
+            self.assertEqual(self.run_count()["rounds"], {"used": 2, "step_backs": 1, "readable": True})
+
+    def test_usage_adds_the_exported_asks_only(self) -> None:
+        for name, tokens in (("a", 10), ("b", 5)):
+            folder = self.handoff.with_name("evidence") / name
+            folder.mkdir(parents=True)
+            (folder / "outcome.json").write_text(json.dumps({"usage": {"input_tokens": tokens, "output_tokens": 1}}))
+        self.assertEqual(self.run_count()["usage"], {"asks": 2, "input_tokens": 15, "output_tokens": 2, "lead_sessions": 2})
 
     def test_a_mirror_with_its_cards_provenance_counts_once_and_the_old_count_counts_both(self) -> None:
         card = self.add("10:00", title="Claude has 2 questions: Epic 7 [n1]: GPU drawing? …", body="1. Epic 7 [n1]: GPU drawing? 2. Defer 7.2 AC3?")
@@ -225,7 +222,7 @@ class CountTests(unittest.TestCase):
         self.add("08:00", title="Claude asks: before the run")  # before its time
         run = self.run_count()
         self.assertEqual(run["corrected_count"], {"questions_asked": 5, "owner-decision": 1, "plan-settleable": 1, "repeated": 2,
-                                                  "unresolved": 1, "native-permission": 1, "mirrors_folded": 0, "possible_mirrors_kept": 0})
+                                                  "unresolved": 1, "native-permission": 1, "phantom": 0, "mirrors_folded": 0, "possible_mirrors_kept": 0})
         self.assertEqual(run["old_count"], {"total": 6, "his": 0, "push": 1, "plan": 2, "unknown": 3})
         self.assertEqual(run["conversations"], 2)
 

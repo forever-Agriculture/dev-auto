@@ -18,16 +18,21 @@ the card's words);
 a close pair without that stays two items, labelled a possible mirror. Then each question is an owner decision
 (his by nature or a push/merge/packaging act policy reserves), settleable by the plan, repeated (the same
 question or key asked again in the run) or unresolved; a permission prompt is the host's, never the workflow's.
-Beside them, for BMN Epic 103: questions by the reason word they start with (`none` for a bare one, a mirror once),
-the question cards BMN handed back and the repeats that then reached him (its count, which holds no question's text),
-and how long the apps' native permission prompts held the agent (a `bmn ask` permission card holds nothing, so it is
-not one; a prompt still open is named, not summed).
+A phantom is more than one hook card for one tool call: the same conversation, generation and question within
+120 seconds. It counts once as asked, and the extra is named. A duplicate is one question also asked through another
+route: a mirror, folded or possible.
+Beside them, for BMN Epic 106: rounds and step-backs from the run's ledger, its stories done and parked from the board
+the handoff names, the parked hours from the log's `<stamp> parked N.M` and `<stamp> unparked N.M` lines, usage from
+the asks exported under .dev-auto/evidence, repeated requests, and how long the apps' native permission prompts held
+the agent (a `bmn ask` permission card holds nothing, so it is not one; a prompt still open is named, not summed). A run
+that parks more stories than it finished does not count as a success, however few cards it asked.
 Output holds ids, times and classes only; --spot prints the questions' titles on screen for the lead's own
 check and is never to be saved.
 """
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import re
 import sqlite3
@@ -38,6 +43,10 @@ from datetime import datetime, timedelta, timezone
 UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 STAMP = re.compile(r"^(?:#+ |- )?(20\d\d-\d\d-\d\d[T ]\d\d:\d\d(?::\d\d)?Z?)", re.M)
 MIRROR_WINDOW = timedelta(seconds=120)
+PHANTOM_WINDOW = timedelta(seconds=120)
+BUDGET = re.compile(r"\b[0-9a-f]{16}-epic-(\d+)\b")
+BOARD = re.compile(r"(/\S+?/status\.yaml)\b")
+PARKED = {"blocked", "paused"}
 SLACK = timedelta(minutes=5)
 
 
@@ -165,10 +174,18 @@ def correct(items: list[dict], deadline: float | None = None) -> list[dict]:
             item["possible_mirror_of"] = near[0]["request"]
     asked: dict[str, str] = {}
     stems: dict[str, str] = {}
+    calls: dict[tuple[str, str, str], dict] = {}
     for item in checked(items, deadline, "classed"):
         if item["mirror_of"]:
             item["class"] = "mirror"
             continue
+        if item["kind"] == "question" and item["via"].startswith("hook:") and item["generation"]:
+            call = (item["conversation"], item["generation"], normal(item["_title"]))
+            earlier_card, opened = calls.get(call), parse(item["opened"])
+            if earlier_card and opened and (at := parse(earlier_card["opened"])) and opened - at <= PHANTOM_WINDOW:
+                item["class"], item["phantom_of"] = "phantom", earlier_card["request"]
+                continue
+            calls[call] = item
         if item["kind"] == "permission":
             item["class"] = "native-permission"
             continue
@@ -185,25 +202,7 @@ def correct(items: list[dict], deadline: float | None = None) -> list[dict]:
     return items
 
 
-REASON_WORDS = ("Go", "Money", "Scope", "Privacy", "Interface", "Irreversible", "Access", "Taste", "Asked")
-HAND_BACKS_KEY = "question-hand-backs-v1"
 LONG_PROMPT = timedelta(minutes=30)
-
-
-def reason_word(title: str) -> str:
-    """The word a question's title starts with after its app's prefix, as BMN's list spells it (D6), or `none`."""
-    match = re.match(r"([a-z]+):\s*\S", normal(title))
-    return next((word for word in REASON_WORDS if match and word.lower() == match.group(1)), "none")
-
-
-def reasons(items: list[dict], deadline: float | None) -> dict[str, int]:
-    found: dict[str, int] = {}
-    for item in checked(items, deadline, "counted"):
-        if item["kind"] == "question" and item["class"] != "mirror":
-            for text in item["_questions"]:
-                word = reason_word(text)
-                found[word] = found.get(word, 0) + 1
-    return found
 
 
 def native_prompts(items: list[dict], deadline: float | None) -> dict:
@@ -227,34 +226,88 @@ def native_prompts(items: list[dict], deadline: float | None) -> dict:
     return {"count": count, "over_30_minutes_at_most": over, "hours_held_at_most": round(held.total_seconds() / 3600, 1), "open": still_open}
 
 
-def hand_backs(connection: sqlite3.Connection, run: dict) -> dict:
-    """BMN's count of question cards handed back and repeated in this run's conversations and time; an older BMN has none."""
-    found = {"handed_back": 0, "repeated": 0, "readable": False, "may_have_lost": 0}
+def run_files(run: dict) -> tuple[str, str]:
+    handoff = Path(run["handoff"])
+    log = handoff.with_name("log.md")
+    return handoff.read_text(encoding="utf-8", errors="replace"), log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
+
+
+def rounds_taken(budget: str | None) -> dict:
+    """Rounds and step-backs from the run's ledger, read and never locked; no ledger says so."""
+    found = {"used": 0, "step_backs": 0, "readable": False}
+    if not budget:
+        return found
+    base = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
     try:
-        row = connection.execute("SELECT value_json FROM app_setting WHERE key = ?", (HAND_BACKS_KEY,)).fetchone()
-        kept = json.loads(row[0]) if row else None
-        entries, dropped = (kept["entries"], kept.get("dropped", 0)) if kept else (None, 0)
-    except (sqlite3.OperationalError, ValueError, KeyError, TypeError) as exc:
-        if isinstance(exc, sqlite3.OperationalError) and "no such" not in str(exc):
-            raise
+        rounds = json.loads((base / "dev-auto" / "budgets" / f"{budget}.json").read_text(encoding="utf-8")).get("rounds", {})
+    except (OSError, ValueError):
         return found
-    if not isinstance(entries, list):
-        return found
-    found["readable"] = True
-    # BMN keeps the newest entries: older ones that fell off can belong to this run only if what is kept starts after it began.
-    times = [at for at in (parse(entry.get("at")) if isinstance(entry, dict) else None for entry in entries) if at is not None]
-    if isinstance(dropped, int) and dropped > 0 and (not times or min(times) > run["start"]):
-        found["may_have_lost"] = dropped
-    for entry in entries:
-        at = parse(entry.get("at")) if isinstance(entry, dict) else None
-        if at is None or not run["start"] <= at <= run["end"]:
+    taken = [use for use in rounds.values() if isinstance(use, dict) and use.get("answer") == "TAKEN"]
+    return {"used": len(taken), "step_backs": sum(1 for use in taken if use.get("step_back")), "readable": True}
+
+
+def parked_hours(log: str, stories: list[str], end: datetime) -> float:
+    """From each `<stamp> parked N.M` to its `unparked`, or the run's end for a story still parked."""
+    held = timedelta()
+    since: dict[str, datetime] = {}
+    for line in log.splitlines():
+        stamp = STAMP.match(line)
+        at = parse(stamp.group(1)) if stamp else None
+        match = re.search(r"\b(un)?parked (\d+\.\d+)\b", line)
+        if at is None or match is None:
             continue
-        if entry.get("conversation") in run["conversations"] or entry.get("sessionId") in run["conversations"]:
-            found["handed_back" if entry.get("outcome") == "handed-back" else "repeated"] += 1
+        if match.group(1):
+            if match.group(2) in since:
+                held += at - since.pop(match.group(2))
+        else:
+            since.setdefault(match.group(2), at)
+    for story, at in since.items():
+        if story in stories:
+            held += end - at
+    return round(held.total_seconds() / 3600, 1)
+
+
+def stories_of(run: dict, handoff: str, log: str, epic: str | None) -> dict:
+    """The epic's rows on the board the handoff names: done and parked, and whether the run counts as a success."""
+    found = {"done": 0, "parked": [], "parked_hours": 0.0, "other": 0, "readable": False, "counts_as_success": False}
+    board = BOARD.search(handoff)
+    if not epic or not board:
+        return found
+    try:
+        rows = re.findall(rf"^\s*{epic}-(\d+)-[\w-]+:\s*([\w-]+)", Path(board.group(1)).read_text(encoding="utf-8"), re.M)
+    except OSError:
+        return found
+    live = [(f"{epic}.{number}", state) for number, state in rows if state != "dropped"]
+    parked = [story for story, state in live if state in PARKED]
+    done = sum(1 for _, state in live if state == "done")
+    return {"done": done, "parked": parked, "parked_hours": parked_hours(log, parked, run["end"]), "other": len(live) - done - len(parked),
+            "readable": bool(live), "counts_as_success": bool(live) and len(parked) <= done}
+
+
+def ask_usage(run: dict) -> dict:
+    """The asks exported under the run's evidence, by BMN's own totals; the lead's sessions are named for `check.py usage`."""
+    found = {"asks": 0, "input_tokens": 0, "output_tokens": 0, "lead_sessions": len(run["conversations"])}
+    evidence = Path(run["handoff"]).with_name("evidence")
+    for outcome in sorted(evidence.rglob("outcome.json")) if evidence.is_dir() else []:
+        try:
+            usage = json.loads(outcome.read_text(encoding="utf-8")).get("usage")
+        except (OSError, ValueError):
+            continue
+        found["asks"] += 1
+        if isinstance(usage, dict):
+            for name in ("input_tokens", "output_tokens"):
+                found[name] += usage.get(name) if isinstance(usage.get(name), int) else 0
     return found
 
 
-CLASSES = ("owner-decision", "plan-settleable", "repeated", "unresolved", "native-permission")
+def outcomes(run: dict) -> dict:
+    handoff, log = run_files(run)
+    budget = BUDGET.search(handoff) or BUDGET.search(log)
+    epic = budget.group(1) if budget else (lambda named: named.group(1) if named else None)(re.search(r"\bEpic (\d+)\b", field(handoff, "Project / selected epics")))
+    return {"rounds": rounds_taken(budget.group(0) if budget else None), "stories": stories_of(run, handoff, log, epic), "usage": ask_usage(run)}
+
+
+CLASSES = ("owner-decision", "plan-settleable", "repeated", "unresolved", "native-permission", "phantom")
 
 
 def summary(run: dict, items: list[dict], deadline: float | None) -> dict:
@@ -272,7 +325,8 @@ def summary(run: dict, items: list[dict], deadline: float | None) -> dict:
         projected.append({"request": item["request"][:8], "opened": item["opened"][:16], "kind": item["kind"], "class": item["class"],
                           **({"mirror_of": item["mirror_of"][:8]} if item["mirror_of"] else {}),
                           **({"possible_mirror_of": item["possible_mirror_of"][:8]} if item["possible_mirror_of"] else {}),
-                          **({"repeats": item["repeats"][:8]} if item.get("repeats") else {})})
+                          **({"repeats": item["repeats"][:8]} if item.get("repeats") else {}),
+                          **({"phantom_of": item["phantom_of"][:8]} if item.get("phantom_of") else {})})
     return {
         "run": run["id"], "handoff": run["handoff"], "conversations": len(run["conversations"]),
         "from": run["start"].isoformat(timespec="minutes"), "to": run["end"].isoformat(timespec="minutes"),
@@ -304,9 +358,8 @@ def runs(handoffs: list[Path], connection: sqlite3.Connection, deadline: float, 
         run = load_run(handoff)
         try:
             entry = summary(run, correct(read_items(connection, run, deadline), deadline), deadline)
-            entry["reasons"] = reasons(entry["_items"], deadline)
             entry["native_prompts"] = native_prompts(entry["_items"], deadline)
-            entry["hand_backs"] = hand_backs(connection, run)
+            entry.update(outcomes(run))
             if past(deadline, "counted"):
                 raise OutOfTime("counted")
         except (OutOfTime, sqlite3.OperationalError) as exc:
@@ -349,15 +402,15 @@ def main(argv: list[str]) -> int:
               f"corrected: {new['questions_asked']} questions asked (owner decisions {new['owner-decision']}, plan-settleable "
               f"{new['plan-settleable']}, repeated {new['repeated']}, unresolved {new['unresolved']}), {new['native-permission']} "
               f"permission prompts, {new['mirrors_folded']} mirrors folded, {new['possible_mirrors_kept']} possible mirrors kept apart")
-        words = ", ".join(f"{word} {count}" for word, count in sorted(run["reasons"].items(), key=lambda pair: (-pair[1], pair[0]))) or "none asked"
-        back, prompts = run["hand_backs"], run["native_prompts"]
-        kept = "" if back["readable"] else " (no count in this database)"
-        if back["may_have_lost"]:
-            kept = f" (at least; {back['may_have_lost']} older entries are no longer kept)"
+        prompts, rounds, stories, usage = run["native_prompts"], run["rounds"], run["stories"], run["usage"]
         still = f", {prompts['open']} still open" if prompts["open"] else ""
-        print(f"  reasons: {words}; handed back {back['handed_back']}, repeated {back['repeated']}{kept}; "
-              f"native prompts {prompts['count']}, at most {prompts['over_30_minutes_at_most']} over 30 minutes, at most "
+        print(f"  phantoms {new['phantom']}, duplicates {new['mirrors_folded'] + new['possible_mirrors_kept']}, repeated requests {new['repeated']}; "
+              f"rounds {rounds['used'] if rounds['readable'] else 'no ledger'}, step-backs {rounds['step_backs'] if rounds['readable'] else 'no ledger'}; "
+              f"native waits {prompts['count']}, at most {prompts['over_30_minutes_at_most']} over 30 minutes, at most "
               f"{prompts['hours_held_at_most']} hours held, to the command's end{still}")
+        finished = (f"stories done {stories['done']}, parked {len(stories['parked'])} ({stories['parked_hours']} hours), others {stories['other']}"
+                    f"{'' if stories['counts_as_success'] else '; not a success: it parked more than it finished'}") if stories["readable"] else "stories: no board"
+        print(f"  {finished}; usage {usage['asks']} asks, {usage['input_tokens']} in, {usage['output_tokens']} out, {usage['lead_sessions']} lead sessions")
     print("COVERAGE: complete" if result["complete"] else "COVERAGE: partial, the time bound was reached")
     return 0
 

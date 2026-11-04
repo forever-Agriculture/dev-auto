@@ -32,6 +32,7 @@ his departure, run each `check:` yourself, as its own tool call under the app's 
 rules (BMN never runs one), and write each result to the handoff. A failed need, or an owner step
 not done, goes under `Needs your decision` with the stories that name it: those stories park and
 every other story continues; at his departure say a step not done once, in one line.
+A story you park gets the log line `<UTC stamp> parked N.M`, and `<UTC stamp> unparked N.M` when it resumes; `scripts/interruptions.py` counts those hours.
 Reserved to him however sure you are: spend beyond what he approved or delegated, changes
 to selected work or its acceptance criteria, actions the global rules reserve to him,
 credentials or private data, owner-only acceptance checks and model choices; a broad "continue" or "work autonomously" answers none of these. His model choices live in his BMN team: a lasting
@@ -44,6 +45,9 @@ your decision` in the handoff (evidence, missing decision, affected criteria, un
 and remaining work);
 continue every story it does not block, and ask him once, with a recommendation, only
 when no work can proceed and he is not away. The final report lists open entries.
+During a run, decide within your authority or park the story: rounds, retries, windows, one
+more file, ticket status, labels and harness repairs are not questions. Ask him only when no
+work can proceed, once, in one batch.
 Decide everything else on your recommended option when it keeps the requirements,
 acceptance criteria, privacy and limits. Log each
 decision with its reason under `Decided for you` in the handoff and the next report
