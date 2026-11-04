@@ -80,7 +80,7 @@ class RunNeedsTests(unittest.TestCase):
         result = self.plan.read()
         self.assertEqual((result["state"], result["go_date"], result["go_commit"]), ("GO", "2026-10-20", go))
         self.assertEqual(result["parsed"], {"rounds": 2, "deferrable": ["7.2 AC3 when the screen cannot be read."],
-                                            "money_cap": 15.0, "named_actions": None, "prepared": []})
+                                            "money_cap": 15.0, "named_actions": None, "prepared": [], "messages": []})
         self.assertEqual(result["changed_since_go"], [])
         self.assertEqual(result["stories"], ["7.1"])  # the round boundaries the go planned
 
