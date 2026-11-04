@@ -92,17 +92,23 @@ class CountTests(unittest.TestCase):
         self.assertIn("stories: no board; usage 0 asks, 0 in, 0 out, 2 lead sessions", printed)
 
     def test_two_cards_for_one_tool_call_are_a_phantom_asked_once(self) -> None:
-        first = self.add("10:00", title="Codex asks: Which colour?", via="hook:codex:PreToolUse")
-        self.add("10:01", title="Codex asks: Which colour?", via="hook:codex:PreToolUse")
+        first = self.add("10:00", title="Codex asks: Which colour?", via="hook:codex:PreToolUse", key="codex:question")
+        self.add("10:00", title="Codex asks: Which colour?", via="hook:codex:PreToolUse", key="codex:question")
         run = self.run_count()
         self.assertEqual(run["corrected_count"]["phantom"], 1)
         self.assertEqual(run["corrected_count"]["questions_asked"], 1)
         self.assertEqual(run["items"][1]["phantom_of"], first)
 
-    def test_the_same_question_later_or_in_another_generation_is_no_phantom(self) -> None:
-        self.add("10:00", title="Codex asks: Which colour?")
-        self.add("10:01", title="Codex asks: Which colour?", generation="g2")
-        self.add("10:30", title="Codex asks: Which colour?")
+    def test_two_tool_calls_asking_the_same_within_a_minute_are_no_phantom(self) -> None:
+        self.add("10:00", title="Codex asks: Which colour?", key="codex:question")
+        self.add("10:01", title="Codex asks: Which colour?", key="codex:question")
+        run = self.run_count()
+        self.assertEqual(run["corrected_count"]["phantom"], 0)
+        self.assertEqual(run["corrected_count"]["repeated"], 1)
+
+    def test_the_same_instant_in_another_session_is_no_phantom(self) -> None:
+        self.add("10:00", title="Codex asks: Which colour?", session="s1")
+        self.add("10:00", title="Codex asks: Which colour?", session="s2")
         self.assertEqual(self.run_count()["corrected_count"]["phantom"], 0)
 
     def outcome_fixture(self, states: dict[str, str]) -> None:

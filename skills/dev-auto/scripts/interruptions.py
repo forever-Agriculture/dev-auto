@@ -18,9 +18,11 @@ the card's words);
 a close pair without that stays two items, labelled a possible mirror. Then each question is an owner decision
 (his by nature or a push/merge/packaging act policy reserves), settleable by the plan, repeated (the same
 question or key asked again in the run) or unresolved; a permission prompt is the host's, never the workflow's.
-A phantom is more than one hook card for one tool call: the same conversation, generation and question within
-120 seconds. It counts once as asked, and the extra is named. A duplicate is one question also asked through another
-route: a mirror, folded or possible.
+A phantom is more than one card for one tool call: rows of one session and key opened at the same instant, since a
+replaced card keeps its opened time and a second call never shares it. It counts once as asked, and the extra is
+named. BMN keeps no hook record past a restart, so extra hook runs behind one card are not counted here: `bmn hooks
+check` names the overlapping entries that cause them. A duplicate is one question also asked through another route:
+a mirror, folded or possible.
 Beside them, for BMN Epic 106: rounds and step-backs from the run's ledger, its stories done and parked from the board
 the handoff names, the parked hours from the log's `<stamp> parked N.M` and `<stamp> unparked N.M` lines, usage from
 the asks exported under .dev-auto/evidence, repeated requests, and how long the apps' native permission prompts held
@@ -43,7 +45,6 @@ from datetime import datetime, timedelta, timezone
 UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 STAMP = re.compile(r"^(?:#+ |- )?(20\d\d-\d\d-\d\d[T ]\d\d:\d\d(?::\d\d)?Z?)", re.M)
 MIRROR_WINDOW = timedelta(seconds=120)
-PHANTOM_WINDOW = timedelta(seconds=120)
 BUDGET = re.compile(r"\b[0-9a-f]{16}-epic-(\d+)\b")
 BOARD = re.compile(r"(/\S+?/status\.yaml)\b")
 PARKED = {"blocked", "paused"}
@@ -149,7 +150,7 @@ def read_items(connection: sqlite3.Connection, run: dict, deadline: float | None
         # The run's own: a lead conversation or BMN session its handoff names, or a key carrying its run id.
         if conversation not in run["conversations"] and session not in run["conversations"] and run["id"].lower() not in (key or "").lower():
             continue
-        items.append({"request": request_id, "opened": opened, "resolved": resolved, "kind": kind, "via": opened_by or "", "key": key or "",
+        items.append({"request": request_id, "session": session, "opened": opened, "resolved": resolved, "kind": kind, "via": opened_by or "", "key": key or "",
                       "conversation": conversation, "generation": origin.get("generation") or "",
                       "_title": title or "", "_questions": question_texts(whole, title or ""), "_text": " ".join(filter(None, [title, body, prompt if kind == "permission" else ""]))})
     return items
@@ -174,21 +175,19 @@ def correct(items: list[dict], deadline: float | None = None) -> list[dict]:
             item["possible_mirror_of"] = near[0]["request"]
     asked: dict[str, str] = {}
     stems: dict[str, str] = {}
-    calls: dict[tuple[str, str, str], dict] = {}
+    calls: dict[tuple[str, str, str], str] = {}
     for item in checked(items, deadline, "classed"):
         if item["mirror_of"]:
             item["class"] = "mirror"
             continue
-        if item["kind"] == "question" and item["via"].startswith("hook:") and item["generation"]:
-            call = (item["conversation"], item["generation"], normal(item["_title"]))
-            earlier_card, opened = calls.get(call), parse(item["opened"])
-            if earlier_card and opened and (at := parse(earlier_card["opened"])) and opened - at <= PHANTOM_WINDOW:
-                item["class"], item["phantom_of"] = "phantom", earlier_card["request"]
-                continue
-            calls[call] = item
         if item["kind"] == "permission":
             item["class"] = "native-permission"
             continue
+        call = (item["session"], item["key"], item["opened"])
+        if item["via"].startswith("hook:") and call in calls:
+            item["class"], item["phantom_of"] = "phantom", calls[call]
+            continue
+        calls.setdefault(call, item["request"])
         title, stem = normal(item["_title"]), key_stem(item["key"])
         earlier = asked.get(title) or (stems.get(stem) if item["via"] == "cli" and stem else None)
         asked.setdefault(title, item["request"])
