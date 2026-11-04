@@ -327,6 +327,13 @@ class Words(unittest.TestCase):
         self.assertNotIn("the brake's\ndecision", skill)
         self.assertIn("references/step-back-brief.md", skill)
 
+    def test_the_skill_carries_his_consent_with_its_limits(self) -> None:
+        # BMN 106.21: he placed it here, not in his global rules; finishing a ticket stays out.
+        skill = (REPO / "skills" / "dev-auto" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("move its own ticket to In progress, Blocked or In review, and publish its private reports", skill)
+        self.assertIn("a recorded go authorizes the messages its Run needs name", skill)
+        self.assertNotIn("its own ticket to Done", skill)
+
     def test_the_brief_asks_the_four_questions(self) -> None:
         brief = self.read("references/step-back-brief.md")
         for words in ("goal or the criterion wrong", "real cause", "drop", "different method", "Step-back: budget"):

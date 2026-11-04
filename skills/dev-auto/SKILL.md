@@ -13,6 +13,8 @@ check earns its place by a failure it prevents; reuse valid evidence.
 
 ## Owner decisions
 
+His standing consent for every dev-auto run (owner, 2026-11-04): A run also may move its own ticket to In progress, Blocked or In review, and publish its private reports and evidence to BMN's local file store; a recorded go authorizes the messages its Run needs name.
+
 The invocation and later owner instructions set the run's authority: scope, approved
 spend and delegation ("decide within the cap", "work autonomously"). Record each
 delegation with its source quote as a handoff term, valid only for its named scope and
