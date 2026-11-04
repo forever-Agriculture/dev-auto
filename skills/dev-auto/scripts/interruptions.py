@@ -18,11 +18,12 @@ the card's words);
 a close pair without that stays two items, labelled a possible mirror. Then each question is an owner decision
 (his by nature or a push/merge/packaging act policy reserves), settleable by the plan, repeated (the same
 question or key asked again in the run) or unresolved; a permission prompt is the host's, never the workflow's.
-A phantom is more than one card for one tool call: rows of one session and key opened at the same instant, since a
-replaced card keeps its opened time and a second call never shares it. It counts once as asked, and the extra is
-named. BMN keeps no hook record past a restart, so extra hook runs behind one card are not counted here: `bmn hooks
-check` names the overlapping entries that cause them. A duplicate is one question also asked through another route:
-a mirror, folded or possible.
+A card the agent's next question replaced in its slot keeps its opened time, so rows of one session and key at the
+same instant were one card to him. With the same title that is a phantom, one call's second card; with another title
+it is `replaced`, usually a re-ask, one or two calls: BMN stores no tool-call id, and the app's own record says which.
+Each counts once as asked and the extra is named. BMN keeps no hook record past a restart, so extra hook runs behind
+one card are not counted: `bmn hooks check` names the overlapping entries that cause them. A duplicate is one question
+also asked through another route: a mirror, folded or possible.
 Beside them, for BMN Epic 106: rounds and step-backs from the run's ledger, its stories done and parked from the board
 the handoff names, the parked hours from the log's `<stamp> parked N.M` and `<stamp> unparked N.M` lines, usage from
 the asks exported under .dev-auto/evidence, repeated requests, and how long the apps' native permission prompts held
@@ -175,7 +176,7 @@ def correct(items: list[dict], deadline: float | None = None) -> list[dict]:
             item["possible_mirror_of"] = near[0]["request"]
     asked: dict[str, str] = {}
     stems: dict[str, str] = {}
-    calls: dict[tuple[str, str, str], str] = {}
+    slots: dict[tuple[str, str, str], dict[str, str]] = {}
     for item in checked(items, deadline, "classed"):
         if item["mirror_of"]:
             item["class"] = "mirror"
@@ -183,11 +184,11 @@ def correct(items: list[dict], deadline: float | None = None) -> list[dict]:
         if item["kind"] == "permission":
             item["class"] = "native-permission"
             continue
-        call = (item["session"], item["key"], item["opened"])
-        if item["via"].startswith("hook:") and call in calls:
-            item["class"], item["phantom_of"] = "phantom", calls[call]
+        slot = slots.setdefault((item["session"], item["key"], item["opened"]), {}) if item["via"].startswith("hook:") else {}
+        if slot:
+            item["class"], item["same_card_as"] = ("phantom" if normal(item["_title"]) in slot else "replaced"), next(iter(slot.values()))
             continue
-        calls.setdefault(call, item["request"])
+        slot[normal(item["_title"])] = item["request"]
         title, stem = normal(item["_title"]), key_stem(item["key"])
         earlier = asked.get(title) or (stems.get(stem) if item["via"] == "cli" and stem else None)
         asked.setdefault(title, item["request"])
@@ -306,7 +307,7 @@ def outcomes(run: dict) -> dict:
     return {"rounds": rounds_taken(budget.group(0) if budget else None), "stories": stories_of(run, handoff, log, epic), "usage": ask_usage(run)}
 
 
-CLASSES = ("owner-decision", "plan-settleable", "repeated", "unresolved", "native-permission", "phantom")
+CLASSES = ("owner-decision", "plan-settleable", "repeated", "unresolved", "native-permission", "phantom", "replaced")
 
 
 def summary(run: dict, items: list[dict], deadline: float | None) -> dict:
@@ -325,7 +326,7 @@ def summary(run: dict, items: list[dict], deadline: float | None) -> dict:
                           **({"mirror_of": item["mirror_of"][:8]} if item["mirror_of"] else {}),
                           **({"possible_mirror_of": item["possible_mirror_of"][:8]} if item["possible_mirror_of"] else {}),
                           **({"repeats": item["repeats"][:8]} if item.get("repeats") else {}),
-                          **({"phantom_of": item["phantom_of"][:8]} if item.get("phantom_of") else {})})
+                          **({"same_card_as": item["same_card_as"][:8]} if item.get("same_card_as") else {})})
     return {
         "run": run["id"], "handoff": run["handoff"], "conversations": len(run["conversations"]),
         "from": run["start"].isoformat(timespec="minutes"), "to": run["end"].isoformat(timespec="minutes"),
@@ -403,7 +404,7 @@ def main(argv: list[str]) -> int:
               f"permission prompts, {new['mirrors_folded']} mirrors folded, {new['possible_mirrors_kept']} possible mirrors kept apart")
         prompts, rounds, stories, usage = run["native_prompts"], run["rounds"], run["stories"], run["usage"]
         still = f", {prompts['open']} still open" if prompts["open"] else ""
-        print(f"  phantoms {new['phantom']}, duplicates {new['mirrors_folded'] + new['possible_mirrors_kept']}, repeated requests {new['repeated']}; "
+        print(f"  phantoms {new['phantom']}, replaced {new['replaced']}, duplicates {new['mirrors_folded'] + new['possible_mirrors_kept']}, repeated requests {new['repeated']}; "
               f"rounds {rounds['used'] if rounds['readable'] else 'no ledger'}, step-backs {rounds['step_backs'] if rounds['readable'] else 'no ledger'}; "
               f"native waits {prompts['count']}, at most {prompts['over_30_minutes_at_most']} over 30 minutes, at most "
               f"{prompts['hours_held_at_most']} hours held, to the command's end{still}")

@@ -87,7 +87,7 @@ class CountTests(unittest.TestCase):
         printed = subprocess.run([sys.executable, str(SCRIPT), str(self.handoff), "--db", str(self.db)], capture_output=True, text=True, check=True).stdout
         self.assertNotIn("reasons", printed)
         self.assertNotIn("handed back", printed)
-        self.assertIn("phantoms 0, duplicates 0, repeated requests 0; rounds no ledger, step-backs no ledger", printed)
+        self.assertIn("phantoms 0, replaced 0, duplicates 0, repeated requests 0; rounds no ledger, step-backs no ledger", printed)
         self.assertIn("native waits 0, at most 0 over 30 minutes, at most 0.0 hours held, to the command's end", printed)
         self.assertIn("stories: no board; usage 0 asks, 0 in, 0 out, 2 lead sessions", printed)
 
@@ -97,7 +97,13 @@ class CountTests(unittest.TestCase):
         run = self.run_count()
         self.assertEqual(run["corrected_count"]["phantom"], 1)
         self.assertEqual(run["corrected_count"]["questions_asked"], 1)
-        self.assertEqual(run["items"][1]["phantom_of"], first)
+        self.assertEqual(run["items"][1]["same_card_as"], first)
+
+    def test_a_card_replaced_in_its_slot_by_another_question_is_named_apart(self) -> None:
+        self.add("10:00", title="Codex asks: Go: which colour?", via="hook:codex:PreToolUse", key="codex:question")
+        self.add("10:00", title="Codex asks: Which colour?", via="hook:codex:PreToolUse", key="codex:question")
+        run = self.run_count()["corrected_count"]
+        self.assertEqual((run["phantom"], run["replaced"], run["questions_asked"]), (0, 1, 1))
 
     def test_two_tool_calls_asking_the_same_within_a_minute_are_no_phantom(self) -> None:
         self.add("10:00", title="Codex asks: Which colour?", key="codex:question")
@@ -228,7 +234,7 @@ class CountTests(unittest.TestCase):
         self.add("08:00", title="Claude asks: before the run")  # before its time
         run = self.run_count()
         self.assertEqual(run["corrected_count"], {"questions_asked": 5, "owner-decision": 1, "plan-settleable": 1, "repeated": 2,
-                                                  "unresolved": 1, "native-permission": 1, "phantom": 0, "mirrors_folded": 0, "possible_mirrors_kept": 0})
+                                                  "unresolved": 1, "native-permission": 1, "phantom": 0, "replaced": 0, "mirrors_folded": 0, "possible_mirrors_kept": 0})
         self.assertEqual(run["old_count"], {"total": 6, "his": 0, "push": 1, "plan": 2, "unknown": 3})
         self.assertEqual(run["conversations"], 2)
 
