@@ -109,12 +109,12 @@ class Ledger:
         self.lock.close()
 
 
-def plan_identity(plan_root: str) -> str:
+def plan_identity(plan_root: str, timeout: float = 10) -> str:
     """The plan as every linked worktree sees it: its repository's shared Git folder and its path inside it."""
     root = Path(plan_root).resolve()
     try:
         out = subprocess.run(["git", "-C", str(root), "rev-parse", "--show-toplevel", "--git-common-dir"],
-                             capture_output=True, text=True, timeout=10, check=True).stdout.splitlines()
+                             capture_output=True, text=True, timeout=timeout, check=True).stdout.splitlines()
         common = Path(out[1]) if Path(out[1]).is_absolute() else root / out[1]
         return f"{common.resolve()}::{root.relative_to(Path(out[0]).resolve())}"
     except (OSError, subprocess.SubprocessError, IndexError, ValueError):
@@ -194,7 +194,9 @@ def describe_go(data: dict) -> list[str]:
     limit = round_limit(data, go)
     limited = f"; limit {limit['rounds']} from his words {limit['source']}" if limit else ""
     if go is None and data.get("floor"):
-        return [f"GO: none recorded; {rounds_allowed(data, None)} extra repair rounds per boundary by default, no deferrals and no paid launch{limited}"]
+        boundaries = sorted({use["boundary"] for use in data["rounds"].values() if use["answer"] == "TAKEN"})
+        used = ", ".join(f"{b} {rounds_used(data, b)} used" for b in boundaries)
+        return [f"GO: none recorded; {rounds_allowed(data, None)} extra repair rounds per boundary by default, no deferrals and no paid launch{limited}" + (f"; {used}" if used else "")]
     if go is None:
         return ["GO: none recorded; no extra repair rounds (the invocation's allowance only)"]
     boundaries = sorted({use["boundary"] for use in data["rounds"].values() if use["answer"] == "TAKEN"})
@@ -293,8 +295,8 @@ def open_budget(args: dict) -> int:
                          "source": needs.get("approval_source"), "approved_text": needs.get("approved_text"),
                          "stories": needs.get("stories", []), "at": now()}
                 # What was used is not here to count when a run already began under this go: every boundary counts as used up to
-                # the largest allowance any go gave (D9), written as used rounds so that no later go refills them (96 Astra review).
-                presumed = max([entry["rounds"], needs.get("earlier_rounds", 0), *(g.get("rounds", 0) for g in data["gos"] if g.get("kind") == "go")])
+                # the largest allowance any go gave, the floor included (D9, D19), written as used rounds so that no later go refills them (96 Astra review).
+                presumed = max([entry["rounds"], ROUND_FLOOR, needs.get("earlier_rounds", 0), *(g.get("rounds", 0) for g in data["gos"] if g.get("kind") == "go")])
                 earlier = named_before(project, needs["go_commit"]) if presumed else None
                 status = needs.get("row_status")
                 started = bool(presumed) and status not in NOT_STARTED
@@ -313,6 +315,13 @@ def open_budget(args: dict) -> int:
             withdraw(data, go, needs.get("reason") or needs["state"])
         # Written only where the plan says no go was ever recorded and the ledger never saw one withdrawn (D19).
         if needs["state"] != "GO" and needs.get("floor") and not any(go.get("kind") in ("go", "withdrawn") for go in data["gos"]):
+            status = needs.get("row_status")
+            if not data.get("floor") and not data["rounds"] and ROUND_FLOOR and status is not None and status not in NOT_STARTED:
+                # A row past its start with no ledger: what the floor gave may be spent, as with a go above.
+                for boundary in [*needs.get("stories", []), "epic"]:
+                    for count in range(ROUND_FLOOR):
+                        data["rounds"][f"presumed:no-go:{boundary}:{count + 1}"] = {
+                            "answer": "TAKEN", "boundary": boundary, "go": None, "presumed": f"the epic's row is already {status}", "at": now()}
             data["floor"] = {"rounds": ROUND_FLOOR, "state": needs["state"], "at": now()}
         else:
             data.pop("floor", None)
@@ -363,9 +372,10 @@ def step_back_problem(data: dict, budget: str, boundary: str, args: dict) -> str
         question = (Path(str(shown.get("record"))) / "question.md").read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
         return f"ask {ask}'s question cannot be read: {exc}"
-    line = f"Step-back: epic {budget.rsplit('-', 1)[1]} boundary {boundary} record sha256:{digest}"
+    # The budget id carries the plan's identity: every checkout of this plan shares it, another project's same numbers do not.
+    line = f"Step-back: budget {budget} boundary {boundary} record sha256:{digest}"
     if line not in question.splitlines():
-        return f"ask {ask} does not name this epic, boundary and failed-method record: its question lacks `{line}`"
+        return f"ask {ask} does not name this plan's budget, boundary and failed-method record: its question lacks `{line}`"
     return None
 
 
@@ -390,12 +400,16 @@ def set_limit(args: dict) -> int:
     return 0
 
 
+def canonical(text: str) -> str:
+    """The one form a message's fields are authorized, stored and counted in."""
+    return " ".join(text.lower().split())
+
+
 def message_entry(needs: dict, person: str, destination: str, purpose: str) -> bool:
     """Whether Run needs name this person, destination and purpose (BMN D4); `each ...` names a role, filled by a person the run finds."""
-    same = lambda a, b: " ".join(a.lower().split()) == " ".join(b.lower().split())
     for entry in needs["parsed"].get("messages", []):
-        named = any(same(person, one) or one.lower().startswith("each ") for one in entry["people"])
-        if named and same(destination, entry["destination"]) and same(purpose, entry["purpose"]):
+        named = any(canonical(person) == canonical(one) or canonical(one).startswith("each ") for one in entry["people"])
+        if named and canonical(destination) == canonical(entry["destination"]) and canonical(purpose) == canonical(entry["purpose"]):
             return True
     return False
 
@@ -418,11 +432,18 @@ def message(args: dict, verb: str) -> int:
             if not earlier:
                 print(f"REFUSED: no message use {use_id}")
                 return EXIT_REFUSED
-            word = args.get("--receipt") if verb == "sent" else args.get("--read")
+            name = "receipt" if verb == "sent" else "read"
+            word = args.get(f"--{name}")
             if not word:
                 print(f"USAGE: message {verb} needs {'--receipt' if verb == 'sent' else '--read, what the destination shows'}")
                 return EXIT_USAGE
-            earlier.update(state=verb, **({"receipt": word} if verb == "sent" else {"read": word}), closed=now())
+            if earlier["state"] != "reserved":  # only an uncertain send settles; a closed use stays as it closed
+                if earlier["state"] == verb and earlier.get(name) == word:
+                    print(f"{verb.upper()}: {use_id}, as recorded at {earlier.get('closed')}; nothing changed")
+                    return 0
+                print(f"REFUSED: message {use_id} is already {earlier['state']}; nothing changed")
+                return EXIT_REFUSED
+            earlier.update(state=verb, **{name: word}, closed=now())
             ledger.save()
             print(f"{verb.upper()}: {use_id}")
             return 0
@@ -430,9 +451,17 @@ def message(args: dict, verb: str) -> int:
         if not (person and destination and purpose and text_hash):
             print("USAGE: message reserve needs --person, --destination, --purpose and --text-hash")
             return EXIT_USAGE
+        person, destination, purpose, text_hash = canonical(person), canonical(destination), canonical(purpose), canonical(text_hash)
         if earlier:
-            print(f"RESERVED: {use_id} was reserved first at {earlier['at']}; state {earlier['state']}; nothing counted again")
-            return 0
+            if (earlier["person"], earlier["destination"], earlier["purpose"], earlier["text_hash"]) != (person, destination, purpose, text_hash):
+                print(f"REFUSED: use {use_id} is another message, reserved at {earlier['at']}; a new message takes a new use id")
+                return EXIT_REFUSED
+            if earlier["state"] == "sent":
+                print(f"SENT: {use_id} was sent ({earlier.get('receipt')}); never send it again; nothing counted again")
+                return 0
+            if earlier["state"] == "unsent":
+                print(f"REFUSED: use {use_id} was read as unsent and is closed; sending it again takes a new use id, which counts it")
+                return EXIT_REFUSED
         go = latest_go(data)
         state, why = go_now(data, go) if go else ("withdrawn", "no go in force names a message")
         if go and state == "withdrawn":
@@ -441,6 +470,9 @@ def message(args: dict, verb: str) -> int:
         if state != "stands":
             print(f"REFUSED: message {use_id}: {'the go was withdrawn' if go and state == 'withdrawn' else why}: {why}; leave a draft in the report")
             return EXIT_REFUSED
+        if earlier:
+            print(f"RESERVED: {use_id} was reserved first at {earlier['at']}; if it may have gone, read the destination before sending; nothing counted again")
+            return 0
         import run_needs
         needs = run_needs.run_needs(Path(data.get("project") or data["plan_root"]), int(data["epic"]))
         if not message_entry(needs, person, destination, purpose):

@@ -65,7 +65,8 @@ class Floor(unittest.TestCase):
     def open(self) -> tuple[str, str]:
         code, out = self.ledger("open", "--epic", "7", "--project", str(self.plan.root))
         self.assertEqual(code, 0, out)
-        return out.split()[1].rstrip(":"), out
+        self.budget = out.split()[1].rstrip(":")
+        return self.budget, out
 
     def round(self, budget: str, boundary: str, use: str, *extra: str) -> tuple[int, str]:
         return self.ledger("round", "--budget", budget, "--boundary", boundary, "--use-id", use, *extra)
@@ -80,12 +81,12 @@ class Floor(unittest.TestCase):
         self.plan.write("epic-7: backlog", text(rounds))
         self.status()
 
-    def ask(self, ask_id: str = "a1", *, boundary: str = "7.1", epic: int = 7, role: str = "consultant", agent: str = "astra",
+    def ask(self, ask_id: str = "a1", *, boundary: str = "7.1", budget: str | None = None, role: str = "consultant", agent: str = "astra",
             state: str = "answered", answer: str = "Try a different seam.", record: str | None = None) -> str:
         folder = self.root / "runs" / ask_id
         folder.mkdir(parents=True)
         digest = hashlib.sha256((self.record.read_text() if record is None else record).encode()).hexdigest()
-        (folder / "question.md").write_text(f"Brief.\nStep-back: epic {epic} boundary {boundary} record sha256:{digest}\n")
+        (folder / "question.md").write_text(f"Brief.\nStep-back: budget {budget or self.budget} boundary {boundary} record sha256:{digest}\n")
         (self.root / "asks" / f"{ask_id}.json").write_text(json.dumps({"id": ask_id, "state": state, "exit": "0" if state == "answered" else "1",
             "role": role, "teammate": {"agent": agent}, "answer": answer, "record": str(folder)}))
         return ask_id
@@ -180,40 +181,115 @@ class Floor(unittest.TestCase):
         self.assertIn("step-back", out)
         self.assertEqual(self.round(budget, "7.1", "last", *self.step_back(self.ask()))[0], 0)
 
-    def refused(self, *argv: str) -> None:
+    def refused(self, argv) -> None:
         self.go_with("4")
         budget, _ = self.open()
         self.take_three(budget)
-        code, out = self.round(budget, "7.1", "last", *argv)
+        code, out = self.round(budget, "7.1", "last", *argv())
         self.assertEqual(code, 1, out)
         self.assertIn("REFUSED", out)
 
     def test_another_boundarys_ask_refuses(self) -> None:
-        self.refused(*self.step_back(self.ask(boundary="7.2")))
+        self.refused(lambda: self.step_back(self.ask(boundary="7.2")))
 
     def test_another_epics_ask_refuses(self) -> None:
-        self.refused(*self.step_back(self.ask(epic=8)))
+        self.go_with("4")
+        budget, _ = self.open()
+        self.take_three(budget)
+        code, out = self.round(budget, "7.1", "last", *self.step_back(self.ask(budget=budget.rsplit("-", 1)[0] + "-epic-8")))
+        self.assertEqual(code, 1, out)
+
+    # Astra's full review, finding 4: the ask names the plan, not only an epic number.
+    def test_another_projects_ask_with_the_same_numbers_refuses(self) -> None:
+        self.go_with("4")
+        budget, _ = self.open()
+        self.take_three(budget)
+        elsewhere = "0123456789abcdef-epic-7"
+        self.assertNotEqual(budget, elsewhere)
+        code, out = self.round(budget, "7.1", "last", *self.step_back(self.ask(budget=elsewhere)))
+        self.assertEqual(code, 1, out)
+        self.assertIn("REFUSED", out)
+        self.assertIn(f"Step-back: budget {budget} boundary 7.1", out)
+
+    def test_another_checkout_of_the_same_plan_keeps_the_ask(self) -> None:
+        self.go_with("4")
+        budget, _ = self.open()
+        self.take_three(budget)
+        linked = self.root / "linked"
+        subprocess.run(["git", "-C", str(self.plan.root), "worktree", "add", "-q", "--detach", str(linked)], check=True)
+        self.addCleanup(subprocess.run, ["git", "-C", str(self.plan.root), "worktree", "remove", "--force", str(linked)], capture_output=True)
+        status = json.loads((self.root / "status.json").read_text())
+        status.update({key: value.replace(str(self.plan.root), str(linked)) for key, value in status.items() if isinstance(value, str)})
+        (self.root / "status.json").write_text(json.dumps(status))
+        code, out = self.ledger("open", "--epic", "7", "--project", str(linked))
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out.split()[1].rstrip(":"), budget)
+        code, out = self.round(budget, "7.1", "last", *self.step_back(self.ask()))
+        self.assertEqual(code, 0, out)
 
     def test_a_failed_ask_refuses(self) -> None:
-        self.refused(*self.step_back(self.ask(state="failed")))
+        self.refused(lambda: self.step_back(self.ask(state="failed")))
 
     def test_an_empty_answer_refuses(self) -> None:
-        self.refused(*self.step_back(self.ask(answer=" ")))
+        self.refused(lambda: self.step_back(self.ask(answer=" ")))
 
     def test_a_reviewers_ask_refuses(self) -> None:
-        self.refused(*self.step_back(self.ask(role="epic-reviewer")))
+        self.refused(lambda: self.step_back(self.ask(role="epic-reviewer")))
 
     def test_the_lead_answering_itself_refuses(self) -> None:
-        self.refused(*self.step_back(self.ask(agent="opus")))
+        self.refused(lambda: self.step_back(self.ask(agent="opus")))
 
     def test_a_stale_failed_method_record_refuses(self) -> None:
-        self.refused(*self.step_back(self.ask(record="an older record\n")))
+        self.refused(lambda: self.step_back(self.ask(record="an older record\n")))
 
     def test_an_unknown_ask_refuses(self) -> None:
-        self.refused(*self.step_back("missing"))
+        self.refused(lambda: self.step_back("missing"))
 
     def test_no_method_refuses(self) -> None:
-        self.refused("--step-back", self.ask(), "--record", str(self.record), "--lead", "opus")
+        self.refused(lambda: ("--step-back", self.ask(), "--record", str(self.record), "--lead", "opus"))
+
+    # Astra's full review, finding 3: the production floor, a lost ledger, and what recovery counts as spent.
+    def test_a_lost_ledger_does_not_refill_a_floor_a_small_go_gave(self) -> None:
+        for raw in ("0", "2"):
+            with self.subTest(raw=raw):
+                self.plan = test_run_needs.Plan()
+                self.addCleanup(self.plan.tmp.cleanup)
+                self.go_with(raw)
+                self.plan.write("epic-7: in-progress # go 2026-10-23")
+                self.status()
+                budget, out = self.open()
+                self.assertIn("up to 4 extra per boundary counted as used", out)
+                self.assertIn("7.1 4 used", out)
+                code, out = self.round(budget, "7.1", "after-loss", *self.step_back(self.ask(f"a{raw}")))
+                self.assertEqual(code, 1, out)
+                self.assertIn("4 are used", out)
+
+    def test_a_later_go_gives_only_what_it_adds_over_a_lost_floor(self) -> None:
+        self.go_with("0")
+        self.plan.write("epic-7: in-progress # go 2026-10-23")
+        self.status()
+        budget, _ = self.open()
+        body = text("6")
+        self.plan.write("epic-7: backlog # put back", body)
+        self.plan.write("epic-7: ready # go 2026-10-24", commit=go_message(body).replace("2026-10-23", "2026-10-24"))
+        self.status()
+        self.assertEqual(self.open()[0], budget)
+        self.assertEqual(self.round(budget, "7.1", "more-1")[0], 0)
+        self.assertEqual(self.round(budget, "7.1", "more-2", *self.step_back(self.ask()))[0], 0)
+        self.assertEqual(self.round(budget, "7.1", "more-3")[0], 1)
+
+    def test_a_lost_ledger_does_not_refill_the_floor_with_no_go(self) -> None:
+        self.plan.write("epic-7: in-progress", text("2"))
+        self.status()
+        budget, out = self.open()
+        self.assertIn("7.1 4 used", out)
+        self.assertEqual(self.round(budget, "7.1", "after-loss", *self.step_back(self.ask()))[0], 1)
+
+    def test_a_row_not_started_with_no_go_keeps_its_four(self) -> None:
+        self.no_go()
+        budget, out = self.open()
+        self.assertNotIn("used", out)
+        self.assertEqual(self.round(budget, "7.1", "first")[0], 0)
 
     def test_a_reused_ask_refuses_and_the_method_must_differ(self) -> None:
         self.go_with("4")
@@ -253,7 +329,7 @@ class Words(unittest.TestCase):
 
     def test_the_brief_asks_the_four_questions(self) -> None:
         brief = self.read("references/step-back-brief.md")
-        for words in ("goal or the criterion wrong", "real cause", "drop", "different method", "Step-back: epic"):
+        for words in ("goal or the criterion wrong", "real cause", "drop", "different method", "Step-back: budget"):
             self.assertIn(words, brief)
 
     def test_the_away_card_asks_no_rounds(self) -> None:

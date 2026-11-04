@@ -128,6 +128,73 @@ class Ledger(unittest.TestCase):
         self.assertEqual(code, 1, out)
         self.assertIn("withdrawn", out)
 
+    # Astra's full review, finding 2: one form for authorizing and for counting; a use id is one message; a confirmed send stays counted.
+    def test_case_and_spacing_do_not_open_a_new_count(self) -> None:
+        self.assertEqual(self.reserve("a", "h1")[0], 0)
+        self.assertEqual(self.reserve("b", "h2")[0], 0)
+        code, out = self.reserve("c", "h3", purpose="Asks  for a REVIEW")
+        self.assertEqual(code, 1, out)
+        code, out = self.reserve("d", "h4", person="dana")
+        self.assertEqual(code, 1, out)
+
+    def test_the_same_text_to_the_same_person_in_another_case_is_refused(self) -> None:
+        self.assertEqual(self.reserve("a", "same")[0], 0)
+        code, out = self.reserve("b", "same", person="DANA")
+        self.assertEqual(code, 1, out)
+        code, out = self.reserve("c", "SAME")
+        self.assertEqual(code, 1, out)
+
+    def test_a_use_id_is_bound_to_its_message(self) -> None:
+        self.assertEqual(self.reserve("a", "h1")[0], 0)
+        for other in ({"text_hash": "h2"}, {"person": "Dan"}, {"destination": "their chat threads"}, {"purpose": "ask one access fact"}):
+            code, out = self.reserve("a", **{"text_hash": "h1", **other})
+            self.assertEqual(code, 1, (other, out))
+            self.assertIn("REFUSED", out)
+        # The same message in another case is the same use.
+        self.assertEqual(self.reserve("a", "h1", person="DANA", purpose="Asks for a review")[0], 0)
+
+    def closed(self, verb: str, use: str, word: str) -> tuple[int, str]:
+        return self.run_ledger("message", verb, "--budget", self.budget, "--use-id", use, "--receipt" if verb == "sent" else "--read", word)
+
+    def test_a_confirmed_send_never_leaves_the_count(self) -> None:
+        self.assertEqual(self.reserve("a", "h1")[0], 0)
+        self.assertEqual(self.closed("sent", "a", "https://example.invalid/c/1")[0], 0)
+        code, out = self.closed("unsent", "a", "looks gone")
+        self.assertEqual(code, 1, out)
+        self.assertEqual(self.reserve("b", "h2")[0], 0)
+        self.assertEqual(self.reserve("c", "h3")[0], 1)
+        # The same receipt again is the same answer; another one changes nothing.
+        self.assertEqual(self.closed("sent", "a", "https://example.invalid/c/1")[0], 0)
+        self.assertEqual(self.closed("sent", "a", "https://example.invalid/c/2")[0], 1)
+        _, listing = self.run_ledger("message", "list", "--budget", self.budget)
+        self.assertIn("https://example.invalid/c/1", listing)
+        self.assertNotIn("https://example.invalid/c/2", listing)
+
+    def test_a_use_read_as_unsent_is_closed(self) -> None:
+        self.assertEqual(self.reserve("a", "h1")[0], 0)
+        self.assertEqual(self.closed("unsent", "a", "no such comment")[0], 0)
+        # Sending under it now would go uncounted: a new reservation counts it.
+        code, out = self.closed("sent", "a", "https://example.invalid/c/1")
+        self.assertEqual(code, 1, out)
+        code, out = self.reserve("a", "h1")
+        self.assertEqual(code, 1, out)
+        self.assertEqual(self.reserve("b", "h1")[0], 0)
+
+    def test_a_retry_after_the_go_is_withdrawn_is_no_licence_to_send(self) -> None:
+        self.assertEqual(self.reserve("a", "h1")[0], 0)
+        self.assertEqual(self.reserve("b", "h2")[0], 0)
+        self.assertEqual(self.closed("sent", "b", "https://example.invalid/c/2")[0], 0)
+        self.plan.write("epic-7: backlog # put back")
+        (self.root / "status.json").write_text(json.dumps(self.plan.status()))
+        code, out = self.reserve("a", "h1")
+        self.assertEqual(code, 1, out)
+        self.assertIn("withdrawn", out)
+        # What is uncertain can still be settled from the destination, and what was sent stays as it was.
+        self.assertEqual(self.closed("unsent", "a", "no such comment")[0], 0)
+        code, out = self.reserve("b", "h2")
+        self.assertEqual(code, 0, out)
+        self.assertIn("never send it again", out)
+
     def test_group_owner_entry_takes_any_named_person(self) -> None:
         code, out = self.reserve("a", "h", person="Mia", destination="that banner PR's comments", purpose="says it is comment-only")
         self.assertEqual(code, 0, out)

@@ -18,12 +18,13 @@ the card's words);
 a close pair without that stays two items, labelled a possible mirror. Then each question is an owner decision
 (his by nature or a push/merge/packaging act policy reserves), settleable by the plan, repeated (the same
 question or key asked again in the run) or unresolved; a permission prompt is the host's, never the workflow's.
-A card the agent's next question replaced in its slot keeps its opened time, so rows of one session and key at the
-same instant were one card to him. With the same title that is a phantom, one call's second card; with another title
-it is `replaced`, usually a re-ask, one or two calls: BMN stores no tool-call id, and the app's own record says which.
-Each counts once as asked and the extra is named. BMN keeps no hook record past a restart, so extra hook runs behind
-one card are not counted: `bmn hooks check` names the overlapping entries that cause them. A duplicate is one question
-also asked through another route: a mirror, folded or possible.
+A hook's card stores its tool call's id (`toolUseId` in its prompt). The same id on two rows of a session is a phantom,
+one call's second card. A card the agent's next question replaced in its slot keeps its opened time, so rows of one
+session and key at the same instant were one card to him: with other ids, or none to compare, it is `replaced`, one
+card to him whoever asked. Each counts once as asked and the extra is named. BMN keeps no record of hook runs, and two
+runs of one call open one card, so extra hook runs behind one card are not counted and the output says so (`hook_records`):
+`bmn hooks check` names the overlapping entries that cause them. A duplicate is one question also asked through another
+route: a mirror, folded or possible.
 Beside them, for BMN Epic 106: rounds and step-backs from the run's ledger, its stories done and parked from the board
 the handoff names, the parked hours from the log's `<stamp> parked N.M` and `<stamp> unparked N.M` lines, usage from
 the asks exported under .dev-auto/evidence, repeated requests, and how long the apps' native permission prompts held
@@ -56,6 +57,8 @@ EPIC = re.compile(r"\bepic[ -]?(\d+)\b", re.I)
 BOARD = re.compile(r"(/\S+?/status\.yaml)\b")
 PARKED = {"blocked", "paused"}
 SLACK = timedelta(minutes=5)
+HOOK_RECORDS = {"kept": False, "coverage": "BMN keeps no record of hook runs and two runs of one call open one card, so extra hook runs behind "
+                                           "one card are not counted; `bmn hooks check` names the overlapping entries that cause them"}
 
 
 class OutOfTime(Exception):
@@ -129,6 +132,15 @@ def key_stem(key: str) -> str:
     return re.sub(r"[-:](?:b|c|again|\d)$", "", key or "")
 
 
+def tool_call(prompt_json: str | None) -> str:
+    """The tool call's id a hook stored in its card's prompt; empty when it stored none."""
+    try:
+        value = json.loads(prompt_json or "{}").get("toolUseId")
+    except (ValueError, AttributeError):
+        return ""
+    return value if isinstance(value, str) else ""
+
+
 def question_texts(prompt_json: str | None, title: str) -> list[str]:
     """Each question of a card: a hook's row holds them in its prompt, every one with its own word; a `bmn ask` card is its title."""
     try:
@@ -159,7 +171,7 @@ def read_items(connection: sqlite3.Connection, run: dict, deadline: float | None
             continue
         items.append({"request": request_id, "session": session, "opened": opened, "resolved": resolved, "kind": kind, "via": opened_by or "", "key": key or "",
                       "conversation": conversation, "generation": origin.get("generation") or "",
-                      "_title": title or "", "_questions": question_texts(whole, title or ""), "_text": " ".join(filter(None, [title, body, prompt if kind == "permission" else ""]))})
+                      "_title": title or "", "_call": tool_call(whole), "_questions": question_texts(whole, title or ""), "_text": " ".join(filter(None, [title, body, prompt if kind == "permission" else ""]))})
     return items
 
 
@@ -182,7 +194,8 @@ def correct(items: list[dict], deadline: float | None = None) -> list[dict]:
             item["possible_mirror_of"] = near[0]["request"]
     asked: dict[str, str] = {}
     stems: dict[str, str] = {}
-    slots: dict[tuple[str, str, str], dict[str, str]] = {}
+    slots: dict[tuple[str, str, str], str] = {}
+    calls: dict[tuple[str, str], str] = {}
     for item in checked(items, deadline, "classed"):
         if item["mirror_of"]:
             item["class"] = "mirror"
@@ -190,11 +203,17 @@ def correct(items: list[dict], deadline: float | None = None) -> list[dict]:
         if item["kind"] == "permission":
             item["class"] = "native-permission"
             continue
-        slot = slots.setdefault((item["session"], item["key"], item["opened"]), {}) if item["via"].startswith("hook:") else {}
-        if slot:
-            item["class"], item["same_card_as"] = ("phantom" if normal(item["_title"]) in slot else "replaced"), next(iter(slot.values()))
-            continue
-        slot[normal(item["_title"])] = item["request"]
+        if item["via"].startswith("hook:"):
+            slot, call = (item["session"], item["key"], item["opened"]), (item["session"], item["_call"]) if item["_call"] else None
+            if call in calls:
+                item["class"], item["same_card_as"] = "phantom", calls[call]
+                continue
+            if slot in slots:
+                item["class"], item["same_card_as"] = "replaced", slots[slot]
+                continue
+            slots[slot] = item["request"]
+            if call:
+                calls[call] = item["request"]
         title, stem = normal(item["_title"]), key_stem(item["key"])
         earlier = asked.get(title) or (stems.get(stem) if item["via"] == "cli" and stem else None)
         asked.setdefault(title, item["request"])
@@ -275,11 +294,26 @@ def parked_hours(log: str, stories: list[str], end: datetime) -> tuple[float, li
     return round(held.total_seconds() / 3600, 1), [story for story in stories if story not in seen]
 
 
-def plan_of(checkout: Path) -> dict:
+def time_left(deadline: float | None, most: float) -> float:
+    """What a helper command may take: `most`, or what the bound has left."""
+    if deadline is None:
+        return most
+    left = min(most, deadline - time.monotonic())
+    if left <= 0:
+        raise OutOfTime("outcomes")
+    return left
+
+
+def plan_of(checkout: Path, deadline: float | None = None) -> dict:
     """What `bmn plan status` says of this checkout: its board and plan root, when the handoff does not name them; {} when it cannot say."""
+    timeout = time_left(deadline, 15)
     try:
-        done = subprocess.run(["bmn", "plan", "status", "--json", "--project", str(checkout)], capture_output=True, text=True, timeout=15)
+        done = subprocess.run(["bmn", "plan", "status", "--json", "--project", str(checkout)], capture_output=True, text=True, timeout=timeout)
         return json.loads(done.stdout) if done.returncode == 0 else {}
+    except subprocess.TimeoutExpired:
+        if timeout < 15:  # the bound ended it, not BMN's own limit
+            raise OutOfTime("outcomes") from None
+        return {}
     except (OSError, subprocess.SubprocessError, ValueError):
         return {}
 
@@ -301,13 +335,15 @@ def stories_of(run: dict, board: str | None, log: str, epic: str | None) -> dict
             "readable": bool(live), "counts_as_success": bool(live) and len(parked) <= done}
 
 
-def ask_usage(run: dict) -> dict:
+def ask_usage(run: dict, deadline: float | None = None) -> dict:
     """The asks exported under the run's evidence, by BMN's own totals; the lead's sessions are named for `check.py usage`."""
     found = {"asks": 0, "input_tokens": 0, "output_tokens": 0, "lead_sessions": len(run["conversations"])}
     evidence = Path(run["handoff"]).with_name("evidence")
-    for outcome in sorted(evidence.rglob("outcome.json")) if evidence.is_dir() else []:
+    for folder, _, files in checked(os.walk(evidence), deadline, "outcomes"):
+        if "outcome.json" not in files:
+            continue
         try:
-            usage = json.loads(outcome.read_text(encoding="utf-8")).get("usage")
+            usage = json.loads((Path(folder) / "outcome.json").read_text(encoding="utf-8")).get("usage")
         except (OSError, ValueError):
             continue
         found["asks"] += 1
@@ -317,17 +353,21 @@ def ask_usage(run: dict) -> dict:
     return found
 
 
-def outcomes(run: dict) -> dict:
+def outcomes(run: dict, deadline: float | None = None) -> dict:
     handoff, log = run_files(run)
     named = BUDGET.search(handoff) or BUDGET.search(log)
     board = BOARD.search(handoff)
-    plan = {} if named and board else plan_of(Path(run["handoff"]).parent.parent)
+    plan = {} if named and board else plan_of(Path(run["handoff"]).parent.parent, deadline)
     selected = EPIC.search(field(handoff, "Project / selected epics")) or EPIC.search(field(handoff, "Run id"))
     epic = named.group(1) if named else selected.group(1) if selected else None
     budget = named.group(0) if named else None
     if budget is None and epic and plan.get("plan_root"):
-        budget = f"{hashlib.sha256(plan_identity(plan['plan_root']).encode()).hexdigest()[:16]}-epic-{epic}"
-    return {"rounds": rounds_taken(budget), "stories": stories_of(run, board.group(1) if board else plan.get("board"), log, epic), "usage": ask_usage(run)}
+        identity = plan_identity(plan["plan_root"], timeout=time_left(deadline, 10))
+        if past(deadline, "outcomes"):  # cut short, it names the bare folder: another budget, not this run's
+            raise OutOfTime("outcomes")
+        budget = f"{hashlib.sha256(identity.encode()).hexdigest()[:16]}-epic-{epic}"
+    return {"rounds": rounds_taken(budget), "stories": stories_of(run, board.group(1) if board else plan.get("board"), log, epic), "usage": ask_usage(run, deadline),
+            "hook_records": HOOK_RECORDS}
 
 
 CLASSES = ("owner-decision", "plan-settleable", "repeated", "unresolved", "native-permission", "phantom", "replaced")
@@ -382,7 +422,7 @@ def runs(handoffs: list[Path], connection: sqlite3.Connection, deadline: float, 
         try:
             entry = summary(run, correct(read_items(connection, run, deadline), deadline), deadline)
             entry["native_prompts"] = native_prompts(entry["_items"], deadline)
-            entry.update(outcomes(run))
+            entry.update(outcomes(run, deadline))
             if past(deadline, "counted"):
                 raise OutOfTime("counted")
         except (OutOfTime, sqlite3.OperationalError) as exc:
@@ -435,6 +475,7 @@ def main(argv: list[str]) -> int:
         finished = (f"stories done {stories['done']}, parked {len(stories['parked'])} ({stories['parked_hours']} hours{unstamped}), others {stories['other']}"
                     f"{'' if stories['counts_as_success'] else '; not a success: it parked more than it finished'}") if stories["readable"] else "stories: no board"
         print(f"  {finished}; usage {usage['asks']} asks, {usage['input_tokens']} in, {usage['output_tokens']} out, {usage['lead_sessions']} lead sessions")
+        print("  extra hook runs behind one card: not counted, BMN keeps no record of them; `bmn hooks check` names overlapping entries")
     print("COVERAGE: complete" if result["complete"] else "COVERAGE: partial, the time bound was reached")
     return 0
 

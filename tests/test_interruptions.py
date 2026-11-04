@@ -1,7 +1,9 @@
 # MODULE: test_interruptions.py - BMN Epic 96.2/96.7: one question counted once, the old count beside it, a bounded read-only count
 from __future__ import annotations
 
+import contextlib
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -9,6 +11,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -93,8 +96,9 @@ class CountTests(unittest.TestCase):
         self.assertIn("stories: no board; usage 0 asks, 0 in, 0 out, 2 lead sessions", printed)
 
     def test_two_cards_for_one_tool_call_are_a_phantom_asked_once(self) -> None:
-        first = self.add("10:00", title="Codex asks: Which colour?", via="hook:codex:PreToolUse", key="codex:question")
-        self.add("10:00", title="Codex asks: Which colour?", via="hook:codex:PreToolUse", key="codex:question")
+        call = json.dumps({"toolUseId": "call-1"})
+        first = self.add("10:00", title="Codex asks: Which colour?", via="hook:codex:PreToolUse", key="codex:question", prompt=call)
+        self.add("10:00", title="Codex asks: Which colour?", via="hook:codex:PreToolUse", key="codex:question", prompt=call)
         run = self.run_count()
         self.assertEqual(run["corrected_count"]["phantom"], 1)
         self.assertEqual(run["corrected_count"]["questions_asked"], 1)
@@ -105,6 +109,40 @@ class CountTests(unittest.TestCase):
         self.add("10:00", title="Codex asks: Which colour?", via="hook:codex:PreToolUse", key="codex:question")
         run = self.run_count()["corrected_count"]
         self.assertEqual((run["phantom"], run["replaced"], run["questions_asked"]), (0, 1, 1))
+
+    # Astra's full review, finding 5: the stored call id says which, a title and a time do not.
+    def test_two_calls_with_one_title_in_a_slot_are_replaced_not_a_phantom(self) -> None:
+        for name, prompts in (("different ids", ({"toolUseId": "call-1"}, {"toolUseId": "call-2"})), ("no ids", ({}, {})), ("one id", ({"toolUseId": "call-1"}, {}))):
+            with self.subTest(name):
+                self.setUp()
+                for prompt in prompts:
+                    self.add("10:00", title="Codex asks: Which colour?", via="hook:codex:PreToolUse", key="codex:question", prompt=json.dumps(prompt))
+                run = self.run_count()["corrected_count"]
+                self.assertEqual((run["phantom"], run["replaced"], run["questions_asked"]), (0, 1, 1))
+
+    def test_one_call_id_in_two_slots_is_a_phantom_and_ids_of_other_sessions_are_apart(self) -> None:
+        call = json.dumps({"toolUseId": "call-1"})
+        self.add("10:00", title="Codex asks: Which colour?", key="codex:question", prompt=call)
+        self.add("10:01", title="Codex asks: Which colour?", key="codex:question", prompt=call)
+        self.add("10:02", title="Codex asks: Another?", key="codex:question", prompt=call, session="s2")
+        run = self.run_count()["corrected_count"]
+        self.assertEqual((run["phantom"], run["repeated"], run["questions_asked"]), (1, 0, 2))
+
+    def test_hook_runs_behind_one_card_are_stated_as_not_counted(self) -> None:
+        # Two hook runs, one card (.dev-auto/evidence/106-19/sessions-after.json): the store shows one row, so the count says what it cannot see.
+        self.add("10:00", title="Codex asks: Which colour?", key="codex:question", prompt=json.dumps({"toolUseId": "call-1"}))
+        run = self.run_count()
+        self.assertEqual(run["corrected_count"]["phantom"], 0)
+        self.assertEqual(run["hook_records"]["kept"], False)
+        self.assertIn("bmn hooks check", run["hook_records"]["coverage"])
+        lines = self.printed()
+        self.assertIn("extra hook runs behind one card: not counted", lines)
+
+    def printed(self) -> str:
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            self.assertEqual(interruptions.main([str(self.handoff), "--db", str(self.db)]), 0)
+        return buffer.getvalue()
 
     def test_two_tool_calls_asking_the_same_within_a_minute_are_no_phantom(self) -> None:
         self.add("10:00", title="Codex asks: Which colour?", key="codex:question")
@@ -234,6 +272,89 @@ class CountTests(unittest.TestCase):
                 result = interruptions.count([self.handoff], self.db, 3)
             self.assertFalse(result["complete"], phase)
             self.assertEqual(result["runs"], [{"handoff": str(self.handoff), "skipped": f"the time bound was reached while it was {phase}"}])
+
+    # Astra's full review, finding 6: the new outcome collection keeps the bound.
+    def name_nothing(self) -> None:
+        text = self.handoff.read_text().replace("- Run id: epic7-20261026", "- Run id: run-1\n- Project / selected epics: x, Epic 7")
+        self.handoff.write_text(text)
+        os.utime(self.handoff, (1793017800, 1793017800))
+
+    def test_asking_bmn_for_the_plan_gets_only_the_time_left(self) -> None:
+        self.name_nothing()
+        seen = []
+
+        def run(argv, **options):
+            seen.append(options["timeout"])
+            return mock.Mock(returncode=1, stdout="")
+        with mock.patch.object(interruptions.subprocess, "run", side_effect=run):
+            interruptions.count([self.handoff], self.db, 2)
+        self.assertTrue(seen)
+        self.assertLessEqual(max(seen), 2)
+
+    def test_a_hanging_bmn_ends_at_the_bound_as_partial_coverage(self) -> None:
+        self.name_nothing()
+        folder = Path(self.tmp.name) / "bin"
+        folder.mkdir()
+        (folder / "bmn").write_text("#!/bin/sh\nexec sleep 30\n")
+        (folder / "bmn").chmod(0o755)
+        started = time.monotonic()
+        with mock.patch.dict(os.environ, {"PATH": f"{folder}:{os.environ['PATH']}"}):
+            result = interruptions.count([self.handoff], self.db, 0.5)
+        self.assertLess(time.monotonic() - started, 5)
+        self.assertFalse(result["complete"])
+        self.assertIn("outcomes", result["runs"][0]["skipped"])
+
+    def test_the_plans_identity_gets_only_the_time_left(self) -> None:
+        self.name_nothing()
+        seen = {}
+
+        def identity(root, timeout=10):
+            seen["timeout"] = timeout
+            return root
+        with mock.patch.object(interruptions, "plan_of", return_value={"plan_root": "/nowhere"}), mock.patch.object(interruptions, "plan_identity", side_effect=identity):
+            interruptions.count([self.handoff], self.db, 2)
+        self.assertLessEqual(seen["timeout"], 2)
+
+    def test_an_identity_cut_short_is_no_other_budget(self) -> None:
+        self.name_nothing()
+
+        def identity(root, timeout=10):
+            interruptions.time.sleep(0.2)  # the bound ends here, and the ledger would fall back to the bare folder
+            return root
+        with mock.patch.object(interruptions, "plan_of", return_value={"plan_root": "/nowhere"}), mock.patch.object(interruptions, "plan_identity", side_effect=identity):
+            result = interruptions.count([self.handoff], self.db, 0.1)
+        self.assertFalse(result["complete"])
+        self.assertIn("outcomes", result["runs"][0]["skipped"])
+
+    def test_walking_the_evidence_stops_at_the_bound(self) -> None:
+        evidence = self.handoff.with_name("evidence")
+        for n in range(30):
+            (evidence / f"a{n}").mkdir(parents=True)
+        (evidence / "a0" / "outcome.json").write_text("{}")
+        calls = {"n": 0}
+
+        def past(deadline, where):
+            if where != "outcomes":
+                return False
+            calls["n"] += 1
+            return calls["n"] > 3
+        with mock.patch.object(interruptions, "past", side_effect=past):
+            result = interruptions.count([self.handoff], self.db, 3)
+        self.assertFalse(result["complete"])
+        self.assertIn("outcomes", result["runs"][0]["skipped"])
+        self.assertLessEqual(calls["n"], 4)
+
+    def test_the_ledgers_identity_takes_a_timeout_and_keeps_its_default(self) -> None:
+        seen = []
+        real = subprocess.run
+
+        def run(argv, **options):
+            seen.append(options["timeout"])
+            return real(argv, **options)
+        with mock.patch.object(subprocess, "run", side_effect=run):
+            interruptions.plan_identity(self.tmp.name)
+            interruptions.plan_identity(self.tmp.name, timeout=1.5)
+        self.assertEqual(seen, [10, 1.5])
 
     def test_the_time_bound_holds_inside_the_query(self) -> None:
         # Astra review A7: the SQLite progress handler abandons a query once the deadline passes.

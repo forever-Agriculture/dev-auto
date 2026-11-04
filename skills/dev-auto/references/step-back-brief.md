@@ -13,7 +13,7 @@ The brief is this text, filled in, with nothing else asked. Its line `Step-back:
 with `sha256sum` of the record as it stands; change the record and the ask must be made again.
 
 ```text
-Step-back: epic <N> boundary <N.M or epic> record sha256:<hash of the record file>
+Step-back: budget <the id `spend_ledger.py open` printed> boundary <N.M or epic> record sha256:<hash of the record file>
 
 You are a fresh reader. This boundary has failed repeatedly and has one round left.
 Goal: <the epic's outcome and this story's goal, in the plan's words>

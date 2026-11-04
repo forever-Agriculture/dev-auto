@@ -327,10 +327,11 @@ def run_needs(project: Path, epic: int) -> dict:
             return {**identity, "state": "NO_RUN_NEEDS", "reason": "the epic has no Run needs"}
         return {**identity, "state": "NO_GO_RECORD", "reason": f"the board's history cannot be read: {exc}"}
     if not gos:
+        board_now = row(board.read_text(encoding="utf-8", errors="replace"), epic) if board.exists() else None
+        floor["row_status"] = board_now[0] if board_now else None
         if now["Run needs"] is None:
             return {**identity, **floor, "state": "NO_RUN_NEEDS", "reason": "the epic has no Run needs"}
         result = {**identity, **floor, "state": "NO_GO_RECORD", "reason": "no commit records a go for this epic"}
-        board_now = row(board.read_text(encoding="utf-8", errors="replace"), epic) if board.exists() else None
         date_now = GO_DATE.search(board_now[1]) if board_now else None
         if date_now:  # evidence that explains the gap; it grants nothing (96.2 AC5)
             result["uncommitted_go"] = date_now.group(1)
@@ -393,7 +394,7 @@ def run_needs(project: Path, epic: int) -> dict:
         return {**result, "state": "NO_GO_RECORD", "withdrawn_go": go["date"],
                 "reason": f"the go of {go['date']} was withdrawn: the row is now {board_now[0]}"}
     if then["Run needs"] is None:
-        return {**result, **floor, "state": "NO_RUN_NEEDS", "reason": "the epic had no Run needs at its go"}
+        return {**result, **floor, "row_status": board_now[0], "state": "NO_RUN_NEEDS", "reason": "the epic had no Run needs at its go"}
     return {**result, "floor": True, "state": "GO", "run_needs": then["Run needs"], "parsed": parse_needs(then["Run needs"]),
             "stories": STORY.findall(then_text or ""),  # the epic's stories at its go: the only story boundaries for its rounds
             # The largest allowance an earlier go gave: what a ledger that lost its count presumes used (96 Astra review).
