@@ -405,6 +405,11 @@ def canonical(text: str) -> str:
     return " ".join(text.lower().split())
 
 
+def message_fields(one: dict) -> tuple[str, str, str, str]:
+    """A stored message as it compares, whatever form it was stored in; the record itself stays as written."""
+    return canonical(one["person"]), canonical(one["destination"]), canonical(one["purpose"]), canonical(one["text_hash"])
+
+
 def message_entry(needs: dict, person: str, destination: str, purpose: str) -> bool:
     """Whether Run needs name this person, destination and purpose (BMN D4); `each ...` names a role, filled by a person the run finds."""
     for entry in needs["parsed"].get("messages", []):
@@ -453,7 +458,7 @@ def message(args: dict, verb: str) -> int:
             return EXIT_USAGE
         person, destination, purpose, text_hash = canonical(person), canonical(destination), canonical(purpose), canonical(text_hash)
         if earlier:
-            if (earlier["person"], earlier["destination"], earlier["purpose"], earlier["text_hash"]) != (person, destination, purpose, text_hash):
+            if message_fields(earlier) != (person, destination, purpose, text_hash):
                 print(f"REFUSED: use {use_id} is another message, reserved at {earlier['at']}; a new message takes a new use id")
                 return EXIT_REFUSED
             if earlier["state"] == "sent":
@@ -478,11 +483,11 @@ def message(args: dict, verb: str) -> int:
         if not message_entry(needs, person, destination, purpose):
             print(f"REFUSED: message {use_id}: Run needs do not name {person}, {destination}, {purpose}; leave a draft in the report")
             return EXIT_REFUSED
-        counted = [one for one in messages.values() if one["state"] != "unsent"]
-        if any(one["text_hash"] == text_hash and one["person"] == person for one in counted):
+        counted = [message_fields(one) for one in messages.values() if one["state"] != "unsent"]
+        if any(one[0] == person and one[3] == text_hash for one in counted):
             print(f"REFUSED: message {use_id}: this text already went to {person}; nothing reserved")
             return EXIT_REFUSED
-        same = [one for one in counted if one["person"] == person and one["purpose"] == purpose]
+        same = [one for one in counted if one[0] == person and one[2] == purpose]  # across destinations and resumes
         if len(same) >= MESSAGES_PER_PURPOSE:
             print(f"REFUSED: message {use_id}: {person} has had {len(same)} of {MESSAGES_PER_PURPOSE} for this purpose; leave a draft in the report")
             return EXIT_REFUSED

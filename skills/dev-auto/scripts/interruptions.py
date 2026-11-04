@@ -208,12 +208,12 @@ def correct(items: list[dict], deadline: float | None = None) -> list[dict]:
             if call in calls:
                 item["class"], item["same_card_as"] = "phantom", calls[call]
                 continue
+            if call:
+                calls[call] = item["request"]
             if slot in slots:
                 item["class"], item["same_card_as"] = "replaced", slots[slot]
                 continue
             slots[slot] = item["request"]
-            if call:
-                calls[call] = item["request"]
         title, stem = normal(item["_title"]), key_stem(item["key"])
         earlier = asked.get(title) or (stems.get(stem) if item["via"] == "cli" and stem else None)
         asked.setdefault(title, item["request"])

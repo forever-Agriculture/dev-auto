@@ -128,6 +128,16 @@ class CountTests(unittest.TestCase):
         run = self.run_count()["corrected_count"]
         self.assertEqual((run["phantom"], run["repeated"], run["questions_asked"]), (1, 0, 2))
 
+    # Astra's recheck: a call that replaced a card keeps its identity.
+    def test_a_replacing_call_seen_again_is_a_phantom(self) -> None:
+        one, two = json.dumps({"toolUseId": "call-a"}), json.dumps({"toolUseId": "call-b"})
+        self.add("10:00", title="Codex asks: First?", key="codex:question", prompt=one)
+        second = self.add("10:00", title="Codex asks: Second?", key="codex:question", prompt=two)
+        self.add("10:01", title="Codex asks: Second?", key="codex:question", prompt=two)
+        run = self.run_count()
+        self.assertEqual([item["class"] for item in run["items"]][1:], ["replaced", "phantom"])
+        self.assertEqual(run["items"][2]["same_card_as"], second)
+
     def test_hook_runs_behind_one_card_are_stated_as_not_counted(self) -> None:
         # Two hook runs, one card (.dev-auto/evidence/106-19/sessions-after.json): the store shows one row, so the count says what it cannot see.
         self.add("10:00", title="Codex asks: Which colour?", key="codex:question", prompt=json.dumps({"toolUseId": "call-1"}))

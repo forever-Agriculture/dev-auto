@@ -195,6 +195,53 @@ class Ledger(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("never send it again", out)
 
+    # Astra's recheck: a record stored before the canonical form still counts, and keeps its receipt.
+    def seed(self, **records: dict) -> Path:
+        path = self.root / "state" / "dev-auto" / "budgets" / f"{self.budget}.json"
+        data = json.loads(path.read_text())
+        data["messages"] = {use: {"person": "Dana", "destination": "the move PR's GitHub comments", "purpose": "Ask for  a Review", "state": "sent", "at": "t", "receipt": f"r-{use}", **one} for use, one in records.items()}
+        path.write_text(json.dumps(data))
+        return path
+
+    def test_records_stored_in_another_form_still_count(self) -> None:
+        self.seed(old1={"text_hash": "H1"}, old2={"text_hash": "H2"})
+        code, out = self.reserve("c", "h3", purpose="asks for a review")
+        self.assertEqual(code, 0, out)  # another purpose: its own count
+        path = self.root / "state" / "dev-auto" / "budgets" / f"{self.budget}.json"
+        data = json.loads(path.read_text())
+        self.assertEqual(data["messages"]["old1"]["receipt"], "r-old1")
+        del data["messages"]["c"]
+        for one in data["messages"].values():
+            one["purpose"] = "Asks for  a REVIEW"
+        path.write_text(json.dumps(data))
+        code, out = self.reserve("d", "h4")
+        self.assertEqual(code, 1, out)
+        self.assertIn("2 of 2", out)
+
+    def test_the_same_text_stored_in_another_form_is_refused(self) -> None:
+        self.seed(old1={"person": "DANA", "text_hash": "SAME", "purpose": "Asks for a Review"})
+        code, out = self.reserve("b", "same")
+        self.assertEqual(code, 1, out)
+
+    def test_the_cap_holds_across_destinations(self) -> None:
+        self.seed(old1={"text_hash": "H1", "destination": "their old thread", "purpose": "asks for a review"},
+                  old2={"text_hash": "H2", "destination": "another place", "purpose": "Asks For A Review"})
+        code, out = self.reserve("c", "h3")
+        self.assertEqual(code, 1, out)
+        self.assertIn("2 of 2", out)
+
+    def test_an_uncertain_record_in_another_form_counts_and_a_changed_payload_refuses(self) -> None:
+        self.seed(old1={"person": "DANA", "text_hash": "H1", "purpose": "Asks for a  Review", "state": "reserved"},
+                  old2={"text_hash": "H2", "purpose": "asks for a review", "state": "reserved"})
+        self.assertEqual(self.reserve("c", "h3")[0], 1)
+        self.assertEqual(self.reserve("old1", "other")[0], 1)
+
+    def test_a_use_stored_in_another_form_is_the_same_message(self) -> None:
+        self.seed(old1={"person": "DANA", "text_hash": "H1", "purpose": "Asks for a  Review", "state": "reserved"})
+        code, out = self.reserve("old1", "h1")
+        self.assertEqual(code, 0, out)
+        self.assertIn("RESERVED", out)
+
     def test_group_owner_entry_takes_any_named_person(self) -> None:
         code, out = self.reserve("a", "h", person="Mia", destination="that banner PR's comments", purpose="says it is comment-only")
         self.assertEqual(code, 0, out)
