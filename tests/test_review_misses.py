@@ -1,6 +1,7 @@
 # MODULE: test_review_misses.py - BMN Epic 105.5: review facts per ticket, candidates never called misses, read-only and bounded, against a fake gh
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -121,6 +122,18 @@ class ReviewMissesTests(unittest.TestCase):
         result = self.read_json(self.fixture())
         names = {group["group"]: [pr["number"] for pr in group["prs"]] for group in result["groups"]}
         self.assertEqual(names, {"T100": [1, 2], "T200": [3], "example-org/project-p.services.alpha#4": [4], "T300": [5], "T500": [7], "T600": [9], "T700": [10]})
+
+    def test_eligibility_is_one_function_and_plan_is_exempt(self) -> None:
+        spec = importlib.util.spec_from_file_location("review_misses", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        eligible = module.review_eligible
+        self.assertFalse(eligible(["plan/status.yaml", "plan/epics/001-x.md"]), "plan only")
+        self.assertFalse(eligible(["README.md", "docs/a.txt", "plan/references/x.json"]), "all exempt, each for its own reason")
+        self.assertTrue(eligible(["plan/status.yaml", "src/a.py"]), "mixed")
+        self.assertTrue(eligible(["src/a.py"]), "code")
+        self.assertTrue(eligible(["planning/a.py", "src/plan/a.py"]), "only the top plan folder")
+        self.assertTrue(eligible([]), "an unread file list is never exempt")
 
     def test_docs_only_is_all_md_or_under_docs(self) -> None:
         prs = self.by_key(self.read_json(self.fixture()))

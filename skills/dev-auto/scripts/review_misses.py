@@ -88,6 +88,11 @@ def later_events(reviews: list[dict], line_comments: list[dict], author: str, si
     return sorted(events, key=lambda event: event["at"])
 
 
+def review_eligible(names: list[str]) -> bool:
+    """Whether a PR with these changed files takes the review: not when every file is `.md`, or under `docs/` or `plan/` (BMN Epic 106 D21)."""
+    return not names or not all(name.endswith(".md") or name.startswith(("docs/", "plan/")) for name in names)
+
+
 def read_pr(found: dict, deadline: float) -> dict:
     repo = found["repository"]["nameWithOwner"]
     number = found["number"]
@@ -103,7 +108,7 @@ def read_pr(found: dict, deadline: float) -> dict:
     line_comments = rest(f"pulls/{number}/comments")
     issue_events = rest(f"issues/{number}/events")
     names = [str(file.get("filename", "")) for file in files]
-    docs_only = bool(names) and all(name.endswith(".md") or name.startswith("docs/") for name in names)
+    docs_only = not review_eligible(names)
     records = [(comment, RECORD.match(str(comment.get("body", "")))) for comment in comments]
     records = [(comment, match) for comment, match in records if match]
     comment, match = records[-1] if records else (None, None)
