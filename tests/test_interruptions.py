@@ -1,6 +1,7 @@
 # MODULE: test_interruptions.py - BMN Epic 96.2/96.7: one question counted once, the old count beside it, a bounded read-only count
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -135,6 +136,28 @@ class CountTests(unittest.TestCase):
         self.assertEqual(stories["parked"], ["7.2", "7.3"])
         self.assertEqual(stories["counts_as_success"], False)
         self.assertEqual(stories["parked_hours"], 3.7, "from each parked line to the run's end plus the slack")
+
+    def test_a_parked_story_with_no_log_line_is_named_not_counted_as_no_time(self) -> None:
+        self.outcome_fixture({"7-1-a": "done", "7-2-b": "blocked"})
+        stories = self.run_count()["stories"]
+        self.assertEqual(stories["parked_hours"], 0.0)
+        self.assertEqual(stories["parked_without_a_line"], ["7.2"])
+
+    def test_the_board_and_ledger_come_from_bmn_when_the_handoff_names_neither(self) -> None:
+        board = self.handoff.parent.parent / "plan" / "status.yaml"
+        board.parent.mkdir()
+        board.write_text("development_status:\n  7-1-a: done\n")
+        text = self.handoff.read_text().replace("- Run id: epic7-20261026", "- Run id: run-1\n- Project / selected epics: x, Epic 7")
+        self.handoff.write_text(text)
+        os.utime(self.handoff, (1793017800, 1793017800))
+        identity = hashlib.sha256(str(board.parent.resolve()).encode()).hexdigest()[:16]
+        state = Path(self.tmp.name) / "state" / "dev-auto" / "budgets"
+        state.mkdir(parents=True)
+        (state / f"{identity}-epic-7.json").write_text(json.dumps({"rounds": {"a": {"answer": "TAKEN", "boundary": "7.1"}}}))
+        with mock.patch.object(interruptions, "plan_of", return_value={"board": str(board), "plan_root": str(board.parent)}), mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(state.parents[1])}):
+            run = self.run_count()
+        self.assertEqual(run["stories"]["done"], 1)
+        self.assertEqual(run["rounds"]["used"], 1)
 
     def test_a_story_unparked_counts_only_while_it_was_parked(self) -> None:
         self.outcome_fixture({"7-1-a": "done", "7-2-b": "done", "7-3-c": "blocked"})

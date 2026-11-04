@@ -34,19 +34,25 @@ check and is never to be saved.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import sqlite3
+import subprocess
 import sys
 import time
 from datetime import datetime, timedelta, timezone
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from spend_ledger import plan_identity  # noqa: E402  the ledger's own name for a plan, so this reads the same budget
 
 UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 STAMP = re.compile(r"^(?:#+ |- )?(20\d\d-\d\d-\d\d[T ]\d\d:\d\d(?::\d\d)?Z?)", re.M)
 MIRROR_WINDOW = timedelta(seconds=120)
 BUDGET = re.compile(r"\b[0-9a-f]{16}-epic-(\d+)\b")
+EPIC = re.compile(r"\bepic[ -]?(\d+)\b", re.I)
 BOARD = re.compile(r"(/\S+?/status\.yaml)\b")
 PARKED = {"blocked", "paused"}
 SLACK = timedelta(minutes=5)
@@ -246,16 +252,18 @@ def rounds_taken(budget: str | None) -> dict:
     return {"used": len(taken), "step_backs": sum(1 for use in taken if use.get("step_back")), "readable": True}
 
 
-def parked_hours(log: str, stories: list[str], end: datetime) -> float:
-    """From each `<stamp> parked N.M` to its `unparked`, or the run's end for a story still parked."""
+def parked_hours(log: str, stories: list[str], end: datetime) -> tuple[float, list[str]]:
+    """From each `<stamp> parked N.M` to its `unparked`, or the run's end for a story still parked; also the parked stories with no such line."""
     held = timedelta()
     since: dict[str, datetime] = {}
+    seen: set[str] = set()
     for line in log.splitlines():
         stamp = STAMP.match(line)
         at = parse(stamp.group(1)) if stamp else None
         match = re.search(r"\b(un)?parked (\d+\.\d+)\b", line)
         if at is None or match is None:
             continue
+        seen.add(match.group(2))
         if match.group(1):
             if match.group(2) in since:
                 held += at - since.pop(match.group(2))
@@ -264,23 +272,32 @@ def parked_hours(log: str, stories: list[str], end: datetime) -> float:
     for story, at in since.items():
         if story in stories:
             held += end - at
-    return round(held.total_seconds() / 3600, 1)
+    return round(held.total_seconds() / 3600, 1), [story for story in stories if story not in seen]
 
 
-def stories_of(run: dict, handoff: str, log: str, epic: str | None) -> dict:
-    """The epic's rows on the board the handoff names: done and parked, and whether the run counts as a success."""
-    found = {"done": 0, "parked": [], "parked_hours": 0.0, "other": 0, "readable": False, "counts_as_success": False}
-    board = BOARD.search(handoff)
+def plan_of(checkout: Path) -> dict:
+    """What `bmn plan status` says of this checkout: its board and plan root, when the handoff does not name them; {} when it cannot say."""
+    try:
+        done = subprocess.run(["bmn", "plan", "status", "--json", "--project", str(checkout)], capture_output=True, text=True, timeout=15)
+        return json.loads(done.stdout) if done.returncode == 0 else {}
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return {}
+
+
+def stories_of(run: dict, board: str | None, log: str, epic: str | None) -> dict:
+    """The epic's rows on the run's board: done and parked, and whether the run counts as a success."""
+    found = {"done": 0, "parked": [], "parked_hours": 0.0, "parked_without_a_line": [], "other": 0, "readable": False, "counts_as_success": False}
     if not epic or not board:
         return found
     try:
-        rows = re.findall(rf"^\s*{epic}-(\d+)-[\w-]+:\s*([\w-]+)", Path(board.group(1)).read_text(encoding="utf-8"), re.M)
+        rows = re.findall(rf"^\s*{epic}-(\d+)-[\w-]+:\s*([\w-]+)", Path(board).read_text(encoding="utf-8"), re.M)
     except OSError:
         return found
     live = [(f"{epic}.{number}", state) for number, state in rows if state != "dropped"]
     parked = [story for story, state in live if state in PARKED]
     done = sum(1 for _, state in live if state == "done")
-    return {"done": done, "parked": parked, "parked_hours": parked_hours(log, parked, run["end"]), "other": len(live) - done - len(parked),
+    hours, unstamped = parked_hours(log, parked, run["end"])
+    return {"done": done, "parked": parked, "parked_hours": hours, "parked_without_a_line": unstamped, "other": len(live) - done - len(parked),
             "readable": bool(live), "counts_as_success": bool(live) and len(parked) <= done}
 
 
@@ -302,9 +319,15 @@ def ask_usage(run: dict) -> dict:
 
 def outcomes(run: dict) -> dict:
     handoff, log = run_files(run)
-    budget = BUDGET.search(handoff) or BUDGET.search(log)
-    epic = budget.group(1) if budget else (lambda named: named.group(1) if named else None)(re.search(r"\bEpic (\d+)\b", field(handoff, "Project / selected epics")))
-    return {"rounds": rounds_taken(budget.group(0) if budget else None), "stories": stories_of(run, handoff, log, epic), "usage": ask_usage(run)}
+    named = BUDGET.search(handoff) or BUDGET.search(log)
+    board = BOARD.search(handoff)
+    plan = {} if named and board else plan_of(Path(run["handoff"]).parent.parent)
+    selected = EPIC.search(field(handoff, "Project / selected epics")) or EPIC.search(field(handoff, "Run id"))
+    epic = named.group(1) if named else selected.group(1) if selected else None
+    budget = named.group(0) if named else None
+    if budget is None and epic and plan.get("plan_root"):
+        budget = f"{hashlib.sha256(plan_identity(plan['plan_root']).encode()).hexdigest()[:16]}-epic-{epic}"
+    return {"rounds": rounds_taken(budget), "stories": stories_of(run, board.group(1) if board else plan.get("board"), log, epic), "usage": ask_usage(run)}
 
 
 CLASSES = ("owner-decision", "plan-settleable", "repeated", "unresolved", "native-permission", "phantom", "replaced")
@@ -408,7 +431,8 @@ def main(argv: list[str]) -> int:
               f"rounds {rounds['used'] if rounds['readable'] else 'no ledger'}, step-backs {rounds['step_backs'] if rounds['readable'] else 'no ledger'}; "
               f"native waits {prompts['count']}, at most {prompts['over_30_minutes_at_most']} over 30 minutes, at most "
               f"{prompts['hours_held_at_most']} hours held, to the command's end{still}")
-        finished = (f"stories done {stories['done']}, parked {len(stories['parked'])} ({stories['parked_hours']} hours), others {stories['other']}"
+        unstamped = f", {len(stories['parked_without_a_line'])} with no parked line" if stories["parked_without_a_line"] else ""
+        finished = (f"stories done {stories['done']}, parked {len(stories['parked'])} ({stories['parked_hours']} hours{unstamped}), others {stories['other']}"
                     f"{'' if stories['counts_as_success'] else '; not a success: it parked more than it finished'}") if stories["readable"] else "stories: no board"
         print(f"  {finished}; usage {usage['asks']} asks, {usage['input_tokens']} in, {usage['output_tokens']} out, {usage['lead_sessions']} lead sessions")
     print("COVERAGE: complete" if result["complete"] else "COVERAGE: partial, the time bound was reached")
