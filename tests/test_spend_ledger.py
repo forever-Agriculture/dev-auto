@@ -21,7 +21,7 @@ import spend_ledger  # noqa: E402
 sys.path.insert(0, str(REPO / "tests"))
 import test_run_needs  # noqa: E402  (its plan fixture)
 
-LEDGER = SCRIPTS / "spend_ledger.py"
+LEDGER = REPO / "tests" / "ledger_without_floor.py"  # the floor and step-back have their own tests
 
 
 def go(commit: str, cap: float | None, date: str = "2026-10-23", rounds: int = 0) -> dict:
@@ -42,6 +42,9 @@ class LedgerTests(unittest.TestCase):
         patcher = mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(self.root / "state"), "PATH": f"{self.root / 'bin'}:{os.environ['PATH']}"})
         patcher.start()
         self.addCleanup(patcher.stop)
+        floor = mock.patch.object(spend_ledger, "ROUND_FLOOR", 0)
+        floor.start()
+        self.addCleanup(floor.stop)
         self.job = self.root / "job.sh"
         self.marker = self.root / "markers"
         self.job.write_text(f'echo "$1" >> {self.marker}\n')

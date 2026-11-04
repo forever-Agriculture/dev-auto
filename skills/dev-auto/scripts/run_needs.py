@@ -302,7 +302,10 @@ def run_needs(project: Path, epic: int) -> dict:
                 return text
         return None
 
-    now = sections(epic_now())
+    text_now = epic_now()
+    now = sections(text_now)
+    # The default rounds (BMN D19): where no go was ever recorded, or his go stands; never where one was withdrawn or cannot be confirmed.
+    floor = {"floor": True, "stories": STORY.findall(text_now or "")}
     try:
         gos, committed_row = find_gos(repo, board_rel, epic, bmad)
     except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
@@ -311,8 +314,8 @@ def run_needs(project: Path, epic: int) -> dict:
         return {**identity, "state": "NO_GO_RECORD", "reason": f"the board's history cannot be read: {exc}"}
     if not gos:
         if now["Run needs"] is None:
-            return {**identity, "state": "NO_RUN_NEEDS", "reason": "the epic has no Run needs"}
-        result = {**identity, "state": "NO_GO_RECORD", "reason": "no commit records a go for this epic"}
+            return {**identity, **floor, "state": "NO_RUN_NEEDS", "reason": "the epic has no Run needs"}
+        result = {**identity, **floor, "state": "NO_GO_RECORD", "reason": "no commit records a go for this epic"}
         board_now = row(board.read_text(encoding="utf-8", errors="replace"), epic) if board.exists() else None
         date_now = GO_DATE.search(board_now[1]) if board_now else None
         if date_now:  # evidence that explains the gap; it grants nothing (96.2 AC5)
@@ -376,8 +379,8 @@ def run_needs(project: Path, epic: int) -> dict:
         return {**result, "state": "NO_GO_RECORD", "withdrawn_go": go["date"],
                 "reason": f"the go of {go['date']} was withdrawn: the row is now {board_now[0]}"}
     if then["Run needs"] is None:
-        return {**result, "state": "NO_RUN_NEEDS", "reason": "the epic had no Run needs at its go"}
-    return {**result, "state": "GO", "run_needs": then["Run needs"], "parsed": parse_needs(then["Run needs"]),
+        return {**result, **floor, "state": "NO_RUN_NEEDS", "reason": "the epic had no Run needs at its go"}
+    return {**result, "floor": True, "state": "GO", "run_needs": then["Run needs"], "parsed": parse_needs(then["Run needs"]),
             "stories": STORY.findall(then_text or ""),  # the epic's stories at its go: the only story boundaries for its rounds
             # The largest allowance an earlier go gave: what a ledger that lost its count presumes used (96 Astra review).
             "earlier_rounds": max((parse_needs(sections(text_at(g["commit"]))["Run needs"])["rounds"] for g in gos[:-1]), default=0),
@@ -423,8 +426,10 @@ def main(argv: list[str]) -> int:
                 print(f"PREPARED GAP, read it yourself: {problem}")
     else:
         print(f"{result['state']}: {result['reason']}; nothing is delegated beyond the invocation")
+        if result.get("floor"):
+            print(f"{result['state']}: the run goes on under the invocation with the default extra rounds (spend_ledger.py open prints them) and no deferrals")
         if result["state"] == "NO_GO_RECORD":
-            print("NO_GO_RECORD: the run goes on under the invocation without this epic's extra rounds or deferrals; a go is "
+            print(f"NO_GO_RECORD: the run goes on under the invocation without {'this epic' + chr(39) + 's deferrals' if result.get('floor') else 'extra rounds or this epic' + chr(39) + 's deferrals'}; a go is "
                   "recorded only at planning (bmn plan go), never by the run, and he is never asked to restate an approval: "
                   "record any approval evidence found in the handoff as the reason the record is missing")
     if result.get("earlier_gos"):

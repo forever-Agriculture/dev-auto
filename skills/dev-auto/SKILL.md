@@ -20,9 +20,12 @@ total. His go on a planned epic is one, day or night. At start and each resume r
 `scripts/spend_ledger.py open --epic N` (it reads the go with `scripts/run_needs.py`), at start before
 moving the epic's row past `ready`, and keep
 what it prints in the handoff's `Go` field: the same go means its terms, rounds left and money
-as printed, nothing to ask him. Take each of the go's extra rounds with `spend_ledger.py round`
-before using it; that ledger counts them for every lead, resume and worktree. On NO_GO_RECORD
-go on under the invocation without the extras: approval evidence you find explains the missing
+as printed, nothing to ask him. Take each extra round it printed with `spend_ledger.py round`
+before using it; that ledger counts them for every lead, resume and worktree. A run has at least
+4 per boundary, go or no go (his card, 2026-11-04), an allowance and never a target. On NO_GO_RECORD
+go on under the invocation with what `open` printed and without deferrals; a withdrawn or
+unconfirmed go prints no rounds, and his later narrower word is recorded with `spend_ledger.py
+limit`. Approval evidence you find explains the missing
 record in the handoff, grants nothing and never makes you ask him to restate or record a go.
 Its Run needs may list `Prepared` (BMN Epic 103), printed by `run_needs.py`. At the run's start and at
 his departure, run each `check:` yourself, as its own tool call under the app's and the guard's
@@ -31,8 +34,7 @@ not done, goes under `Needs your decision` with the stories that name it: those 
 every other story continues; at his departure say a step not done once, in one line.
 Reserved to him however sure you are: spend beyond what he approved or delegated, changes
 to selected work or its acceptance criteria, actions the global rules reserve to him,
-credentials or private data, owner-only acceptance checks, model choices and the brake's
-decision below; a broad "continue" or "work autonomously" answers none of these. His model choices live in his BMN team: a lasting
+credentials or private data, owner-only acceptance checks and model choices; a broad "continue" or "work autonomously" answers none of these. His model choices live in his BMN team: a lasting
 one for a project is a `## project-choices` entry he approves in BMN (if the host refuses
 your write, give him the entry), a one-time pick goes as `--agent` (and `--effort`) on
 the asks it covers, with his quote in the handoff. Decide a technical point only on
@@ -132,13 +134,15 @@ the log; later leads continue the record, never restart it. Without such a metho
 stays BLOCKED. Keep changes unrelated to the failure out of these attempts. Once per
 method, a failure in your own harness before product execution counts as a gate run,
 not a failed method: repair and rerun; a second such failure fails the method.
-After every third failed agreed method at one boundary, take the rounds his go gave,
-then an Away grant's, as the away-grant reference runs them. Then defer what Run needs
-lists as deferrable (other criteria pass; row `done` noted `deferred: <N.M ACk>, <reason>`;
-Known limits; a new story proposed) and continue. Else record under Needs your decision
-that record, the consultant's odds and cost, and your recommendation (continue within a
-usage budget, descope, report upstream with the gate red, or BLOCKED), retrying only on
-his answer; nothing lifts an authorization, spend, review allowance or acceptance gate.
+After every third failed agreed method at one boundary, take the rounds `open` printed,
+then an Away grant's, as the away-grant reference runs them. Before the last one, a different
+agent looks at the big picture ([references/step-back-brief.md](references/step-back-brief.md)):
+`round` refuses it without that, and with no different method the story parks without using it.
+With the rounds used, defer what Run needs lists as deferrable (other criteria pass; row `done`
+noted `deferred: <N.M ACk>, <reason>`; Known limits; a new story proposed) and continue. Else
+the story parks BLOCKED with its evidence and every other story continues: record the brake
+record, the consultant's options and your recommendation in the report, and ask him for no round;
+nothing lifts an authorization, spend, review allowance or acceptance gate.
 Launch every paid job through `scripts/spend_ledger.py launch` against the go's money cap
 or one he set (`none`: no paid launch); never raise a cap or the total yourself.
 Before a paid or long run, use applicable evidence or the cheapest authorized check

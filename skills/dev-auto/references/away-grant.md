@@ -1,7 +1,7 @@
 # Away grant
 
 Read this when the owner says he is leaving or BMN says he is (BMN Epic 84), and at a
-parked boundary while his go or a grant gives rounds. Only his own answer, in the BMN window
+parked boundary while rounds remain. Only his own answer, in the BMN window
 or on Telegram, makes a grant; it ends when he is back.
 
 ## Before he leaves
@@ -15,8 +15,8 @@ its reason:
 - with a go (`scripts/run_needs.py`), its Run needs' named actions with their targets and
   no rounds, an exact `command` or `message` included; with none, `bmn grant ask --run <Run id>
   --nothing`;
-- without a go, extra repair rounds per boundary (2, 3 or 4) when a review or gate boundary
-  is ahead, and each reserved action you foresee with its target (a PR merge at its head
+- without a go, no rounds (a run has its default rounds) and each reserved action you foresee
+  with its target (a PR merge at its head
   SHA, a push to the default branch, a PR in another repository, one exact command with its
   folder, one exact message with its tool, target and whole text); `--nothing` when the work
   needs none.
@@ -52,22 +52,21 @@ rule or GitHub stopped before any use is `--item <term id> --text <why>`. A repo
 
 ## A round at a parked boundary
 
-A boundary parked by either brake or the away repair takes one round at a time, the go's
+A boundary parked by either brake or the away repair takes one round at a time, the ledger's
 first, without a card:
 
 1. Record the new evidence and a consultant-agreed method in the brake record, and save the
    handoff in its own tool call.
-2. Once that save succeeded, record the round: a go round with `scripts/spend_ledger.py round
-   --budget B --boundary <boundary> --use-id <boundary>:round-<n>` (refused when none is left),
-   noted in the brake record with source `go`; a granted one with `bmn grant use`.
+2. Once that save succeeded, record the round: a ledger round with `scripts/spend_ledger.py round
+   --budget B --boundary <boundary> --use-id <boundary>:round-<n>` (refused when none is left, and
+   the last also needs its step-back, below), noted in the brake record with source `ledger`; a
+   granted one with `bmn grant use`.
 3. Make one consolidated repair and one focused recheck.
 
 A third failed method within the rounds does not stop for a card. Before the last round,
-ask the consultant for a step-back consult and record it: the original intent and acceptance
-criteria, the architecture, and every failed method with what it established; its options
-keep the requirements and include a different design, descoping work the story does not ask
-for, and BLOCKED; for a granted round, report the chosen option with `bmn grant report --run
+ask the consultant for a step-back with [step-back-brief.md](step-back-brief.md) and record it;
+pass it to `round` with `--step-back <ask id> --record <file> --method <text> --lead <you>`. For a granted round, report the chosen option with `bmn grant report --run
 <Run id> --boundary <boundary> --step-back --text <option>` before its use. The last round
-follows the recorded option, or the boundary parks BLOCKED when that option is to stop. With
-the rounds used, the skill's deferral or Needs your decision follows. Back during a granted
+follows the recorded method, or the boundary parks BLOCKED with no round used when none is
+different. With the rounds used, the skill's deferral or parking follows; no card asks for a round. Back during a granted
 round lets it finish; no new granted round starts.

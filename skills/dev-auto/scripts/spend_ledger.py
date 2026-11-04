@@ -30,7 +30,11 @@ and linked worktree of the epic sees the same rounds left (BMN 96.2). A boundary
 go (7.2) or `epic`, never a free name or an unplanned story a new run could pick again. `round` takes one under the
 lock only while the latest go's rounds exceed those used at that boundary under every go: a reapproval refills
 nothing used, and two runs cannot take the same round. A retry under the same use id returns the first answer.
-Without a recorded go there are none; a go the ledger lacks although a handoff of the project's worktrees already
+A run has at least ROUND_FLOOR at each boundary (his card, 2026-11-04, "4 rounds"): the greater of that and its go's number, and
+the floor where no go was ever recorded, on the stories the plan names now. It never applies to a go withdrawn or that cannot be
+confirmed, over his later narrower instruction (`limit`), or over what was already used. The last round at a boundary needs a
+step-back: an answered consultant ask, by another agent, naming the epic, the boundary and the hash of the current failed-method
+record, not used before; the ledger keeps its id and the method chosen. A go the ledger lacks although a handoff of the project's worktrees already
 names it, or whose epic row is in none of the not-started statuses (NOT_STARTED; an unknown status counts as begun),
 has every boundary counted as used up to the largest allowance any of its gos gave, kept in the ledger so that no later go refills it (BMN 96 D9). Each `open`, `round`
 and paid `launch` reads the go again: once the plan withdraws it (a row put back, a later hand go after `bmn plan
@@ -54,6 +58,7 @@ EXIT_REFUSED, EXIT_USAGE = 1, 2
 NOT_STARTED = ("ready", "backlog", "ready-for-dev", "contexted", "drafted", "optional")
 BUDGET_ID = re.compile(r"[0-9a-f]{16}-epic-\d+")
 BOUNDARY = re.compile(r"(\d+)\.\d+|epic")
+ROUND_FLOOR = 4
 
 
 def budgets() -> Path:
@@ -167,18 +172,35 @@ def rounds_used(data: dict, boundary: str) -> int:
     return sum(1 for use in data["rounds"].values() if use["answer"] == "TAKEN" and use["boundary"] == boundary)
 
 
+def round_limit(data: dict, go: dict | None) -> dict | None:
+    """His later narrower instruction, while the go it narrowed is the one in force."""
+    limit = data.get("round_limit")
+    return limit if limit and limit.get("go") == (go["commit"] if go else None) else None
+
+
+def rounds_allowed(data: dict, go: dict | None) -> int:
+    """Per boundary: the greater of the floor and the go's number, or the floor with no go; his later limit caps either."""
+    allowed = max(go.get("rounds", 0), ROUND_FLOOR) if go else (data["floor"]["rounds"] if data.get("floor") else 0)
+    limit = round_limit(data, go)
+    return min(allowed, limit["rounds"]) if limit else allowed
+
+
 def describe_go(data: dict) -> list[str]:
     """The go in force and the rounds it leaves at each boundary used so far, for the handoff's Go field."""
     go = latest_go(data)
     if go is None and data["gos"] and data["gos"][-1].get("kind") == "withdrawn":
         return [f"GO: withdrawn ({data['gos'][-1]['reason']}); no extra repair rounds and no paid launch until his next go"]
+    limit = round_limit(data, go)
+    limited = f"; limit {limit['rounds']} from his words {limit['source']}" if limit else ""
+    if go is None and data.get("floor"):
+        return [f"GO: none recorded; {rounds_allowed(data, None)} extra repair rounds per boundary by default, no deferrals and no paid launch{limited}"]
     if go is None:
         return ["GO: none recorded; no extra repair rounds (the invocation's allowance only)"]
     boundaries = sorted({use["boundary"] for use in data["rounds"].values() if use["answer"] == "TAKEN"})
     used = ", ".join(f"{b} {rounds_used(data, b)} used" for b in boundaries) or "none used"
     return [f"GO: {go['date']} commit {go['commit'][:12]}; source {go.get('source') or 'not recorded'}; "
             f"approved text {go.get('approved_text') or 'not recorded'}",
-            f"ROUNDS: {go.get('rounds', 0)} extra per boundary from this go; {used}" + (f" ({go['rounds_lost']})" if go.get("rounds_lost") else "")]
+            f"ROUNDS: {rounds_allowed(data, go)} extra per boundary from this go{limited}; {used}" + (f" ({go['rounds_lost']})" if go.get("rounds_lost") else "")]
 
 
 def describe(budget: str, data: dict) -> str:
@@ -288,10 +310,82 @@ def open_budget(args: dict) -> int:
         elif go := latest_go(data):
             # The plan no longer gives the go in force: put back, or a later go that names no act (BMN 96 recheck).
             withdraw(data, go, needs.get("reason") or needs["state"])
+        # Written only where the plan says no go was ever recorded and the ledger never saw one withdrawn (D19).
+        if needs["state"] != "GO" and needs.get("floor") and not any(go.get("kind") in ("go", "withdrawn") for go in data["gos"]):
+            data["floor"] = {"rounds": ROUND_FLOOR, "state": needs["state"], "at": now()}
+        else:
+            data.pop("floor", None)
         ledger.save()
         print(describe(budget, data))
         for line in describe_go(data):
             print(line)
+    return 0
+
+
+def floor_stories(data: dict) -> tuple[list[str] | None, str]:
+    """The stories a go-less floor may use, read from the plan now, or None and why it no longer stands."""
+    import run_needs
+    try:
+        needs = run_needs.run_needs(Path(data.get("project") or data["plan_root"]), int(data["epic"]))
+    except (RuntimeError, OSError, subprocess.SubprocessError, ValueError, KeyError) as exc:
+        return None, f"the plan cannot be read now: {exc}"
+    if needs["state"] == "GO":
+        return None, f"go {needs['go_commit'][:12]} exists now: open the ledger again"
+    return (needs.get("stories", []), "") if needs.get("floor") else (None, needs.get("reason") or needs["state"])
+
+
+def step_back_problem(data: dict, budget: str, boundary: str, args: dict) -> str | None:
+    """Why this ask is no step-back for the last round at this boundary (D19); None when it is one."""
+    ask, record, method, lead = (args.get(name) for name in ("--step-back", "--record", "--method", "--lead"))
+    if not (ask and record and method and method.strip() and lead):
+        return "it needs --step-back ASK, --record FILE, --method TEXT and --lead AGENT: read references/step-back-brief.md"
+    if any(use.get("step_back") == ask for use in data["rounds"].values()):
+        return f"ask {ask} already paid for a last round"
+    chosen = " ".join(method.lower().split())
+    if any(" ".join(str(use.get("method", "")).lower().split()) == chosen and use["boundary"] == boundary for use in data["rounds"].values()):
+        return "that method was already taken here: choose a different one or park"
+    try:
+        done = subprocess.run(["bmn", "team", "asks", "show", ask, "--json"], capture_output=True, text=True, timeout=30)
+        shown = json.loads(done.stdout) if done.returncode == 0 else None
+        digest = hashlib.sha256(Path(record).read_bytes()).hexdigest()
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+        return f"the ask or the record cannot be read: {exc}"
+    if not isinstance(shown, dict):
+        return f"BMN knows no ask {ask}"
+    if shown.get("state") != "answered" or str(shown.get("exit")) != "0" or not str(shown.get("answer") or "").strip():
+        return f"ask {ask} did not end in an answer"
+    if shown.get("role") != "consultant":
+        return f"ask {ask} went to the {shown.get('role')} role, not the consultant"
+    if (shown.get("teammate") or {}).get("agent") == lead:
+        return "the lead answered its own ask"
+    try:
+        question = (Path(str(shown.get("record"))) / "question.md").read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return f"ask {ask}'s question cannot be read: {exc}"
+    line = f"Step-back: epic {budget.rsplit('-', 1)[1]} boundary {boundary} record sha256:{digest}"
+    if line not in question.splitlines():
+        return f"ask {ask} does not name this epic, boundary and failed-method record: its question lacks `{line}`"
+    return None
+
+
+def set_limit(args: dict) -> int:
+    budget, source = args.get("--budget"), (args.get("--source") or "").strip()
+    try:
+        rounds = int(args.get("--rounds") or "x")
+    except ValueError:
+        rounds = -1
+    if not (budget and source) or rounds < 0:
+        print("USAGE: limit needs --budget, --rounds N (0 or more) and his words in --source")
+        return EXIT_USAGE
+    with (ledger := Ledger(budget)) as data:
+        go = latest_go(data)
+        earlier = round_limit(data, go)
+        if earlier and rounds > earlier["rounds"]:
+            print(f"REFUSED: his limit of {earlier['rounds']} stands; only his next go lifts it; nothing changed")
+            return EXIT_REFUSED
+        data["round_limit"] = {"rounds": rounds, "source": source, "go": go["commit"] if go else None, "at": now()}
+        ledger.save()
+        print(f"LIMITED: {rounds} extra per boundary, from his words {source}")
     return 0
 
 
@@ -322,16 +416,31 @@ def take_round(args: dict) -> int:
         if go and match.group(1) and boundary not in go.get("stories", []):
             print(f"USAGE: {boundary} is not one of the stories epic {data.get('epic')} had at its go ({', '.join(go.get('stories', [])) or 'none'}); nothing taken")
             return EXIT_USAGE
-        allowed = go.get("rounds", 0) if go else 0
+        if go is None and data.get("floor"):
+            stories, why = floor_stories(data)
+            if stories is None:
+                print(f"REFUSED: round {use_id} at {boundary}: {why}; nothing taken")
+                return EXIT_REFUSED
+            if match.group(1) and boundary not in stories:
+                print(f"USAGE: {boundary} is not one of the stories epic {data.get('epic')} names now ({', '.join(stories) or 'none'}); nothing taken")
+                return EXIT_USAGE
+        allowed = rounds_allowed(data, go)
         used = rounds_used(data, boundary)
         answer = "TAKEN" if used < allowed else "REFUSED"
-        data["rounds"][use_id] = {"answer": answer, "boundary": boundary, "go": go["commit"] if go else None, "at": now()}
+        use = {"answer": answer, "boundary": boundary, "go": go["commit"] if go else None, "at": now()}
+        if answer == "TAKEN" and used + 1 == allowed:
+            problem = step_back_problem(data, budget, boundary, args)
+            if problem:  # not recorded: the same use id takes the round once its step-back holds
+                print(f"REFUSED: round {use_id} is the last at {boundary} and needs a step-back: {problem}; nothing taken")
+                return EXIT_REFUSED
+            use.update(step_back=args.get("--step-back"), method=args.get("--method"), lead=args.get("--lead"))
+        data["rounds"][use_id] = use
         ledger.save()
         if answer == "REFUSED":
-            reason = "no recorded go gives extra rounds" if go is None else f"the go gives {allowed} extra per boundary and {used} are used at {boundary}"
+            reason = "no recorded go gives extra rounds" if not allowed and go is None else f"{allowed} extra per boundary and {used} are used at {boundary}"
             print(f"REFUSED: round {use_id} at {boundary}: {reason}; nothing taken")
             return EXIT_REFUSED
-        print(f"TAKEN: round {use_id} at {boundary}, {used + 1} of {allowed} from go {go['commit'][:12]}")
+        print(f"TAKEN: round {use_id} at {boundary}, {used + 1} of {allowed} from {'go ' + go['commit'][:12] if go else 'the default'}")
     return 0
 
 
@@ -443,6 +552,8 @@ def main(argv: list[str]) -> int:
             return launch(args, job_argv)
         if argv[0] in ("settle", "release"):
             return close(args, argv[0])
+        if argv[0] == "limit":
+            return set_limit(args)
         if argv[0] == "round":
             return take_round(args)
         if argv[0] == "status":
