@@ -44,7 +44,7 @@ SECTIONS = ("Run needs", "Decisions")
 # The day after `bmn plan go` was delivered (BMN Epic 96): a go without its recorded act committed from then grants nothing.
 HAND_GO_CUTOVER = "2026-10-27"
 # BMN Story 103.4's Prepared line: the kinds its template names.
-PREPARED_KINDS = "account|credential|service|command|message|owner step"
+PREPARED_KINDS = "account|credential|service|command|message|person|owner step"
 PREPARED_NEED = re.compile(rf"^((?:{PREPARED_KINDS})(?:\s*,\s*(?:{PREPARED_KINDS}))*)\s*:\s*(.*)$", re.I | re.S)
 NONE_BECAUSE = re.compile(r"^none\s*,?\s*because\s+(.+)$", re.I | re.S)
 CHECKED_ON = re.compile(r"\bchecked\s+(\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01]))\b")
@@ -243,8 +243,20 @@ def prepared_problems(found: list[dict]) -> list[str]:
     return problems
 
 
+def parse_messages(value: str) -> list[dict]:
+    """`<person>, <on|in|by|via> <destination>: <purpose>`, sentence by sentence (BMN D4); a line without a destination, such as `bmn tell`, names no message."""
+    value = re.sub(r"^.*?\bper person:\s*", "", value)
+    entries = []
+    for sentence in re.split(r"(?<=\.)\s+", value):
+        match = re.match(r"^(.+?), ((?:on|in|by|via) .+?): (.+?)\.?$", sentence.strip())
+        if match:
+            people = [p.strip() for p in re.split(r",\s*|\s+and\s+", match.group(1))] if "(" not in match.group(1) else [match.group(1).split(" (")[0].strip()]
+            entries.append({"people": people, "destination": re.sub(r"^(?:on|in|by|via) ", "", match.group(2)), "purpose": match.group(3)})
+    return entries
+
+
 def parse_needs(text: str | None) -> dict:
-    needs = {"rounds": 0, "deferrable": [], "money_cap": None, "named_actions": None, "prepared": []}
+    needs = {"rounds": 0, "deferrable": [], "money_cap": None, "named_actions": None, "prepared": [], "messages": []}
     seen_prepared = False
     for line in (text or "").splitlines():
         prepared = PREPARED_LINE.fullmatch(line.rstrip())
@@ -265,6 +277,8 @@ def parse_needs(text: str | None) -> dict:
         elif "money cap" in name:
             amount = re.search(r"\$\s?(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s?(?:USD|dollars)", value)
             needs["money_cap"] = None if value.lower().startswith("none") or not amount else float(amount.group(1) or amount.group(2))
+        elif name == "messages":
+            needs["messages"] = [] if value.lower().startswith("none") else parse_messages(value)
         elif "named action" in name:
             needs["named_actions"] = None if value.lower().startswith("none") else value
     return needs
@@ -410,6 +424,8 @@ def main(argv: list[str]) -> int:
         print("RUN NEEDS (his instruction for this epic's runs, as recorded at the go):")
         print(result["run_needs"])
         print(f"DECISIONS: read at the go, {result['decisions_at_go']}")
+        for one in result["parsed"]["messages"]:
+            print(f"MESSAGE: {' / '.join(one['people'])}; --destination {one['destination']!r}; --purpose {one['purpose']!r}")
         prepared = result["parsed"]["prepared"]
         if prepared:
             print("PREPARED (run each check yourself, as its own tool call; a failed need parks only the stories that name it):")

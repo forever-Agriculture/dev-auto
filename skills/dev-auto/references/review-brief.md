@@ -24,6 +24,8 @@ single line `RESULT: done`. The questions below are for the strong review.
 
 ## Questions for the reviewer
 
+For a plan under review: does each answer in the epic's `## Challenges` hold (Scale, Origin, Verified, Exists, People)? Check it against the code and the people named.
+
 1. Does the implementation satisfy the original epic intent and the project's
    architecture and goals? Name omissions, misunderstood intent, and drift.
 2. For each changed consequential boundary, derive adversarial cases from its

@@ -59,6 +59,7 @@ NOT_STARTED = ("ready", "backlog", "ready-for-dev", "contexted", "drafted", "opt
 BUDGET_ID = re.compile(r"[0-9a-f]{16}-epic-\d+")
 BOUNDARY = re.compile(r"(\d+)\.\d+|epic")
 ROUND_FLOOR = 4
+MESSAGES_PER_PURPOSE = 2  # his card, 2026-11-04
 
 
 def budgets() -> Path:
@@ -389,6 +390,76 @@ def set_limit(args: dict) -> int:
     return 0
 
 
+def message_entry(needs: dict, person: str, destination: str, purpose: str) -> bool:
+    """Whether Run needs name this person, destination and purpose (BMN D4); `each ...` names a role, filled by a person the run finds."""
+    same = lambda a, b: " ".join(a.lower().split()) == " ".join(b.lower().split())
+    for entry in needs["parsed"].get("messages", []):
+        named = any(same(person, one) or one.lower().startswith("each ") for one in entry["people"])
+        if named and same(destination, entry["destination"]) and same(purpose, entry["purpose"]):
+            return True
+    return False
+
+
+def message(args: dict, verb: str) -> int:
+    budget, use_id = args.get("--budget"), args.get("--use-id")
+    if verb == "list":
+        with Ledger(budget or "") as data:
+            for use, one in data.get("messages", {}).items():
+                state = one["state"] if one["state"] != "reserved" else "uncertain (no receipt: read the destination, never send again)"
+                print(f"{use}: {one['person']}; {one['destination']}; {one['purpose']}; {state}{'; ' + one['receipt'] if one.get('receipt') else ''}")
+        return 0
+    if not (budget and use_id):
+        print("USAGE: message reserve|sent|unsent needs --budget and --use-id")
+        return EXIT_USAGE
+    with (ledger := Ledger(budget)) as data:
+        messages = data.setdefault("messages", {})
+        earlier = messages.get(use_id)
+        if verb in ("sent", "unsent"):
+            if not earlier:
+                print(f"REFUSED: no message use {use_id}")
+                return EXIT_REFUSED
+            word = args.get("--receipt") if verb == "sent" else args.get("--read")
+            if not word:
+                print(f"USAGE: message {verb} needs {'--receipt' if verb == 'sent' else '--read, what the destination shows'}")
+                return EXIT_USAGE
+            earlier.update(state=verb, **({"receipt": word} if verb == "sent" else {"read": word}), closed=now())
+            ledger.save()
+            print(f"{verb.upper()}: {use_id}")
+            return 0
+        person, destination, purpose, text_hash = (args.get(name) for name in ("--person", "--destination", "--purpose", "--text-hash"))
+        if not (person and destination and purpose and text_hash):
+            print("USAGE: message reserve needs --person, --destination, --purpose and --text-hash")
+            return EXIT_USAGE
+        if earlier:
+            print(f"RESERVED: {use_id} was reserved first at {earlier['at']}; state {earlier['state']}; nothing counted again")
+            return 0
+        go = latest_go(data)
+        state, why = go_now(data, go) if go else ("withdrawn", "no go in force names a message")
+        if go and state == "withdrawn":
+            withdraw(data, go, why)
+            ledger.save()
+        if state != "stands":
+            print(f"REFUSED: message {use_id}: {'the go was withdrawn' if go and state == 'withdrawn' else why}: {why}; leave a draft in the report")
+            return EXIT_REFUSED
+        import run_needs
+        needs = run_needs.run_needs(Path(data.get("project") or data["plan_root"]), int(data["epic"]))
+        if not message_entry(needs, person, destination, purpose):
+            print(f"REFUSED: message {use_id}: Run needs do not name {person}, {destination}, {purpose}; leave a draft in the report")
+            return EXIT_REFUSED
+        counted = [one for one in messages.values() if one["state"] != "unsent"]
+        if any(one["text_hash"] == text_hash and one["person"] == person for one in counted):
+            print(f"REFUSED: message {use_id}: this text already went to {person}; nothing reserved")
+            return EXIT_REFUSED
+        same = [one for one in counted if one["person"] == person and one["purpose"] == purpose]
+        if len(same) >= MESSAGES_PER_PURPOSE:
+            print(f"REFUSED: message {use_id}: {person} has had {len(same)} of {MESSAGES_PER_PURPOSE} for this purpose; leave a draft in the report")
+            return EXIT_REFUSED
+        messages[use_id] = {"person": person, "destination": destination, "purpose": purpose, "text_hash": text_hash, "state": "reserved", "at": now()}
+        ledger.save()
+        print(f"RESERVED: {use_id}, {len(same) + 1} of {MESSAGES_PER_PURPOSE} to {person} for this purpose; send it, then `message sent --use-id {use_id} --receipt <where it is>`")
+    return 0
+
+
 def take_round(args: dict) -> int:
     budget, boundary, use_id = args.get("--budget"), args.get("--boundary"), args.get("--use-id")
     if not (budget and boundary and use_id):
@@ -552,6 +623,8 @@ def main(argv: list[str]) -> int:
             return launch(args, job_argv)
         if argv[0] in ("settle", "release"):
             return close(args, argv[0])
+        if argv[0] == "message":
+            return message(args, argv[1] if len(argv) > 1 else "")
         if argv[0] == "limit":
             return set_limit(args)
         if argv[0] == "round":

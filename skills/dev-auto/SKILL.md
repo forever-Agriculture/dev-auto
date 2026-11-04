@@ -143,6 +143,10 @@ noted `deferred: <N.M ACk>, <reason>`; Known limits; a new story proposed) and c
 the story parks BLOCKED with its evidence and every other story continues: record the brake
 record, the consultant's options and your recommendation in the report, and ask him for no round;
 nothing lifts an authorization, spend, review allowance or acceptance gate.
+A message the go's Run needs name (`run_needs.py` prints each) goes only to that person, destination
+and purpose, only facts or access, no commitments, saying his agent wrote it. Before sending, `spend_ledger.py message reserve`
+(refused past 2 per purpose, or for the same text); after, `message sent --receipt`. With no receipt, read the
+destination and record `sent` or `unsent`, never send again. Anything else waits as a draft in the report, which lists every message.
 Launch every paid job through `scripts/spend_ledger.py launch` against the go's money cap
 or one he set (`none`: no paid launch); never raise a cap or the total yourself.
 Before a paid or long run, use applicable evidence or the cheapest authorized check
