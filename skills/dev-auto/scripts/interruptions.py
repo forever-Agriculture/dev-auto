@@ -85,7 +85,7 @@ HIS = re.compile(r'credential|password|secret|api[ -]?key|access token|bot token
                  r'private data|personal data|clarification to|change (to )?(the )?(acceptance|criteri)|acceptance criteri|amend|'
                  r'phone check|on your phone|your (short |own |live |manual )?(phone )?(check|look|test|scorecard)|after you restart|your restart|by hand|'
                  r'(replace|instead of|swap) .{0,60}(judge|reviewer|model|sonnet|opus|astra|sol|luna|haiku|fable)|'
-                 r'third[- ]party|art|ann|dana|sue|another team|independent approval', re.I)
+                 r'third[- ]party|another team|independent approval', re.I)
 PUSH = re.compile(r'git push|push (main|master|to|the|it)|fast-forward|\bmerg|pull request|\bPRs?\b|pull/\d+|gh pr|packag|'
                   r'update:desktop|\brelease\b|deploy|gh auth switch', re.I)
 PLAN = re.compile(r'design|mock|screen|layout|scope|descope|defer|remaining (epics|stories|work)|continue|which (story|epic|option)|'

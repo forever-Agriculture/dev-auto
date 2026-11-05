@@ -133,4 +133,3 @@ python3 -m unittest discover -s tests
 - [SKILL.md](skills/dev-auto/SKILL.md): the workflow itself, which wins over any summary here
 - [DESIGN.md](DESIGN.md): why it is built this way
 - [LESSONS.md](LESSONS.md): lessons from the workflow it replaced
-- [docs/verification.md](docs/verification.md) and [docs/reviews/](docs/reviews/): dated records, which describe the version and models of their day

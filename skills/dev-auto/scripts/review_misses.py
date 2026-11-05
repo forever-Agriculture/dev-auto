@@ -6,7 +6,7 @@ Usage: review_misses.py --owner OWNER --since YYYY-MM-DD [--author LOGIN] [--les
 
 Pull requests created or closed since DATE are grouped by the `T<N>` in their title, else listed alone. Each one
 is docs-only when all its files end in `.md` or sit under `docs/`, else eligible. It is reviewed only when it holds
-the record comment, whose first line starts `Agent review (review-tools:review) at <sha12>, final <sha12>:`; a pull
+the record comment, whose first line starts `Agent review (<tool>:review) at <sha12>, final <sha12>:`; a pull
 request without it is not reviewed, whatever else happened on it.
 
 Candidates are events a person should look at, never misses: CHANGES_REQUESTED or a line comment by a person other
@@ -29,11 +29,19 @@ import time
 SEARCH_LIMIT = 1000
 REVERT_LIMIT = 200
 WORKERS = 8
-RECORD = re.compile(r"^Agent review \(review-tools:review\) at ([0-9a-f]{12}), final ([0-9a-f]{12}):")
+RECORD = re.compile(r"^Agent review \([^()\s]+:review\) at ([0-9a-f]{12}), final ([0-9a-f]{12}):")
 TICKET = re.compile(r"\bT(\d+)\b", re.I)
 BANNER = re.compile(r"^\+\s*\W{1,4}\s*(?:region\s+)?MODULE:")
 PULL_LINK = re.compile(r"github\.com/([^/\s]+/[^/\s]+)/pull/(\d+)")
-DEFAULT_LESSONS = Path.home() / "code" / "ProjectP" / ".claude" / "review-lessons.md"
+LESSONS_NAME = Path(".claude") / "review-lessons.md"
+
+
+def default_lessons(start: Path) -> Path:
+    """The nearest project lessons file from START upward, else the path it would have there."""
+    for folder in (start, *start.parents):
+        if (folder / LESSONS_NAME).is_file():
+            return folder / LESSONS_NAME
+    return start / LESSONS_NAME
 
 
 class OutOfTime(Exception):
@@ -273,7 +281,7 @@ def main(argv: list[str]) -> int:
     except ValueError:
         print(__doc__, file=sys.stderr)
         return 2
-    result = report(values["--owner"], values["--since"], values.get("--author"), Path(values.get("--lessons", DEFAULT_LESSONS)), seconds)
+    result = report(values["--owner"], values["--since"], values.get("--author"), Path(values["--lessons"]) if "--lessons" in values else default_lessons(Path.cwd()), seconds)
     print(json.dumps(result, indent=1) if "--json" in argv else text(result))
     return 0
 

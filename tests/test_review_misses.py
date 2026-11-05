@@ -242,5 +242,30 @@ class ReviewMissesTests(unittest.TestCase):
             self.assertEqual(done.returncode, 2, args)
 
 
+class LessonsAndRecordTests(unittest.TestCase):
+    def load(self):
+        spec = importlib.util.spec_from_file_location("review_misses_probe", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        return module
+
+    def test_lessons_file_is_found_from_a_nested_folder(self) -> None:
+        module = self.load()
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            nested = root / "repo" / "src"
+            nested.mkdir(parents=True)
+            self.assertEqual(module.default_lessons(nested), nested / ".claude" / "review-lessons.md", "nothing found: the path it would have")
+            (root / ".claude").mkdir()
+            (root / ".claude" / "review-lessons.md").write_text("escape:\n")
+            self.assertEqual(module.default_lessons(nested), root / ".claude" / "review-lessons.md")
+
+    def test_record_line_names_any_review_tool_but_only_a_review(self) -> None:
+        record = self.load().RECORD
+        self.assertTrue(record.match("Agent review (some-tools:review) at aaaaaaaaaaaa, final bbbbbbbbbbbb: 0 open."))
+        self.assertFalse(record.match("Agent review (some-tools:other) at aaaaaaaaaaaa, final bbbbbbbbbbbb: 0 open."))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,7 +1,7 @@
 <!-- MODULE: DESIGN.md - why dev-auto is built the way it is today -->
 # dev-auto design
 
-`skills/dev-auto/SKILL.md` is the workflow; this file says why it has that shape. Earlier proposals and the v0 specification are in git history, and `docs/verification.md` and `docs/reviews/` are dated records of how it got here.
+`skills/dev-auto/SKILL.md` is the workflow; this file says why it has that shape. Earlier proposals and the v0 specification are in git history.
 
 ## Purpose
 
