@@ -87,6 +87,49 @@ class MovedPlanTests(unittest.TestCase):
             self.assertEqual(after[key], before[key], key)
         self.assertEqual(after["go_commit"], original)
 
+    def test_a_go_only_in_local_commits_survives_a_divergent_cutover_and_needs_the_cutover_to_name_it(self):
+        self.file("product.txt", "base\n")
+        self.commit("base")
+        base = self.git("rev-parse", "HEAD")
+        branch = self.git("branch", "--show-current")
+        self.file(OLD, "development_status:\n  epic-7: in-progress # go 2026-11-01\n")
+        local = self.commit("local go, never pushed")
+        before = self.read()
+        self.assertEqual(before["state"], "GO")
+        self.git("switch", "-qc", "upstream", base)
+        self.move(note="plan")
+        upstream = self.git("rev-parse", "HEAD")
+        self.file("plan/migration.json", json.dumps({"version": 1, "source_board": OLD, "history_head": base, "local_history_head": local}))
+        self.file("plan/status.yaml", f"format: bmn-plan\nschema_version: 1\nmoved_from: {OLD}\nqueue: []\ndevelopment_status:\n  epic-7: in-progress # go 2026-11-01\n  7-1-keep: backlog\n")
+        self.git("add", "-A")
+        tree = self.git("write-tree")
+        cutover = self.git("commit-tree", tree, "-p", local, "-p", upstream, "-m", "plan: bring the move up to the live plan\n\nPlan-Cutover: yes")
+        self.git("switch", "-qC", branch, cutover)
+        after = self.read(True)
+        for key in ("state", "go_commit", "go_date", "approved_text"):
+            self.assertEqual(after[key], before[key], key)
+        # The same field added by an ordinary later commit is refused, not trusted.
+        self.file("plan/migration.json", json.dumps({"version": 1, "source_board": OLD, "history_head": base, "local_history_head": base}))
+        self.commit("hand edit")
+        self.assertEqual(self.read(True)["state"], "NO_GO_RECORD")
+
+    def test_cutover_commit_never_turns_an_uncommitted_go_into_an_approval(self):
+        self.move(status="backlog", note="plan")
+        self.file("plan/status.yaml", f"format: bmn-plan\nschema_version: 1\nmoved_from: {OLD}\nqueue: []\ndevelopment_status:\n  epic-7: ready # go 2026-11-05\n  7-1-keep: backlog\n")
+        self.git("add", "-A")
+        self.git("commit", "-qm", "plan: bring the move up to the live plan\n\nPlan-Cutover: yes")
+        self.assertNotEqual(self.read(True)["state"], "GO")
+
+    def test_a_go_survives_retirement_and_restoration_of_the_old_board(self):
+        self.file(OLD, "development_status:\n  epic-7: in-progress # go 2026-11-01\n")
+        original = self.commit("old BMAD Go")
+        self.move()
+        self.git("rm", "-rqf", "plan")
+        self.file(OLD, "development_status:\n  epic-7: in-progress # go 2026-11-01\n")
+        self.commit("plan: roll back move and retain later rows")
+        after = self.read()
+        self.assertEqual((after["state"], after["go_commit"]), ("GO", original))
+
     def test_working_migration_metadata_cannot_replace_the_original_withdrawal_history_or_identity(self):
         alternate = "older/implementation-artifacts/sprint-status.yaml"
         self.file(OLD, "development_status:\n  epic-7: in-progress # go 2026-11-01\n")

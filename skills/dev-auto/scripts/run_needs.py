@@ -79,7 +79,7 @@ def row(board_text: str, epic: int) -> tuple[str, str] | None:
     return (match.group(1), match.group(2) or "") if match else None
 
 
-def find_gos(repo: Path, board: str, epic: int, bmad: bool, *, tip: str = "HEAD", after: str | None = None, initial_gos: list | None = None, initial_row: tuple | None = None) -> tuple[list[dict], tuple[str, str] | None]:
+def find_gos(repo: Path, board: str, epic: int, bmad: bool, *, tip: str = "HEAD", after: str | None = None, initial_gos: list | None = None, initial_row: tuple | None = None, silent: frozenset[str] = frozenset()) -> tuple[list[dict], tuple[str, str] | None]:
     """Every go of the epic in the board's history, oldest first, each with the withdrawal that followed it; and the row at the last commit."""
     commits = git(repo, "log", "--reverse", "--format=%H", tip, "--", board).split()
     # A commit bmn plan go wrote names the epic in its message; it is a go even when the row's line did not change (96 Astra review).
@@ -96,10 +96,16 @@ def find_gos(repo: Path, board: str, epic: int, bmad: bool, *, tip: str = "HEAD"
         try:
             current = row(git(repo, "show", f"{commit}:{board}"), epic)
         except RuntimeError:
+            if bmad:
+                continue  # A move retired the old board; a rollback restores it. Neither is a withdrawal.
             current = None  # the board was removed in this commit
         status, note = current or (None, "")
         match = GO_DATE.search(note)
         date = match.group(1) if match else None
+        if commit in silent:
+            # A cutover commit carries reconciled rows; it is the new comparison point and never an approval event.
+            previous = (status, date) if current else None
+            continue
         if bmad:
             new = date is not None and date != last_date
         else:
@@ -140,8 +146,19 @@ def migration_origin(repo: Path, plan_root: Path, board_rel: str, *, deadline: f
             if path.is_absolute() or any(part in (".", "..") for part in source.split("/")) or path.name != "sprint-status.yaml":
                 continue
             origin = {"source_board": source, "history_head": anchor, "boundary": commit}
+            local = json.loads(read("show", f"HEAD:{metadata_rel}")).get("local_history_head")
+            if local is not None:
+                # Local commits that stayed unpublished hold the gos the old reader saw; only the cutover commit may name them.
+                named = read("log", "--reverse", "--first-parent", "--format=%H", "-G", "local_history_head", "HEAD", "--", metadata_rel).split()
+                if not re.fullmatch(r"[0-9a-f]{40,64}", str(local)) or not named or read("rev-parse", f"{named[0]}^1").strip() != local or "Plan-Cutover: yes" not in read("log", "-1", "--format=%B", named[0]):
+                    raise RuntimeError("the migration's local history cannot be confirmed")
+                origin["local_history_head"] = local
             break
-        except (RuntimeError, ValueError, KeyError, TypeError):
+        except (ValueError, KeyError, TypeError):
+            continue
+        except RuntimeError as exc:
+            if "local history" in str(exc):
+                raise
             continue
     if origin is None:
         if moved or metadata_path.exists():
@@ -156,13 +173,14 @@ def migration_origin(repo: Path, plan_root: Path, board_rel: str, *, deadline: f
 def moved_gos(repo: Path, plan_root: Path, board_rel: str, epic: int, origin: dict) -> tuple[list[dict], tuple | None]:
     """A copied row or retirement of the old board is no approval event."""
     source, anchor, boundary = (origin[key] for key in ("source_board", "history_head", "boundary"))
-    old, previous = find_gos(repo, source, epic, True, tip=anchor)
+    old, previous = find_gos(repo, source, epic, True, tip=origin.get("local_history_head") or anchor)
     old = [{**go, "bmad": True} for go in old]
     # Preserve the old reader's committed-status comparison through a status-word-only mapping.
     mapped = {"ready-for-dev": "ready", "superseded": "dropped", "withdrawn": "dropped", "skipped": "dropped", "deferred": "paused"}
     if previous:
         previous = (mapped.get(previous[0], previous[0]), previous[1])
-    return find_gos(repo, board_rel, epic, False, after=boundary, initial_gos=old, initial_row=previous)
+    cutovers = frozenset(git(repo, "log", "--format=%H", "-E", "--grep=^Plan-Cutover: yes$", "HEAD").split())
+    return find_gos(repo, board_rel, epic, False, after=boundary, initial_gos=old, initial_row=previous, silent=cutovers)
 
 
 def sections(text: str | None) -> dict[str, str | None]:
