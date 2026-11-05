@@ -29,6 +29,9 @@ go on under the invocation with what `open` printed and without deferrals; a wit
 unconfirmed go prints no rounds, and his later narrower word is recorded with `spend_ledger.py
 limit`. Approval evidence you find explains the missing
 record in the handoff, grants nothing and never makes you ask him to restate or record a go.
+An epic with `plan/allowances/NNN.yaml` (BMN `docs/planning.md`) has every limit there; `open` prints them. Before each use run
+`spend_ledger.py use --limit NAME --boundary B --amount A --use-id ID`, which reads the file each time, and use one id per use. A limit used up with room under its ceiling: raise it with
+`bmn plan allow N limits.NAME.limit=V --reason R --expect TOKEN` (token from `bmn plan allowances N --json`) and go on, no card. At the ceiling that story parks and every other continues, or one card if the epic says so. Do what `may` names without a card, never ask to cross `stays_out`. A card you raise recommends a limit that finishes the work, never one more slice, and never one narrower than the file's. A host's or reviewer's refusal of a `may` action stands: defer that action and name it in the report.
 Its Run needs may list `Prepared` (BMN Epic 103), printed by `run_needs.py`. At the run's start and at
 his departure, run each `check:` yourself, as its own tool call under the app's and the guard's
 rules (BMN never runs one), and write each result to the handoff. A failed need, or an owner step

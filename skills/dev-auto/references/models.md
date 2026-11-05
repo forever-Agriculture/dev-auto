@@ -41,9 +41,11 @@ BLOCKED, never substituted.
   new run of the same reviewer under the same role. `small_work` is the candidate for a
   small, well-evidenced epic's review.
 - **How to read it.** Honor applicable owner model choices (SKILL.md, Owner decisions);
-  otherwise BMN asks the first eligible candidate that may get the data. Move to the
-  next only when that route fails or is unavailable (error, quota, missing access),
-  leaves the question unresolved or cannot do the task, naming it with `--agent`, and
+  otherwise BMN asks the first eligible candidate that may get the data: the first agent
+  of a role is the default. A lead may pick another for its own helpers with `--agent` and
+  says why in one line (owner, 2026-11-05: "I want lead models to have flexibility to
+  choose"). Otherwise move to the next when that route fails or is unavailable (error,
+  quota, missing access), leaves the question unresolved or cannot do the task, and
   follow `then` after the last candidate. A good enough answer ends it. Record the route
   and the reason for any move. Codex agents spend Codex quota, Claude Code agents Claude
   quota.
