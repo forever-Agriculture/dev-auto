@@ -31,6 +31,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 GO_DATE = re.compile(r"\bgo (\d{4}-\d{2}-\d{2})\b")
@@ -52,8 +53,8 @@ CHECKED_ON = re.compile(r"\bchecked\s+(\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|
 PREPARED_LINE = re.compile(r"\s*(?:[-*]\s*)?\*\*prepared:?\*\*:?\s*(.*)", re.I)
 
 
-def git(repo: Path, *args: str) -> str:
-    done = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=60)
+def git(repo: Path, *args: str, timeout: float = 60) -> str:
+    done = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=timeout)
     if done.returncode != 0:
         raise RuntimeError(done.stderr.strip()[:200] or f"git {args[0]} failed")
     return done.stdout
@@ -78,15 +79,19 @@ def row(board_text: str, epic: int) -> tuple[str, str] | None:
     return (match.group(1), match.group(2) or "") if match else None
 
 
-def find_gos(repo: Path, board: str, epic: int, bmad: bool) -> tuple[list[dict], tuple[str, str] | None]:
+def find_gos(repo: Path, board: str, epic: int, bmad: bool, *, tip: str = "HEAD", after: str | None = None, initial_gos: list | None = None, initial_row: tuple | None = None) -> tuple[list[dict], tuple[str, str] | None]:
     """Every go of the epic in the board's history, oldest first, each with the withdrawal that followed it; and the row at the last commit."""
-    commits = git(repo, "log", "--reverse", "--format=%H", "--", board).split()
+    commits = git(repo, "log", "--reverse", "--format=%H", tip, "--", board).split()
     # A commit bmn plan go wrote names the epic in its message; it is a go even when the row's line did not change (96 Astra review).
-    recorded = set() if bmad else set(git(repo, "log", "--format=%H", "-E", f"--grep=^Go-Epic: 0*{epic}[[:space:]]*$").split())
+    recorded = set() if bmad else set(git(repo, "log", "--format=%H", "-E", f"--grep=^Go-Epic: 0*{epic}[[:space:]]*$", tip).split())
     if recorded - set(commits):
         wanted = set(commits) | recorded
-        commits = [commit for commit in git(repo, "rev-list", "--reverse", "--topo-order", "HEAD").split() if commit in wanted]
-    gos, previous, last_date = [], None, None
+        commits = [commit for commit in git(repo, "rev-list", "--reverse", "--topo-order", tip).split() if commit in wanted]
+    if after:
+        preceding = set(git(repo, "rev-list", after).split())
+        commits = [commit for commit in commits if commit not in preceding]
+    gos, previous = [dict(go) for go in initial_gos or []], initial_row
+    last_date = gos[-1]["date"] if gos else None
     for commit in commits:
         try:
             current = row(git(repo, "show", f"{commit}:{board}"), epic)
@@ -107,6 +112,57 @@ def find_gos(repo: Path, board: str, epic: int, bmad: bool) -> tuple[list[dict],
             gos[-1]["withdrawn"] = {"commit": commit, "status": status or "off the board"}
         previous = (status, date) if current else None
     return gos, previous
+
+
+def migration_origin(repo: Path, plan_root: Path, board_rel: str, *, deadline: float | None = None) -> dict | None:
+    """The first committed move owns the source and history pin; working declarations cannot replace it."""
+    deadline = time.monotonic() + 60 if deadline is None else deadline
+    def read(*args):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(["git", *args], 0)
+        return git(repo, *args, timeout=remaining)
+    header = (plan_root / "status.yaml").read_text() if (plan_root / "status.yaml").is_file() else ""
+    moved = re.search(r"^moved_from:\s*([^\s#]+)", header, re.M)
+    metadata_path = plan_root / "migration.json"
+    metadata_rel = metadata_path.relative_to(repo).as_posix()
+    origin = None
+    for commit in read("log", "--reverse", "--topo-order", "--full-history", "--diff-filter=A", "--format=%H", "HEAD", "--", metadata_rel).split():
+        try:
+            recorded = json.loads(read("show", f"{commit}:{metadata_rel}"))
+            source, anchor = recorded["source_board"], recorded["history_head"]
+            committed = re.search(r"^moved_from:\s*([^\s#]+)", read("show", f"{commit}:{board_rel}"), re.M)
+            if recorded.get("version") != 1 or not committed or committed.group(1) != source:
+                continue
+            if not isinstance(anchor, str) or not re.fullmatch(r"[0-9a-f]{40,64}", anchor) or read("rev-parse", f"{commit}^1").strip() != anchor:
+                continue  # A publication projection is not the original cutover.
+            path = Path(source)
+            if path.is_absolute() or any(part in (".", "..") for part in source.split("/")) or path.name != "sprint-status.yaml":
+                continue
+            origin = {"source_board": source, "history_head": anchor, "boundary": commit}
+            break
+        except (RuntimeError, ValueError, KeyError, TypeError):
+            continue
+    if origin is None:
+        if moved or metadata_path.exists():
+            raise RuntimeError("the migration has no confirmed committed cutover boundary")
+        return None
+    metadata = json.loads(metadata_path.read_text())
+    if not isinstance(metadata, dict) or not moved or moved.group(1) != origin["source_board"] or metadata.get("version") != 1 or any(metadata.get(key) != origin[key] for key in ("source_board", "history_head")):
+        raise RuntimeError("working migration declarations differ from the original committed move")
+    return origin
+
+
+def moved_gos(repo: Path, plan_root: Path, board_rel: str, epic: int, origin: dict) -> tuple[list[dict], tuple | None]:
+    """A copied row or retirement of the old board is no approval event."""
+    source, anchor, boundary = (origin[key] for key in ("source_board", "history_head", "boundary"))
+    old, previous = find_gos(repo, source, epic, True, tip=anchor)
+    old = [{**go, "bmad": True} for go in old]
+    # Preserve the old reader's committed-status comparison through a status-word-only mapping.
+    mapped = {"ready-for-dev": "ready", "superseded": "dropped", "withdrawn": "dropped", "skipped": "dropped", "deferred": "paused"}
+    if previous:
+        previous = (mapped.get(previous[0], previous[0]), previous[1])
+    return find_gos(repo, board_rel, epic, False, after=boundary, initial_gos=old, initial_row=previous)
 
 
 def sections(text: str | None) -> dict[str, str | None]:
@@ -298,6 +354,12 @@ def run_needs(project: Path, epic: int) -> dict:
         repo = plan_root
     prefix = "" if plan_root == repo else plan_root.relative_to(repo).as_posix() + "/"
     identity = {"plan_root": str(plan_root), "epic": epic, "format": status.get("format"), "history_repo": str(repo)}
+    if epic in status.get("conflicts", []):
+        return {**identity, "state": "PLAN_CONFLICT", "unconfirmed": True, "reason": "local and upstream plan values conflict; both are kept in the Git publication journal; this epic grants nothing"}
+    if status.get("authority_unconfirmed"):
+        return {**identity, "state": "NO_GO_RECORD", "unconfirmed": True, "reason": "publication authority journal cannot be confirmed; this plan grants nothing until it is readable"}
+    if status.get("default_available") is False:
+        return {**identity, "state": "NO_GO_RECORD", "unconfirmed": True, "reason": "NO_DEFAULT_CHECKOUT: canonical approval history cannot be confirmed"}
     board_rel = board.relative_to(repo).as_posix()
 
     def current_read(path: str):
@@ -317,16 +379,26 @@ def run_needs(project: Path, epic: int) -> dict:
         return None
 
     text_now = epic_now()
+    legacy = bool(re.search(r"^<!--\s*bmn-plan:\s*bmad-legacy\b", text_now or "", re.M))
+    try:
+        origin = migration_origin(repo, plan_root, board_rel) if not bmad and board.is_file() else None
+    except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired) as exc:
+        return {**identity, "state": "NO_GO_RECORD", "unconfirmed": True, "reason": f"migration origin cannot be read or confirmed: {exc}"}
+    moved = origin is not None
     now = sections(text_now)
     # The default rounds (BMN D19): where no go was ever recorded, or his go stands; never where one was withdrawn or cannot be confirmed.
     floor = {"floor": True, "stories": STORY.findall(text_now or "")}
     try:
-        gos, committed_row = find_gos(repo, board_rel, epic, bmad)
-    except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
+        gos, committed_row = moved_gos(repo, plan_root, board_rel, epic, origin) if moved else find_gos(repo, board_rel, epic, bmad)
+    except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired) as exc:
+        if moved:
+            return {**identity, "state": "NO_GO_RECORD", "unconfirmed": True, "reason": f"old approval history cannot be confirmed: {exc}"}
         if now["Run needs"] is None:
             return {**identity, "state": "NO_RUN_NEEDS", "reason": "the epic has no Run needs"}
         return {**identity, "state": "NO_GO_RECORD", "reason": f"the board's history cannot be read: {exc}"}
     if not gos:
+        if legacy:
+            return {**identity, "state": "NEEDS_NORMALIZE", "reason": "unfinished legacy work has no confirmed historical Go; normalize its contract before a new Go"}
         board_now = row(board.read_text(encoding="utf-8", errors="replace"), epic) if board.exists() else None
         floor["row_status"] = board_now[0] if board_now else None
         if now["Run needs"] is None:
@@ -345,7 +417,7 @@ def run_needs(project: Path, epic: int) -> dict:
 
     def text_at(commit: str) -> str | None:
         """The epic's text as a go's commit holds it."""
-        if bmad:
+        if bmad or any(g["commit"] == commit and g.get("bmad") for g in gos):
             found = None
             for path in git(repo, "ls-tree", "-r", "--name-only", commit).split():
                 if path.endswith(".md") and "planning-artifacts" in path:
@@ -364,7 +436,10 @@ def run_needs(project: Path, epic: int) -> dict:
               "changed_since_go": changed, "approved_text": f"sha256:{approval_text(then)}"}
     recorded = trailers(git(repo, "log", "-1", "--format=%B", go["commit"]))
     result["approval_source"] = recorded["source"]
-    has_record = not bmad and any(recorded.values())
+    historical_bmad = bmad or go.get("bmad", False)
+    if legacy and not historical_bmad:
+        return {**result, "state": "NEEDS_NORMALIZE", "reason": "new approvals require normalized work; the legacy marker grants no exemption"}
+    has_record = not historical_bmad and any(recorded.values())
     result["provenance"] = "recorded" if has_record else "not recorded"
     if has_record:
         name = epic_name(epic, lambda path: read_in(go["commit"], path))
@@ -372,7 +447,7 @@ def run_needs(project: Path, epic: int) -> dict:
         if gaps:
             return {**result, "state": "NO_GO_RECORD", "provenance": "incomplete",
                     "reason": f"the go commit {go['commit'][:12]} names an incomplete or inconsistent record ({'; '.join(gaps)}); it grants nothing"}
-    late = None if bmad or has_record else hand_go_too_late(repo, go["commit"])
+    late = None if historical_bmad or has_record else hand_go_too_late(repo, go["commit"])
     if late:
         return {**result, "state": "NO_GO_RECORD",
                 "reason": f"the go commit {go['commit'][:12]} names no act of the owner and was {late}; it grants nothing: record his go with bmn plan go"}

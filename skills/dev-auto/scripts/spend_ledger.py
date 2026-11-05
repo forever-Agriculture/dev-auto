@@ -49,6 +49,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -87,11 +88,17 @@ class Ledger:
     def __init__(self, budget: str) -> None:
         if not BUDGET_ID.fullmatch(budget):
             raise ValueError(f"not a budget id: {budget}")
-        self.path = budgets() / f"{budget}.json"
-        self.lock = open(budgets() / f"{budget}.lock", "a+")
+        self.requested = budget
+        self.budget = resolve_budget(budget)
+        self.path = budgets() / f"{self.budget}.json"
+        self.lock = open(budgets() / f"{self.budget}.lock", "a+")
 
     def __enter__(self) -> dict:
         fcntl.flock(self.lock, fcntl.LOCK_EX)
+        if resolve_budget(self.requested) != self.budget:
+            fcntl.flock(self.lock, fcntl.LOCK_UN)
+            self.lock.close()
+            raise ValueError("MIGRATION_ALIAS_CHANGED: reopen the canonical budget")
         self.data = json.loads(self.path.read_text()) if self.path.exists() else {"gos": [], "jobs": {}}
         self.data.setdefault("rounds", {})
         return self.data
@@ -103,13 +110,64 @@ class Ledger:
             out.flush()
             os.fsync(out.fileno())
         os.replace(temporary, self.path)
+        sync_directory(self.path.parent)
+
+    def alias(self, other: str) -> None:
+        """Install only under the original permanent lock; never replace or rename either data file."""
+        if other == self.budget:
+            return
+        if not BUDGET_ID.fullmatch(other) or other.split("-epic-")[1] != self.budget.split("-epic-")[1]:
+            raise ValueError("MIGRATION_ALIAS_INVALID: budget epic differs")
+        if (budgets() / f"{other}.json").exists():
+            raise ValueError("MIGRATION_LEDGER_SPLIT: both budget data paths exist; neither is changed")
+        alias = budgets() / f"{other}.alias.json"
+        value = {"version": 1, "canonical": self.budget}
+        if alias.exists():
+            if json.loads(alias.read_text()) != value:
+                raise ValueError("MIGRATION_ALIAS_CONFLICT: existing alias is retained")
+            return
+        handle, temporary = tempfile.mkstemp(dir=alias.parent, prefix=".alias-")
+        try:
+            with os.fdopen(handle, "w") as out:
+                json.dump(value, out)
+                out.flush()
+                os.fsync(out.fileno())
+            os.replace(temporary, alias)
+            sync_directory(alias.parent)
+            if json.loads(alias.read_text()) != value:
+                raise ValueError("MIGRATION_ALIAS_READBACK: alias differs")
+        finally:
+            Path(temporary).unlink(missing_ok=True)
 
     def __exit__(self, *_: object) -> None:
         fcntl.flock(self.lock, fcntl.LOCK_UN)
         self.lock.close()
 
 
-def plan_identity(plan_root: str, timeout: float = 10) -> str:
+def sync_directory(path: Path) -> None:
+    handle = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(handle)
+    finally:
+        os.close(handle)
+
+
+def resolve_budget(budget: str) -> str:
+    alias = budgets() / f"{budget}.alias.json"
+    if not alias.exists():
+        return budget
+    value = json.loads(alias.read_text())
+    canonical = value.get("canonical")
+    if value.get("version") != 1 or not isinstance(canonical, str) or not BUDGET_ID.fullmatch(canonical) or canonical == budget or canonical.split("-epic-")[1] != budget.split("-epic-")[1]:
+        raise ValueError("MIGRATION_ALIAS_INVALID: expected a direct alias for this epic")
+    if (budgets() / f"{canonical}.alias.json").exists():
+        raise ValueError("MIGRATION_ALIAS_INVALID: alias chains are refused")
+    if (budgets() / f"{budget}.json").exists():
+        raise ValueError("MIGRATION_LEDGER_SPLIT: alias and a second data file coexist; neither is changed")
+    return canonical
+
+
+def location_identity(plan_root: str, timeout: float = 10) -> str:
     """The plan as every linked worktree sees it: its repository's shared Git folder and its path inside it."""
     root = Path(plan_root).resolve()
     try:
@@ -119,6 +177,32 @@ def plan_identity(plan_root: str, timeout: float = 10) -> str:
         return f"{common.resolve()}::{root.relative_to(Path(out[0]).resolve())}"
     except (OSError, subprocess.SubprocessError, IndexError, ValueError):
         return str(root)  # not in Git: the folder itself
+
+
+def plan_identity(plan_root: str, timeout: float = 10) -> str:
+    """A moved plan retains the committed original identity, even if working declarations are removed."""
+    import run_needs
+    deadline = time.monotonic() + timeout
+    root = Path(plan_root).resolve()
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise subprocess.TimeoutExpired(["git", "plan identity"], timeout)
+    try:
+        out = subprocess.run(["git", "-C", str(root), "rev-parse", "--show-toplevel", "--git-common-dir"], capture_output=True, text=True, timeout=remaining, check=True).stdout.splitlines()
+    except subprocess.CalledProcessError as exc:
+        if "not a git repository" not in (exc.stderr or ""):
+            raise RuntimeError("MIGRATION_IDENTITY_UNCONFIRMED: product repository cannot be read") from exc
+        if ((root / "status.yaml").is_file() and re.search(r"^moved_from:", (root / "status.yaml").read_text(), re.M)) or (root / "migration.json").exists():
+            raise ValueError("MIGRATION_IDENTITY_UNCONFIRMED: original product repository cannot be established")
+        return str(root)
+    repo = Path(out[0]).resolve()
+    origin = run_needs.migration_origin(repo, root, (root / "status.yaml").relative_to(repo).as_posix(), deadline=deadline)
+    common = Path(out[1]) if Path(out[1]).is_absolute() else root / out[1]
+    if origin is None:
+        return f"{common.resolve()}::{root.relative_to(repo)}"
+    if repo == root:
+        raise ValueError("MIGRATION_IDENTITY_UNCONFIRMED: original product repository cannot be established")
+    return f"{common.resolve()}::{Path(origin['source_board']).parent.parent}"
 
 
 def go_follows(plan_root: str, earlier: str, later: str) -> bool:
@@ -165,6 +249,8 @@ def go_now(data: dict, go: dict) -> tuple[str, str]:
         return "unreadable", f"the plan cannot be read now: {exc}"
     if needs["state"] == "GO":
         return ("stands", "") if needs["go_commit"] == go["commit"] else ("newer", f"go {needs['go_commit'][:12]} is newer: open the ledger again")
+    if needs["state"] in ("PLAN_CONFLICT", "NEEDS_NORMALIZE") or needs.get("unconfirmed"):
+        return "unreadable", f"{needs['state']}: {needs['reason']}"
     # Put back, or a later go that names no act (BMN 96 recheck): either way the go in force no longer stands.
     return "withdrawn", needs.get("reason") or needs["state"]
 
@@ -245,6 +331,13 @@ def open_budget(args: dict) -> int:
     needs = run_needs.run_needs(project, int(epic))
     budget = hashlib.sha256(plan_identity(needs["plan_root"]).encode()).hexdigest()[:16] + f"-epic-{epic}"
     with (ledger := Ledger(budget)) as data:
+        current = hashlib.sha256(location_identity(needs["plan_root"]).encode()).hexdigest()[:16] + f"-epic-{epic}"
+        ledger.alias(current)
+        if needs["state"] in ("PLAN_CONFLICT", "NEEDS_NORMALIZE") or needs.get("unconfirmed"):
+            # Neither side is authoritative until publication is reconciled. Preserve the recorded go and all consumption.
+            print(describe(budget, data))
+            print(f"GO: unconfirmed ({needs['state']}: {needs['reason']}); no extra repair rounds and no paid launch while unresolved")
+            return 0
         data.setdefault("plan_root", needs["plan_root"])
         data.setdefault("epic", int(epic))
         data["project"] = str(project.resolve())  # where `round` reads the go again
@@ -674,7 +767,7 @@ def main(argv: list[str]) -> int:
                 for job, entry in data["jobs"].items():
                     print(f"  {job}: {entry['state']} max {entry['max']:.2f}" + (f" spent {entry['spent']:.2f}" if "spent" in entry else ""))
             return 0
-    except (ValueError, RuntimeError, OSError) as exc:
+    except (ValueError, RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
         print(f"UNABLE: {exc}")
         return EXIT_USAGE
     print((__doc__ or "").strip())

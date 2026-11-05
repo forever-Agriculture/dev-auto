@@ -364,7 +364,10 @@ class CountTests(unittest.TestCase):
         with mock.patch.object(subprocess, "run", side_effect=run):
             interruptions.plan_identity(self.tmp.name)
             interruptions.plan_identity(self.tmp.name, timeout=1.5)
-        self.assertEqual(seen, [10, 1.5])
+        self.assertEqual(len(seen), 2)
+        for observed, budget in zip(seen, (10, 1.5)):
+            self.assertGreater(observed, 0)
+            self.assertLessEqual(observed, budget)
 
     def test_the_time_bound_holds_inside_the_query(self) -> None:
         # Astra review A7: the SQLite progress handler abandons a query once the deadline passes.

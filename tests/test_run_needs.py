@@ -72,6 +72,24 @@ class RunNeedsTests(unittest.TestCase):
         self.plan = Plan()
         self.addCleanup(self.plan.tmp.cleanup)
 
+    def test_plan_conflict_denies_only_the_affected_epic(self) -> None:
+        self.plan.write("epic-7: backlog # planned", epic())
+        self.plan.write("epic-7: ready # go 2026-10-20")
+        for conflicts, expected in [([7], "PLAN_CONFLICT"), ([8], "GO")]:
+            with self.subTest(conflicts=conflicts), mock.patch.object(run_needs, "resolve", return_value={**self.plan.status(), "conflicts": conflicts}):
+                result = run_needs.run_needs(self.plan.root.parent, 7)
+                self.assertEqual(result["state"], expected)
+                if expected == "PLAN_CONFLICT":
+                    self.assertFalse(result.get("floor"))
+
+    def test_no_default_checkout_confirms_no_local_go(self) -> None:
+        self.plan.write("epic-7: backlog # planned", epic())
+        self.plan.write("epic-7: ready # go 2026-10-20")
+        with mock.patch.object(run_needs, "resolve", return_value={**self.plan.status(), "default_available": False}):
+            result = run_needs.run_needs(self.plan.root.parent, 7)
+        self.assertEqual(result["state"], "NO_GO_RECORD")
+        self.assertFalse(result.get("floor"))
+
     def test_go_found_after_the_row_moved_on(self) -> None:
         self.plan.write("epic-7: backlog # planned", epic())
         go = self.plan.write("epic-7: ready # go 2026-10-20")

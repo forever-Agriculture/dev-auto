@@ -79,13 +79,20 @@ or away, follow [references/away-grant.md](references/away-grant.md).
 
 ## Scope and delivery
 
+After a plan migration, the handover refreshes dev-auto tools before any run resumes or opens the
+moved plan. Every later approval and ledger operation uses updated `run_needs.py` and
+`spend_ledger.py`, even when a run retains its original budget ID. Untouched older script copies
+are unsupported after cutover. Keep the original budget file and lock; never delete spending
+history to make an open succeed.
+
 Interpret `epic 12`, `epics 12-14`, `project` (unfinished planned epics plus a final
 cross-epic evaluation), `resume` and `status` in the selected project, defaulting to the
 current directory when it holds the planning artifacts. `status` is read-only: change no
 files, caches or jobs, report discrepancies and mark prior checks' freshness unverified.
 
-Find the plan with `bmn plan status --json` and report its format and paths; both plans
-present, an unknown schema or a malformed BMN-format plan stops the run with that error named. In
+Find the plan with `bmn plan status --json` and report its format and paths; an undeclared pair of plans,
+an unknown schema or a malformed BMN-format plan stops the run with that error named. A BMN board's
+`bmad_board` declares the retained BMAD board; the canonical BMN plan wins from every worktree. In
 BMN's format (BMN `docs/planning.md`) read `PLAN.md`, the selected epic files and their rows,
 opening references, logs and evidence on demand; a legacy epic reads as its BMAD text, and an
 epic's Truth impact is part of the outcome you verify. There `project` takes the unfinished
@@ -94,7 +101,12 @@ stop sets the rows it stops `paused`, and a resumed run leaves them until he res
 Change your rows with `bmn plan set` and the row's token, `done` meaning verified acceptance
 as below; add one concise Log line with its evidence path to your epic file at acceptance and
 one at delivery, as the default-checkout edit you make for your rows; commit nothing in
-`plan/.git`. A BMAD project is read and updated as before this format existed: its epics
+`plan/.git`. At each story's end on a tracked BMN plan, run `bmn plan publish`: it checkpoints only
+planning paths, reads delivery policy, and publishes the plan difference without unrelated product work.
+`unpublished N` or `PLAN_CONFLICT` leaves local commits and both conflicting values intact; record it
+and continue unaffected epics, never ask for publication. The conflicted epic grants nothing through
+`run_needs.py`. An ignored plan keeps its existing local history and is not published.
+A BMAD project is read and updated as before this format existed: its epics
 and story files, and the `sprint-status.yaml` board the status names.
 
 Read project instructions, original acceptance criteria, relevant architecture and
@@ -120,8 +132,9 @@ epic.
 Implement the smallest complete change and continue authorized work until the whole
 selected scope passes acceptance. The lead owns integration and the board: when a story
 or epic starts, gets a measured outcome, blocks or is accepted, update its rows in that
-step on the board in the default checkout, where the owner reads it, and on the run's
-branch when the board is tracked, touching only its own epics' rows; implemented work
+step on the board in the default checkout, where the owner reads it; a canonical BMN plan is written
+there even from a linked worktree. BMAD keeps its existing two-checkout convention. Touch only the
+run's own epics' rows; implemented work
 awaiting checks stays in an unfinished active state; record verified acceptance and its
 branch using the board's convention; delivery is complete only once you confirm the work
 is on the default branch. A blocked epic leaves independent selected work available. An

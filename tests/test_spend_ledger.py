@@ -35,6 +35,11 @@ class LedgerTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
+        self.mock_plan = self.root / "plan-standin"
+        self.mock_plan.mkdir()
+        for name in ("other", "direct"):
+            (self.mock_plan / name).mkdir()
+        self.assertNotEqual(subprocess.run(["git", "-C", str(self.mock_plan), "rev-parse", "--show-toplevel"], capture_output=True).returncode, 0)
         # A stand-in `bmn` resolves every project to the plan a test wrote last (status.json); run_needs reads it for real.
         (self.root / "bin").mkdir()
         (self.root / "bin" / "bmn").write_text(f"#!/bin/sh\ncat '{self.root / 'status.json'}'\n")
@@ -50,12 +55,18 @@ class LedgerTests(unittest.TestCase):
         self.job.write_text(f'echo "$1" >> {self.marker}\n')
 
     def open(self, needs: dict, *extra: str) -> tuple[int, str]:
+        needs = dict(needs)
+        if needs.get("plan_root") == "/plans/fixture":
+            needs["plan_root"] = str(self.mock_plan)
         out = io.StringIO()
         with mock.patch.object(run_needs, "run_needs", return_value=needs), contextlib.redirect_stdout(out):
             code = spend_ledger.main(["open", "--epic", "7", "--project", str(self.root / "project"), *extra])
         return code, out.getvalue()
 
     def open_epic(self, epic: str, needs: dict) -> str:
+        needs = dict(needs)
+        if needs.get("plan_root") == "/plans/fixture":
+            needs["plan_root"] = str(self.mock_plan)
         out = io.StringIO()
         with mock.patch.object(run_needs, "run_needs", return_value=needs), contextlib.redirect_stdout(out):
             self.assertEqual(spend_ledger.main(["open", "--epic", epic, "--project", str(self.root / "project")]), 0)
@@ -201,7 +212,7 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(self.launch(budget, "c", "8").returncode, 0)
 
     def test_an_owner_stated_cap_only_where_no_go_or_cap_exists(self) -> None:
-        none = {"state": "NO_GO_RECORD", "plan_root": "/plans/other", "reason": "no go"}
+        none = {"state": "NO_GO_RECORD", "plan_root": str(self.mock_plan / "other"), "reason": "no go"}
         code, out = self.open(none, "--cap", "5", "--source", "owner 2026-10-23: up to $5")
         self.assertEqual(code, 0, out)
         budget = out.split()[1].rstrip(":")
@@ -211,7 +222,7 @@ class LedgerTests(unittest.TestCase):
 
 
     def test_direct_owner_reapproval_preserves_unknown_holds_and_used_rounds(self) -> None:
-        needs = {"state": "NO_GO_RECORD", "plan_root": "/plans/direct", "reason": "legacy plan"}
+        needs = {"state": "NO_GO_RECORD", "plan_root": str(self.mock_plan / "direct"), "reason": "legacy plan"}
         code, out = self.open(needs, "--cap", "30", "--source", "owner: $30")
         self.assertEqual(code, 0, out)
         budget = out.split()[1].rstrip(":")
@@ -236,7 +247,7 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(self.markers(), ["fits"])
 
     def test_direct_owner_reapproval_requires_an_existing_owner_cap_and_expected_value(self) -> None:
-        needs = {"state": "NO_GO_RECORD", "plan_root": "/plans/direct", "reason": "legacy plan"}
+        needs = {"state": "NO_GO_RECORD", "plan_root": str(self.mock_plan / "direct"), "reason": "legacy plan"}
         self.assertEqual(self.open(needs, "--cap", "45", "--expect-cap", "30", "--source", "owner")[0], 1)
         self.assertEqual(self.open(needs, "--cap", "30", "--source", "owner")[0], 0)
         for extra in [("--cap", "45", "--source", "owner"),
@@ -248,7 +259,7 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(self.open(go("a" * 40, 30), "--cap", "45", "--expect-cap", "30", "--source", "owner")[0], 1)
 
     def test_additional_money_reapproval_cannot_reduce_or_cycle_caps(self) -> None:
-        needs = {"state": "NO_GO_RECORD", "plan_root": "/plans/direct", "reason": "legacy plan"}
+        needs = {"state": "NO_GO_RECORD", "plan_root": str(self.mock_plan / "direct"), "reason": "legacy plan"}
         code, out = self.open(needs, "--cap", "30", "--source", "initial")
         self.assertEqual(code, 0, out)
         budget = out.split()[1].rstrip(":")
@@ -319,6 +330,52 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(self.ledger(budget)["gos"][-1]["kind"], "withdrawn")
         self.assertEqual(self.launch(budget, "c", "2").returncode, 1)  # cap none from then on
         self.assertEqual(self.markers(), ["a"])
+
+    def test_a_plan_conflict_at_open_preserves_the_go_and_consumption(self) -> None:
+        plan, budget = self.real_budget(10.0, rounds=3)
+        self.assertEqual(self.round(budget, "7.1", "before")[0], 0)
+        before = self.ledger(budget)
+        (self.root / "status.json").write_text(json.dumps({**plan.status(), "conflicts": [7]}))
+        code, out, same = self.open_plan(plan)
+        self.assertEqual((code, same), (0, budget), out)
+        self.assertIn("PLAN_CONFLICT", out)
+        self.assertEqual(self.ledger(budget), before)
+        (self.root / "status.json").write_text(json.dumps(plan.status()))
+        self.assertEqual(self.open_plan(plan)[0], 0)
+        self.assertEqual(self.round(budget, "7.1", "after")[0], 0)
+        self.assertEqual(spend_ledger.rounds_used(self.ledger(budget), "7.1"), 2)
+        self.assertEqual(self.ledger(budget)["gos"], before["gos"])
+
+    def test_a_plan_conflict_refuses_rounds_and_launches_without_withdrawing(self) -> None:
+        plan, budget = self.real_budget(10.0, rounds=3)
+        self.assertEqual(self.round(budget, "7.1", "before")[0], 0)
+        before = self.ledger(budget)
+        (self.root / "status.json").write_text(json.dumps({**plan.status(), "conflicts": [7]}))
+        refused = self.launch(budget, "held", "2")
+        self.assertEqual(refused.returncode, 1)
+        self.assertIn("cannot be confirmed", refused.stdout)
+        code, out = self.round(budget, "7.1", "held")
+        self.assertEqual(code, 1, out)
+        self.assertIn("cannot be confirmed", out)
+        self.assertEqual(self.markers(), [])
+        self.assertEqual(self.ledger(budget), before)
+        (self.root / "status.json").write_text(json.dumps(plan.status()))
+        self.assertEqual(self.round(budget, "7.1", "held")[0], 0)
+        self.assertEqual(self.ledger(budget)["gos"], before["gos"])
+
+    def test_a_missing_default_checkout_holds_without_withdrawing_the_go(self) -> None:
+        plan, budget = self.real_budget(10.0, rounds=3)
+        before = self.ledger(budget)
+        (self.root / "status.json").write_text(json.dumps({**plan.status(), "default_available": False}))
+        refused = self.launch(budget, "held", "2")
+        self.assertEqual(refused.returncode, 1)
+        self.assertIn("cannot be confirmed", refused.stdout)
+        self.assertEqual(self.round(budget, "7.1", "held")[0], 1)
+        self.assertIn("NO_DEFAULT_CHECKOUT", self.open_plan(plan)[1])
+        self.assertEqual(self.ledger(budget), before)
+        (self.root / "status.json").write_text(json.dumps(plan.status()))
+        self.assertEqual(self.round(budget, "7.1", "held")[0], 0)
+        self.assertEqual(self.ledger(budget)["gos"], before["gos"])
 
     def test_a_later_hand_go_that_names_no_act_withdraws_the_go_in_force_at_open(self) -> None:
         plan, budget = self.real_budget(10.0, rounds=1)
@@ -533,7 +590,7 @@ class LedgerTests(unittest.TestCase):
         _, out, _ = self.open_plan(plan)
         self.assertIn("ROUNDS: 2 extra per boundary from this go; 7.1 1 used", out)
         self.assertEqual(self.round(budget, "7.1", "c:7.1")[0], 0)  # his new go gave one more
-        none = {"state": "NO_GO_RECORD", "plan_root": "/plans/other", "reason": "no go"}
+        none = {"state": "NO_GO_RECORD", "plan_root": str(self.mock_plan / "other"), "reason": "no go"}
         code, out = self.open(none, "--cap", "5", "--source", "owner 2026-10-23: up to $5")
         other = out.split()[1].rstrip(":")
         self.assertIn("GO: none recorded; no extra repair rounds", out)
