@@ -79,6 +79,14 @@ def row(board_text: str, epic: int) -> tuple[str, str] | None:
     return (match.group(1), match.group(2) or "") if match else None
 
 
+def retired_by_move(repo: Path, commit: str, board: str) -> bool:
+    """Only a commit holding the move's record retired the board; any other deletion is an ordinary one."""
+    try:
+        return json.loads(git(repo, "show", f"{commit}:plan/migration.json")).get("source_board") == board
+    except (RuntimeError, ValueError, AttributeError):
+        return False
+
+
 def find_gos(repo: Path, board: str, epic: int, bmad: bool, *, tip: str = "HEAD", after: str | None = None, initial_gos: list | None = None, initial_row: tuple | None = None, silent: frozenset[str] = frozenset()) -> tuple[list[dict], tuple[str, str] | None]:
     """Every go of the epic in the board's history, oldest first, each with the withdrawal that followed it; and the row at the last commit."""
     commits = git(repo, "log", "--reverse", "--format=%H", tip, "--", board).split()
@@ -96,7 +104,7 @@ def find_gos(repo: Path, board: str, epic: int, bmad: bool, *, tip: str = "HEAD"
         try:
             current = row(git(repo, "show", f"{commit}:{board}"), epic)
         except RuntimeError:
-            if bmad:
+            if bmad and retired_by_move(repo, commit, board):
                 continue  # A move retired the old board; a rollback restores it. Neither is a withdrawal.
             current = None  # the board was removed in this commit
         status, note = current or (None, "")
