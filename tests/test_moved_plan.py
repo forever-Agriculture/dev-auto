@@ -132,14 +132,15 @@ class MovedPlanTests(unittest.TestCase):
 
     def test_an_ordinary_deletion_of_the_old_board_still_withdraws_a_go(self):
         self.file(OLD, "development_status:\n  epic-7: in-progress # go 2026-11-01\n")
-        original = self.commit("old BMAD Go")
+        self.commit("old BMAD Go")
         (self.repo / OLD).unlink()
         deleted = self.commit("remove the board")
         self.file(OLD, "development_status:\n  epic-7: in-progress # go 2026-11-01\n")
         self.commit("restore identical bytes")
         after = self.read()
-        self.assertEqual(after["go_commit"], original)
-        self.assertEqual(after["withdrawn_go"]["commit"], deleted)
+        self.assertEqual(after["state"], "NO_GO_RECORD")
+        self.assertEqual(after["withdrawn_go"], "2026-11-01")
+        self.assertIn(deleted[:12], after["reason"])
 
     def test_working_migration_metadata_cannot_replace_the_original_withdrawal_history_or_identity(self):
         alternate = "older/implementation-artifacts/sprint-status.yaml"
