@@ -1,7 +1,7 @@
-<!-- MODULE: LESSONS.md - what dev-auto took from the earlier workflow, the retired workflow it replaced, and from direct development -->
+<!-- MODULE: LESSONS.md - what dev-auto took from the retired workflow it replaced and from direct development -->
 # Lessons from the earlier workflow and direct development
 
-the earlier workflow is the retired workflow dev-auto replaced. Recorded 2026-09-17 from its project notes, not a new replay of those runs. These lessons shaped the design; they don't prove dev-auto is more efficient, and they aren't a checklist of machinery to rebuild.
+The earlier workflow is the one dev-auto replaced. Recorded 2026-09-17 from its project notes, not a new replay of those runs. These lessons shaped the design; they don't prove dev-auto is more efficient, and they aren't a checklist of machinery to rebuild.
 
 ## 1. Prove the approach serves the project before polishing it
 
@@ -41,7 +41,7 @@ Apply: affected tests during changes, integration/regression checks at epic boun
 
 ## 7. Continuity and synchronization prevent owner rework
 
-Evidence: direct Codex lost GLM's Claude Code route across compaction; the owner had to correct it. the earlier workflow had distinct source and installed copies and required explicit hash verification.
+Evidence: direct Codex lost GLM's Claude Code route across compaction; the owner had to correct it. The earlier workflow had distinct source and installed copies and required explicit hash verification.
 
 Apply: canonical shared skill, routes from the owner's BMN team and explicit owner restrictions. Persist unresolved findings, later-epic obligations and exact next action. Let BMN check each ask against the team, and restore state after compaction by rereading the skill and handoff. Treat board status as progress metadata, not proof of acceptance.
 
