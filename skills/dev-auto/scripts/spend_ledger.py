@@ -12,6 +12,7 @@ Usage:
   spend_ledger.py settle --budget B --job J (--spent USD | --unknown)
   spend_ledger.py release --budget B --job J              the job never ran: its reservation is returned
   spend_ledger.py round --budget B --boundary STORY|epic --use-id ID   take one of the go's extra repair rounds
+  spend_ledger.py use --budget B --limit NAME --boundary STORY|epic [--amount A] --use-id ID   count one use of a limit in the epic's file
   spend_ledger.py limit --budget B --rounds N --source TEXT   record the owner's narrower word on rounds
   spend_ledger.py message reserve --budget B --use-id ID --person P --destination D --purpose TEXT --text-hash H
   spend_ledger.py message sent --budget B --use-id ID --receipt TEXT
@@ -44,6 +45,12 @@ names it, or whose epic row is in none of the not-started statuses (NOT_STARTED;
 has every boundary counted as used up to the largest allowance any of its gos gave, kept in the ledger so that no later go refills it (BMN 96 D9). Each `open`, `round`
 and paid `launch` reads the go again: once the plan withdraws it (a row put back, a later hand go after `bmn plan
 go` took over), the withdrawal is recorded and it gives no round and no paid launch until his next go.
+
+An epic whose go's commit holds an allowances file (BMN Epic 110, D13) is read again by `use`, `round` and `launch` each
+time, which write the value they used: a raise takes effect with no restart and a lowered value allows no more and rewrites
+nothing used. `repair_rounds` is `round`'s number (4 if the file names none, so his 2 means 2; the floor stays for an epic
+with no file), `money_usd` the cap `launch` reserves against, and every other limit counts in `use`. A new go or a raise refills
+nothing. A go whose commit holds no file returns the epic to its Run needs, keeping every use counted.
 """
 import fcntl
 import hashlib
@@ -66,6 +73,8 @@ BUDGET_ID = re.compile(r"[0-9a-f]{16}-epic-\d+")
 BOUNDARY = re.compile(r"(\d+)\.\d+|epic")
 ROUND_FLOOR = 4
 MESSAGES_PER_PURPOSE = 2  # his card, 2026-11-04
+# What the file's limits with their own count are counted by (BMN D13); every other limit counts in `use`.
+LEDGER_LIMITS = {"repair_rounds": "round", "money_usd": "launch"}
 
 
 def budgets() -> Path:
@@ -245,19 +254,29 @@ def withdraw(data: dict, go: dict, reason: str) -> None:
     data["gos"].append({"kind": "withdrawn", "commit": go["commit"], "cap": None, "reason": reason, "at": now()})
 
 
-def go_now(data: dict, go: dict) -> tuple[str, str]:
-    """The go in force read again from the plan: `stands`, `withdrawn` (the plan gives no GO), `newer` or `unreadable`, and why."""
+def go_read(data: dict, go: dict) -> tuple[str, str, dict | None]:
+    """The go in force read again from the plan: `stands`, `withdrawn` (the plan gives no GO), `newer` or `unreadable`, why, and what it read."""
     import run_needs
     try:
         needs = run_needs.run_needs(Path(data.get("project") or data["plan_root"]), int(data["epic"]))
     except (RuntimeError, OSError, subprocess.SubprocessError, ValueError, KeyError) as exc:
-        return "unreadable", f"the plan cannot be read now: {exc}"
+        return "unreadable", f"the plan cannot be read now: {exc}", None
     if needs["state"] == "GO":
-        return ("stands", "") if needs["go_commit"] == go["commit"] else ("newer", f"go {needs['go_commit'][:12]} is newer: open the ledger again")
+        return ("stands", "", needs) if needs["go_commit"] == go["commit"] else ("newer", f"go {needs['go_commit'][:12]} is newer: open the ledger again", needs)
     if needs["state"] in ("PLAN_CONFLICT", "NEEDS_NORMALIZE") or needs.get("unconfirmed"):
-        return "unreadable", f"{needs['state']}: {needs['reason']}"
+        return "unreadable", f"{needs['state']}: {needs['reason']}", needs
     # Put back, or a later go that names no act (BMN 96 recheck): either way the go in force no longer stands.
-    return "withdrawn", needs.get("reason") or needs["state"]
+    return "withdrawn", needs.get("reason") or needs["state"], needs
+
+
+def go_now(data: dict, go: dict) -> tuple[str, str]:
+    state, why, _ = go_read(data, go)
+    return state, why
+
+
+def file_fields(needs: dict | None) -> dict | None:
+    """The current limits when the go's commit holds an allowances file; None for an epic with no file."""
+    return needs["parsed"] if needs and needs.get("allowances") else None
 
 
 def rounds_used(data: dict, boundary: str) -> int:
@@ -270,9 +289,15 @@ def round_limit(data: dict, go: dict | None) -> dict | None:
     return limit if limit and limit.get("go") == (go["commit"] if go else None) else None
 
 
-def rounds_allowed(data: dict, go: dict | None) -> int:
-    """Per boundary: the greater of the floor and the go's number, or the floor with no go; his later limit caps either."""
-    allowed = max(go.get("rounds", 0), ROUND_FLOOR) if go else (data["floor"]["rounds"] if data.get("floor") else 0)
+def rounds_allowed(data: dict, go: dict | None, fields: dict | None = None) -> int:
+    """Per boundary: the file's number when the go's commit holds one (D13: his 2 means 2); else the greater of the floor and
+    the go's number, or the floor with no go; his later limit caps any of them."""
+    if fields is not None:
+        allowed = fields["rounds"]
+    elif go and go.get("allowances"):
+        allowed = go.get("rounds", 0)
+    else:
+        allowed = max(go.get("rounds", 0), ROUND_FLOOR) if go else (data["floor"]["rounds"] if data.get("floor") else 0)
     limit = round_limit(data, go)
     return min(allowed, limit["rounds"]) if limit else allowed
 
@@ -392,6 +417,8 @@ def open_budget(args: dict) -> int:
                          "cap": needs["parsed"]["money_cap"], "rounds": needs["parsed"]["rounds"],
                          "source": needs.get("approval_source"), "approved_text": needs.get("approved_text"),
                          "stories": needs.get("stories", []), "at": now()}
+                if needs.get("allowances"):
+                    entry["allowances"] = True
                 # What was used is not here to count when a run already began under this go: every boundary counts as used up to
                 # the largest allowance any go gave, the floor included (D9, D19), written as used rounds so that no later go refills them (96 Astra review).
                 presumed = max([entry["rounds"], ROUND_FLOOR, needs.get("earlier_rounds", 0), *(g.get("rounds", 0) for g in data["gos"] if g.get("kind") == "go")])
@@ -407,7 +434,11 @@ def open_budget(args: dict) -> int:
                     entry["rounds_lost"] = f"{why}, the ledger does not: up to {presumed} extra per boundary counted as used"
                 data["gos"].append(entry)
             else:
-                next(go for go in data["gos"] if go.get("commit") == needs["go_commit"]).setdefault("stories", needs.get("stories", []))
+                entry = next(go for go in data["gos"] if go.get("commit") == needs["go_commit"])
+                entry.setdefault("stories", needs.get("stories", []))
+                if needs.get("allowances"):
+                    # What this prints is the file's value now; use, round and launch read it again each time.
+                    entry.update(allowances=True, cap=needs["parsed"]["money_cap"], rounds=needs["parsed"]["rounds"])
         elif go := latest_go(data):
             # The plan no longer gives the go in force: put back, or a later go that names no act (BMN 96 recheck).
             withdraw(data, go, needs.get("reason") or needs["state"])
@@ -427,7 +458,103 @@ def open_budget(args: dict) -> int:
         print(describe(budget, data))
         for line in describe_go(data):
             print(line)
+        for line in describe_limits(data, file_fields(needs)):
+            print(line)
     return 0
+
+
+def describe_limits(data: dict, fields: dict | None) -> list[str]:
+    """Each limit counted in `use` and what it has left; `repair_rounds` and `money_usd` are in the lines above."""
+    if fields is None:
+        return []
+    lines = []
+    for name, one in fields["limits"].items():
+        if name in LEDGER_LIMITS:
+            continue
+        spent = {use["boundary"] for use in data.get("uses", {}).values() if use["answer"] == "TAKEN" and use["limit"] == name}
+        used = ", ".join(f"{b} {limit_used(data, name, b):g}" for b in sorted(spent)) if one["per"] == "boundary" else f"{limit_used(data, name):g}"
+        lines.append(f"LIMIT {name}: {one['limit']:g} per {one['per']}" + (f", ceiling {one['ceiling']:g}" if one.get("ceiling") is not None else ", no ceiling") + f"; used {used or 'none'}")
+    return lines
+
+
+def limit_used(data: dict, name: str, boundary: str | None = None) -> float:
+    """What a limit used at one boundary, or everywhere for a limit counted per epic (no boundary named)."""
+    uses = data.get("uses", {}).values()
+    return sum(use["amount"] for use in uses if use["answer"] == "TAKEN" and use["limit"] == name and boundary in (None, use["boundary"]))
+
+
+def take_use(args: dict) -> int:
+    """One use of a named limit (BMN 110.6 AC1), against the value the file holds now."""
+    budget, name, boundary, use_id = args.get("--budget"), args.get("--limit"), args.get("--boundary"), args.get("--use-id")
+    if not (budget and name and boundary and use_id):
+        print("USAGE: use needs --budget, --limit NAME, --boundary STORY|epic and --use-id")
+        return EXIT_USAGE
+    if not BUDGET_ID.fullmatch(budget):
+        raise ValueError(f"not a budget id: {budget}")
+    match = BOUNDARY.fullmatch(boundary)
+    if not match or (match.group(1) and match.group(1) != budget.rsplit("-", 1)[1]):
+        print(f"USAGE: the boundary is one of epic {budget.rsplit('-', 1)[1]}'s stories (N.M) or `epic`, not {boundary}")
+        return EXIT_USAGE
+    if name in LEDGER_LIMITS:
+        print(f"USAGE: {name} is counted by {LEDGER_LIMITS[name]}, not use")
+        return EXIT_USAGE
+    given = args.get("--amount") or "1"
+    try:
+        quantity = float(given)
+    except ValueError:
+        quantity = -1.0
+    if not math.isfinite(quantity) or quantity <= 0:
+        print(f"USAGE: --amount is a positive number, not {given}")
+        return EXIT_USAGE
+    with (ledger := Ledger(budget)) as data:
+        uses = data.setdefault("uses", {})
+        earlier = uses.get(use_id)
+        if earlier:
+            print(f"{earlier['answer']}: use {use_id} was answered first at {earlier['at']} ({earlier['limit']} at {earlier['boundary']}); nothing counted again")
+            return 0 if earlier["answer"] == "TAKEN" else EXIT_REFUSED
+        go = latest_go(data)
+        if go is None:
+            print(f"REFUSED: use {use_id}: no go in force names limits; nothing counted")
+            return EXIT_REFUSED
+        state, why, needs = go_read(data, go)
+        if state == "withdrawn":
+            withdraw(data, go, why)
+            ledger.save()
+        if state != "stands":
+            print(f"REFUSED: use {use_id}: the go {go['commit'][:12]} {'was withdrawn' if state == 'withdrawn' else 'cannot be confirmed'}: {why}; nothing counted")
+            return EXIT_REFUSED
+        fields = file_fields(needs)
+        if fields is None:
+            print(f"REFUSED: use {use_id}: the go's commit holds no allowances file; its Run needs hold; nothing counted")
+            return EXIT_REFUSED
+        one = fields["limits"].get(name)
+        if one is None:
+            print(f"REFUSED: use {use_id}: the file names no limit {name} ({', '.join(fields['limits']) or 'none'}); a new limit needs his words; nothing counted")
+            return EXIT_REFUSED
+        if match.group(1) and boundary not in go.get("stories", []):
+            print(f"USAGE: {boundary} is not one of the stories epic {data.get('epic')} had at its go ({', '.join(go.get('stories', [])) or 'none'}); nothing counted")
+            return EXIT_USAGE
+        if one.get("unit", "count") == "count" and not quantity.is_integer():
+            print(f"USAGE: {name} counts whole uses, not {given}")
+            return EXIT_USAGE
+        used = limit_used(data, name, None if one["per"] == "epic" else boundary)
+        answer = "TAKEN" if used + quantity <= one["limit"] + 1e-9 else "REFUSED"
+        uses[use_id] = {"answer": answer, "limit": name, "boundary": boundary, "amount": quantity, "value": one["limit"], "per": one["per"], "unit": one.get("unit", "count"), "go": go["commit"], "at": now()}
+        ledger.save()
+        where = "the epic" if one["per"] == "epic" else boundary
+        if answer == "TAKEN":
+            print(f"TAKEN: use {use_id}, {name} at {where}: {used + quantity:g} of {one['limit']:g}")
+            return 0
+        ceiling = one.get("ceiling")
+        epic = data.get("epic")
+        token = needs["allowances"]["token"]
+        if ceiling is not None and used + quantity <= ceiling + 1e-9:
+            print(f"REFUSED: use {use_id}, {name} at {where}: {used:g} of {one['limit']:g} used; nothing counted")
+            print(f"RAISE: room under its ceiling {ceiling:g}, no card: bmn plan allow {epic} limits.{name}.limit={used + quantity:g} --reason TEXT --expect {token}; then a new --use-id")
+        else:
+            print(f"REFUSED: use {use_id}, {name} at {where}: {used:g} of {one['limit']:g} used, {'at its ceiling' if ceiling is not None else 'no ceiling'}; nothing counted")
+            print(f"AT_CEILING: park this story, every other story continues; ask one card only if the epic says so, whose recommended answer writes a limit that finishes the work")
+    return EXIT_REFUSED
 
 
 def floor_stories(data: dict) -> tuple[list[str] | None, str]:
@@ -612,7 +739,7 @@ def take_round(args: dict) -> int:
             print(f"{earlier['answer']}: round {use_id} was answered first at {earlier['at']} ({earlier['boundary']}); nothing taken again")
             return 0 if earlier["answer"] == "TAKEN" else EXIT_REFUSED
         go = latest_go(data)
-        state, why = go_now(data, go) if go else ("stands", "")
+        state, why, needs = go_read(data, go) if go else ("stands", "", None)
         if state == "withdrawn":
             withdraw(data, go, why)
             ledger.save()
@@ -630,10 +757,13 @@ def take_round(args: dict) -> int:
             if match.group(1) and boundary not in stories:
                 print(f"USAGE: {boundary} is not one of the stories epic {data.get('epic')} names now ({', '.join(stories) or 'none'}); nothing taken")
                 return EXIT_USAGE
-        allowed = rounds_allowed(data, go)
+        fields = file_fields(needs)
+        allowed = rounds_allowed(data, go, fields)
         used = rounds_used(data, boundary)
         answer = "TAKEN" if used < allowed else "REFUSED"
         use = {"answer": answer, "boundary": boundary, "go": go["commit"] if go else None, "at": now()}
+        if fields is not None:
+            use["value"] = allowed  # what this answer was given against, read from the file now (D13)
         if answer == "TAKEN" and used + 1 == allowed:
             problem = step_back_problem(data, budget, boundary, args)
             if problem:  # not recorded: the same use id takes the round once its step-back holds
@@ -663,17 +793,20 @@ def launch(args: dict, job_argv: list[str]) -> int:
         if earlier:
             print(f"{earlier['answer']}: job {job} was answered first at {earlier['at']} ({earlier['state']}); nothing started again")
             return 0 if earlier["answer"] == "STARTED" else EXIT_REFUSED
-        cap = cap_in_force(data)
+        # The go the cap came from is read again, as a round reads it: one withdrawn or not confirmed starts nothing (BMN 96).
+        # With an allowances file the cap is the file's value now (BMN D13), not what `open` kept.
+        go = latest_go(data)
+        reread = go is not None and data["gos"][-1] is go
+        state, why, needs = go_read(data, go) if reread else ("stands", "", None)
+        fields = file_fields(needs) if state == "stands" else None
+        cap = fields["money_cap"] if fields is not None else cap_in_force(data)
         settled, outstanding = totals(data)
         if cap is None or settled + outstanding + maximum > cap + 1e-9:
             data["jobs"][job] = {"answer": "REFUSED", "state": "refused", "max": maximum, "at": now()}
             ledger.save()
             print(f"REFUSED: job {job} max {maximum:.2f} does not fit; {describe(budget, data)}; nothing started")
             return EXIT_REFUSED
-        # The go the cap came from is read again, as a round reads it: one withdrawn or not confirmed starts nothing (BMN 96).
-        go = latest_go(data)
-        if go is not None and data["gos"][-1] is go:
-            state, why = go_now(data, go)
+        if reread:
             if state == "withdrawn":
                 withdraw(data, go, why)
                 ledger.save()
@@ -681,6 +814,8 @@ def launch(args: dict, job_argv: list[str]) -> int:
                 print(f"REFUSED: job {job}: the go {go['commit'][:12]} {'was withdrawn' if state == 'withdrawn' else 'cannot be confirmed'}: {why}; nothing started")
                 return EXIT_REFUSED
         data["jobs"][job] = {"answer": "STARTED", "state": "reserved", "max": maximum, "at": now()}
+        if fields is not None:
+            data["jobs"][job]["cap_used"] = cap
         ledger.save()
         script = [str(Path(job_argv[0]).resolve()), *job_argv[1:]]
         try:
@@ -773,6 +908,8 @@ def main(argv: list[str]) -> int:
             return set_limit(args)
         if argv[0] == "round":
             return take_round(args)
+        if argv[0] == "use":
+            return take_use(args)
         if argv[0] == "status":
             with Ledger(args.get("--budget") or "") as data:
                 print(describe(args["--budget"], data))
@@ -780,6 +917,8 @@ def main(argv: list[str]) -> int:
                     print(line)
                 for job, entry in data["jobs"].items():
                     print(f"  {job}: {entry['state']} max {entry['max']:.2f}" + (f" spent {entry['spent']:.2f}" if "spent" in entry else ""))
+                for use_id, use in data.get("uses", {}).items():
+                    print(f"  use {use_id}: {use['answer']} {use['limit']} at {use['boundary']}, {use['amount']:g} against {use['value']:g}")
             return 0
     except (ValueError, RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
         print(f"UNABLE: {exc}")

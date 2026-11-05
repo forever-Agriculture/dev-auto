@@ -21,6 +21,10 @@ go withdraws it, in a later commit or on the board now, until his next go; a boa
 confirms no go. A plan the product repository
 tracks is read in its default checkout, where gos are recorded and withdrawn, not in a linked worktree's copy.
 
+An epic whose go's commit holds plan/allowances/N.yaml (BMN Epic 110) is read through `bmn plan allowances`, the
+one parser of that file: the go's hash covers the file's text too, and its limits come from the go's version and
+the last recorded `bmn plan allow` after it. A go whose commit holds none reads as before.
+
 Prints one of GO, NO_GO_RECORD or NO_RUN_NEEDS, then CHANGED_SINCE_GO when Run needs or Decisions differ
 today from the go's commit (the run keeps the go's text and records the change for the owner). Exit 0;
 2 only when the plan cannot be resolved (UNABLE).
@@ -202,10 +206,30 @@ def sections(text: str | None) -> dict[str, str | None]:
     return out
 
 
-def approval_text(found: dict[str, str | None]) -> str:
-    """The SHA-256 a go names for its Run needs and Decisions; `bmn plan go` and `bmn plan status` hash them the same way."""
+def approval_text(found: dict[str, str | None], allowances: str | None = None) -> str:
+    """The SHA-256 a go names for its Run needs, Decisions and allowances file, if any; `bmn plan go` and `bmn plan status` hash them the same way."""
     text = f"Run needs\n{found['Run needs'] or ''}\nDecisions\n{found['Decisions'] or ''}\n"
+    if allowances is not None:
+        text += "Allowances\n" + allowances.replace("\r\n", "\n").replace("\r", "\n") + "\n"
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def allowance_name(epic: int, names: list[str]) -> str | None:
+    matching = [name for name in names if re.fullmatch(rf"0*{epic}\.yaml", name)]
+    return matching[0] if len(matching) == 1 else None
+
+
+def read_allowances(project: Path, epic: int, commit: str) -> dict:
+    """What BMN reads of the file as of a go's commit (BMN D6): dev-auto keeps no parser of it."""
+    done = subprocess.run(["bmn", "plan", "allowances", str(epic), "--json", "--at", commit, "--project", str(project)],
+                          capture_output=True, text=True, timeout=60)
+    try:
+        read = json.loads(done.stdout)
+    except ValueError:
+        raise RuntimeError(f"bmn plan allowances failed (exit {done.returncode}): {done.stderr.strip()[:200]}")
+    if done.returncode != 0 or not read.get("ok", True):
+        raise RuntimeError(f"bmn plan allowances: {(read.get('error') or {}).get('code') or done.stderr.strip()[:200]}")
+    return read
 
 
 def hand_go_too_late(repo: Path, commit: str) -> str | None:
@@ -456,12 +480,23 @@ def run_needs(project: Path, epic: int) -> dict:
         except RuntimeError:
             return None
 
+    def allowances_at(commit: str) -> str | None:
+        """The text of the epic's allowances file as a go's commit holds it (BMN D7), or None."""
+        if bmad or any(g["commit"] == commit and g.get("bmad") for g in gos):
+            return None
+        try:
+            name = allowance_name(epic, git(repo, "ls-tree", "--name-only", f"{commit}:{prefix}allowances").split())
+            return read_in(commit, f"allowances/{name}") if name else None
+        except RuntimeError:
+            return None
+
     then_text = text_at(go["commit"])
     then = sections(then_text)
+    then_allowances = allowances_at(go["commit"])
     changed = [name for name in SECTIONS if (then[name] or "") != (now[name] or "")]
     result = {**identity, "go_date": go["date"], "go_commit": go["commit"],
               "earlier_gos": [f"{g['date']}@{g['commit'][:12]}" for g in gos[:-1]],
-              "changed_since_go": changed, "approved_text": f"sha256:{approval_text(then)}"}
+              "changed_since_go": changed, "approved_text": f"sha256:{approval_text(then, then_allowances)}"}
     recorded = trailers(git(repo, "log", "-1", "--format=%B", go["commit"]))
     result["approval_source"] = recorded["source"]
     historical_bmad = bmad or go.get("bmad", False)
@@ -496,12 +531,41 @@ def run_needs(project: Path, epic: int) -> dict:
     if board_now[0] in WITHDRAWN and (committed_row is None or committed_row[0] not in WITHDRAWN):
         return {**result, "state": "NO_GO_RECORD", "withdrawn_go": go["date"],
                 "reason": f"the go of {go['date']} was withdrawn: the row is now {board_now[0]}"}
-    if then["Run needs"] is None:
+    if then["Run needs"] is None and then_allowances is None:
         return {**result, **floor, "row_status": board_now[0], "state": "NO_RUN_NEEDS", "reason": "the epic had no Run needs at its go"}
-    return {**result, "floor": True, "state": "GO", "run_needs": then["Run needs"], "parsed": parse_needs(then["Run needs"]),
+
+    def rounds_at(commit: str) -> int:
+        """What an earlier go gave: its file's number when its commit held one, its Run needs' otherwise."""
+        if allowances_at(commit) is None:
+            return parse_needs(sections(text_at(commit))["Run needs"])["rounds"]
+        return ((read_allowances(project, epic, commit).get("at_go") or {}).get("fields") or {}).get("rounds", 0)
+
+    held = {}
+    parsed = None
+    if then_allowances is not None:
+        try:
+            read = read_allowances(project, epic, go["commit"])
+        except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired) as exc:
+            return {**result, "state": "NO_GO_RECORD", "unconfirmed": True, "reason": f"the go's allowances file cannot be read: {exc}"}
+        if read.get("state") != "recorded":
+            return {**result, "state": "NO_GO_RECORD", "unconfirmed": True, "reason": f"the go's allowances file grants nothing: {read.get('reason') or read.get('state')}"}
+        current = read["current"]
+        parsed = current["fields"]
+        held = {"allowances": {"file": read["file"], "token": read["token"], "commit": current["commit"], "source": current["source"],
+                               "changes": read["changes"], "hand_edit": read.get("hand_edit"), "text": current["text"]}}
+        if read.get("hand_edit"):
+            result["changed_since_go"] = [*changed, "Allowances"]
+    else:
+        try:
+            names = [p.name for p in (plan_root / "allowances").iterdir()]
+        except OSError:
+            names = []
+        if allowance_name(epic, names):
+            result["changed_since_go"] = [*changed, "Allowances"]
+    return {**result, **held, "floor": True, "state": "GO", "run_needs": then["Run needs"] or "", "parsed": parsed or parse_needs(then["Run needs"]),
             "stories": STORY.findall(then_text or ""),  # the epic's stories at its go: the only story boundaries for its rounds
             # The largest allowance an earlier go gave: what a ledger that lost its count presumes used (96 Astra review).
-            "earlier_rounds": max((parse_needs(sections(text_at(g["commit"]))["Run needs"])["rounds"] for g in gos[:-1]), default=0),
+            "earlier_rounds": max((rounds_at(g["commit"]) for g in gos[:-1]), default=0),
             "row_status": board_now[0],
             "decisions_at_go": f"git -C {repo} show {go['commit'][:12]}:<epic file>, ## Decisions"}
 
@@ -527,6 +591,20 @@ def main(argv: list[str]) -> int:
             print(f"APPROVAL: not recorded with the go (a go recorded before bmn plan go); the go stands, approved text at its commit {result['approved_text']}")
         print("RUN NEEDS (his instruction for this epic's runs, as recorded at the go):")
         print(result["run_needs"])
+        held = result.get("allowances")
+        if held:
+            print(f"ALLOWANCES: {held['file']}, last recorded {held['commit'][:12]} ({held['source']}); token {held['token']}. The current limits, read at each boundary:")
+            for name, one in result["parsed"]["limits"].items():
+                ceiling = "no ceiling" if one.get("ceiling") is None else f"ceiling {one['ceiling']:g}"
+                print(f"- {name}: {one['limit']:g} per {one['per']}, {ceiling}" + ("" if one.get("unit") == "count" else f", {one['unit']}"))
+            for action in result["parsed"].get("may", []):
+                print(f"MAY: {action}")
+            for boundary in result["parsed"].get("stays_out", []):
+                print(f"STAYS OUT: {boundary}")
+            for one in result["parsed"].get("deferrable", []):
+                print(f"DEFERRABLE: {one}")
+            if held.get("hand_edit"):
+                print(f"HAND_EDIT: {held['hand_edit']}")
         print(f"DECISIONS: read at the go, {result['decisions_at_go']}")
         for one in result["parsed"]["messages"]:
             print(f"MESSAGE: {' / '.join(one['people'])}; --destination {one['destination']!r}; --purpose {one['purpose']!r}")

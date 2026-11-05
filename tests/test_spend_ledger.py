@@ -168,7 +168,7 @@ class LedgerTests(unittest.TestCase):
 
     def test_a_systemd_launch_records_the_bare_unit_name(self) -> None:
         budget = self.budget(go("a" * 40, 10.0))
-        self.enterContext(mock.patch.object(spend_ledger, "go_now", return_value=("stands", "")))  # its plan is a stand-in
+        self.enterContext(mock.patch.object(spend_ledger, "go_read", return_value=("stands", "", None)))  # its plan is a stand-in
         said = subprocess.CompletedProcess([], 0, "", "Running as unit: run-p1-i2.service; invocation ID: 0123abcd\n")
         with mock.patch.object(spend_ledger.subprocess, "run", return_value=said), contextlib.redirect_stdout(io.StringIO()):
             code = spend_ledger.main(["launch", "--budget", budget, "--job", "unit", "--max", "1", "--", str(self.job), "unit"])
@@ -177,7 +177,7 @@ class LedgerTests(unittest.TestCase):
 
     def test_systemd_launch_preserves_bmn_identity_without_putting_tokens_in_argv(self) -> None:
         budget = self.budget(go("a" * 40, 10.0))
-        self.enterContext(mock.patch.object(spend_ledger, "go_now", return_value=("stands", "")))
+        self.enterContext(mock.patch.object(spend_ledger, "go_read", return_value=("stands", "", None)))
         context = {
             "BMN_SESSION_ID": "synthetic-session", "BMN_TOKEN": "synthetic-secret-token",
             "BMN_CONTROL_SOCKET": "/synthetic/control.sock", "BMN_RUNTIME_HOME": "/synthetic/runtime",
@@ -201,7 +201,7 @@ class LedgerTests(unittest.TestCase):
 
     def test_systemd_launch_overrides_absent_bmn_context_in_the_user_manager(self) -> None:
         budget = self.budget(go("a" * 40, 10.0))
-        self.enterContext(mock.patch.object(spend_ledger, "go_now", return_value=("stands", "")))
+        self.enterContext(mock.patch.object(spend_ledger, "go_read", return_value=("stands", "", None)))
         names = [f"{prefix}_{suffix}" for prefix in ("BMN", "AITERM")
                  for suffix in ("SESSION_ID", "TOKEN", "CONTROL_SOCKET", "RUNTIME_HOME")]
         said = subprocess.CompletedProcess([], 0, "", "Running as unit: synthetic.service\n")
@@ -241,7 +241,7 @@ class LedgerTests(unittest.TestCase):
     def test_a_launch_whose_acknowledgement_timed_out_keeps_its_reservation(self) -> None:
         _, budget = self.real_budget(10.0)
         lost = subprocess.TimeoutExpired(["systemd-run"], 60)
-        with mock.patch.object(spend_ledger.subprocess, "run", side_effect=lost), mock.patch.object(spend_ledger, "go_now", return_value=("stands", "")), \
+        with mock.patch.object(spend_ledger.subprocess, "run", side_effect=lost), mock.patch.object(spend_ledger, "go_read", return_value=("stands", "", None)), \
                 contextlib.redirect_stdout(io.StringIO()) as out:
             code = spend_ledger.main(["launch", "--budget", budget, "--job", "a", "--max", "8", "--", str(self.job), "a"])
         self.assertEqual((code, out.getvalue().split(":")[0]), (1, "UNKNOWN"))
