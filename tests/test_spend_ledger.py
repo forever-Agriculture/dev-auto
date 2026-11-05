@@ -175,6 +175,48 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(self.ledger(budget)["jobs"]["unit"]["unit"], "run-p1-i2.service")
 
+    def test_systemd_launch_preserves_bmn_identity_without_putting_tokens_in_argv(self) -> None:
+        budget = self.budget(go("a" * 40, 10.0))
+        self.enterContext(mock.patch.object(spend_ledger, "go_now", return_value=("stands", "")))
+        context = {
+            "BMN_SESSION_ID": "synthetic-session", "BMN_TOKEN": "synthetic-secret-token",
+            "BMN_CONTROL_SOCKET": "/synthetic/control.sock", "BMN_RUNTIME_HOME": "/synthetic/runtime",
+            "AITERM_SESSION_ID": "synthetic-session", "AITERM_TOKEN": "synthetic-legacy-token",
+            "AITERM_CONTROL_SOCKET": "/synthetic/control.sock", "AITERM_RUNTIME_HOME": "/synthetic/runtime",
+            "XDG_RUNTIME_DIR": "/synthetic/xdg-runtime",
+        }
+        said = subprocess.CompletedProcess([], 0, "", "Running as unit: synthetic.service\n")
+        with mock.patch.dict(os.environ, context), \
+                mock.patch.object(spend_ledger.subprocess, "run", return_value=said) as run, \
+                contextlib.redirect_stdout(io.StringIO()) as output:
+            code = spend_ledger.main(["launch", "--budget", budget, "--job", "identity", "--max", "1", "--", str(self.job)])
+        self.assertEqual(code, 0)
+        argv = run.call_args.args[0]
+        for name in context:
+            self.assertIn(f"--setenv={name}", argv, name)
+        for token in (context["BMN_TOKEN"], context["AITERM_TOKEN"]):
+            self.assertNotIn(token, repr(argv))
+            self.assertNotIn(token, output.getvalue())
+            self.assertNotIn(token, json.dumps(self.ledger(budget)))
+
+    def test_systemd_launch_overrides_absent_bmn_context_in_the_user_manager(self) -> None:
+        budget = self.budget(go("a" * 40, 10.0))
+        self.enterContext(mock.patch.object(spend_ledger, "go_now", return_value=("stands", "")))
+        names = [f"{prefix}_{suffix}" for prefix in ("BMN", "AITERM")
+                 for suffix in ("SESSION_ID", "TOKEN", "CONTROL_SOCKET", "RUNTIME_HOME")]
+        said = subprocess.CompletedProcess([], 0, "", "Running as unit: synthetic.service\n")
+        shell = {name: value for name, value in os.environ.items() if name not in names}
+        with mock.patch.dict(os.environ, shell, clear=True), \
+                mock.patch.object(spend_ledger.subprocess, "run", return_value=said) as run, \
+                contextlib.redirect_stdout(io.StringIO()):
+            code = spend_ledger.main(["launch", "--budget", budget, "--job", "shell", "--max", "1", "--", str(self.job)])
+        self.assertEqual(code, 0)
+        argv = run.call_args.args[0]
+        self.assertIn(f"--property=UnsetEnvironment={' '.join(names)}", argv)
+        for name in names:
+            self.assertNotIn(f"--setenv={name}", argv, name)
+            self.assertNotIn(f"--setenv={name}=", argv, name)
+
     def test_a_go_older_than_the_recorded_one_is_refused_and_the_cap_stays(self) -> None:
         budget = self.budget(go("b" * 40, 1.0, "2026-10-25"))
         with mock.patch.object(spend_ledger, "go_follows", return_value=False):

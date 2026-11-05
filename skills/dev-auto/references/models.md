@@ -1,3 +1,4 @@
+# MODULE: models.md - approved model routes, dispatch and background launch context
 # Model and dispatch reference
 
 Routes require configured, authorized access. Verify model and effort from actual
@@ -135,8 +136,13 @@ exit sentinel, with the caller's PATH and project directory:
 
 ```bash
 systemd-run --user --collect --setenv=PATH="$PATH" \
+  --setenv=BMN_SESSION_ID --setenv=BMN_TOKEN --setenv=BMN_CONTROL_SOCKET \
+  --setenv=BMN_RUNTIME_HOME --setenv=XDG_RUNTIME_DIR \
   --property=WorkingDirectory="$PROJECT" /bin/bash "$JOB_SCRIPT"
 ```
+
+Pass BMN's environment variables by name so a background ask keeps its requesting session;
+never put a token value in the command or job script. The ledger launcher does this automatically.
 
 Record the unit or PID and stop it on an explicit owner stop.
 Before cleanup, judge liveness from its sentinel, log growth or PID, never from a

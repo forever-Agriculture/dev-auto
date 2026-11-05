@@ -684,8 +684,17 @@ def launch(args: dict, job_argv: list[str]) -> int:
                                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 data["jobs"][job].update(state="started", pid=started.pid)
             else:
+                # Pass names, never token values in argv. Unset missing context; an empty runtime path changes socket resolution.
+                names = [f"{prefix}_{suffix}" for prefix in ("BMN", "AITERM")
+                         for suffix in ("SESSION_ID", "TOKEN", "CONTROL_SOCKET", "RUNTIME_HOME")]
+                context = [f"--setenv={name}" for name in names if name in os.environ]
+                missing = [name for name in names if name not in os.environ]
+                if missing:
+                    context.append(f"--property=UnsetEnvironment={' '.join(missing)}")
+                if "XDG_RUNTIME_DIR" in os.environ:
+                    context.append("--setenv=XDG_RUNTIME_DIR")
                 done = subprocess.run(["systemd-run", "--user", "--collect", f"--setenv=PATH={os.environ.get('PATH', '')}",
-                                       f"--property=WorkingDirectory={Path.cwd()}", "/bin/bash", *script],
+                                       *context, f"--property=WorkingDirectory={Path.cwd()}", "/bin/bash", *script],
                                       capture_output=True, text=True, timeout=60)
                 if done.returncode != 0:
                     raise OSError(done.stderr.strip()[:200] or "systemd-run failed")
