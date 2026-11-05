@@ -230,6 +230,23 @@ class Allowances(unittest.TestCase):
         self.assertEqual(self.use(budget, "d", boundary="8.1")[0], 2)
         self.assertEqual(self.use(budget, "e", boundary="7.9")[0], 2)
 
+    def test_a_refused_use_id_stays_refused_after_the_reason_goes_away(self) -> None:
+        # Full review: the first answer holds for a refusal too; only a fresh id may count once the limit exists.
+        self.go()
+        self.reader(fields())
+        budget = self.open()
+        code, out = self.use(budget, "same-id", limit="pages")
+        self.assertEqual(code, 1, out)
+        self.assertIn("names no limit pages", out)
+        self.reader(fields() | {"limits": {**fields()["limits"], "pages": {"limit": 3, "per": "epic", "unit": "count"}}})
+        code, out = self.use(budget, "same-id", limit="pages")
+        self.assertEqual(code, 1, out)
+        self.assertIn("was answered first", out)
+        self.assertEqual(self.use(budget, "fresh-id", limit="pages")[0], 0)
+        code, out = self.ledger("status", "--budget", budget)
+        self.assertEqual(code, 0, out)
+        self.assertIn("use same-id: REFUSED pages", out)
+
     def test_use_grants_nothing_with_no_file_or_a_withdrawn_go(self) -> None:
         self.body = test_run_needs.epic()
         self.go(None)

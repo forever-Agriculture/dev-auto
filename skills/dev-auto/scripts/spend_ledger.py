@@ -512,25 +512,28 @@ def take_use(args: dict) -> int:
         if earlier:
             print(f"{earlier['answer']}: use {use_id} was answered first at {earlier['at']} ({earlier['limit']} at {earlier['boundary']}); nothing counted again")
             return 0 if earlier["answer"] == "TAKEN" else EXIT_REFUSED
+        def refuse(why_text: str, go_commit: str | None = None) -> int:
+            # A refusal is the use id's first answer too: a retry with this id stays refused, whatever changes later (110.6 AC1).
+            uses[use_id] = {"answer": "REFUSED", "limit": name, "boundary": boundary, "amount": quantity, "reason": why_text, "go": go_commit, "at": now()}
+            ledger.save()
+            print(f"REFUSED: use {use_id}: {why_text}; nothing counted")
+            return EXIT_REFUSED
+
         go = latest_go(data)
         if go is None:
-            print(f"REFUSED: use {use_id}: no go in force names limits; nothing counted")
-            return EXIT_REFUSED
+            return refuse("no go in force names limits")
         state, why, needs = go_read(data, go)
         if state == "withdrawn":
             withdraw(data, go, why)
             ledger.save()
         if state != "stands":
-            print(f"REFUSED: use {use_id}: the go {go['commit'][:12]} {'was withdrawn' if state == 'withdrawn' else 'cannot be confirmed'}: {why}; nothing counted")
-            return EXIT_REFUSED
+            return refuse(f"the go {go['commit'][:12]} {'was withdrawn' if state == 'withdrawn' else 'cannot be confirmed'}: {why}", go["commit"])
         fields = file_fields(needs)
         if fields is None:
-            print(f"REFUSED: use {use_id}: the go's commit holds no allowances file; its Run needs hold; nothing counted")
-            return EXIT_REFUSED
+            return refuse("the go's commit holds no allowances file; its Run needs hold", go["commit"])
         one = fields["limits"].get(name)
         if one is None:
-            print(f"REFUSED: use {use_id}: the file names no limit {name} ({', '.join(fields['limits']) or 'none'}); a new limit needs his words; nothing counted")
-            return EXIT_REFUSED
+            return refuse(f"the file names no limit {name} ({', '.join(fields['limits']) or 'none'}); a new limit needs his words", go["commit"])
         if match.group(1) and boundary not in go.get("stories", []):
             print(f"USAGE: {boundary} is not one of the stories epic {data.get('epic')} had at its go ({', '.join(go.get('stories', [])) or 'none'}); nothing counted")
             return EXIT_USAGE
@@ -918,7 +921,8 @@ def main(argv: list[str]) -> int:
                 for job, entry in data["jobs"].items():
                     print(f"  {job}: {entry['state']} max {entry['max']:.2f}" + (f" spent {entry['spent']:.2f}" if "spent" in entry else ""))
                 for use_id, use in data.get("uses", {}).items():
-                    print(f"  use {use_id}: {use['answer']} {use['limit']} at {use['boundary']}, {use['amount']:g} against {use['value']:g}")
+                    against = f"against {use['value']:g}" if "value" in use else use.get("reason", "")
+                    print(f"  use {use_id}: {use['answer']} {use['limit']} at {use['boundary']}, {use['amount']:g} {against}")
             return 0
     except (ValueError, RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
         print(f"UNABLE: {exc}")
