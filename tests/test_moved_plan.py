@@ -113,6 +113,21 @@ class MovedPlanTests(unittest.TestCase):
         self.commit("hand edit")
         self.assertEqual(self.read(True)["state"], "NO_GO_RECORD")
 
+    def test_cutover_retains_a_withdrawal_even_after_later_restoration_without_a_new_go(self):
+        self.file(OLD, "development_status:\n  epic-7: in-progress # go 2026-11-01\n")
+        self.commit("old BMAD Go")
+        self.move()
+        board = self.repo / "plan/status.yaml"
+        self.file("plan/status.yaml", board.read_text().replace("epic-7: in-progress", "epic-7: backlog"))
+        cutover = self.commit("plan: bring the move up to the live plan\n\nPlan-Cutover: yes")
+        after = self.read(True)
+        self.assertEqual(after["state"], "NO_GO_RECORD")
+        self.assertEqual(after["withdrawn_go"], "2026-11-01")
+        self.assertIn(cutover[:12], after["reason"])
+        self.file("plan/status.yaml", board.read_text().replace("epic-7: backlog", "epic-7: in-progress"))
+        self.commit("restore status without new Go")
+        self.assertEqual(self.read(True)["withdrawn_go"], "2026-11-01")
+
     def test_cutover_commit_never_turns_an_uncommitted_go_into_an_approval(self):
         self.move(status="backlog", note="plan")
         self.file("plan/status.yaml", f"format: bmn-plan\nschema_version: 1\nmoved_from: {OLD}\nqueue: []\ndevelopment_status:\n  epic-7: ready # go 2026-11-05\n  7-1-keep: backlog\n")

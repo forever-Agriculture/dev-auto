@@ -111,7 +111,9 @@ def find_gos(repo: Path, board: str, epic: int, bmad: bool, *, tip: str = "HEAD"
         match = GO_DATE.search(note)
         date = match.group(1) if match else None
         if commit in silent:
-            # A cutover commit carries reconciled rows; it is the new comparison point and never an approval event.
+            # Reconciliation creates no approval, but it cannot conceal a withdrawal.
+            if gos and "withdrawn" not in gos[-1] and (status is None or status in WITHDRAWN) and (previous is None or previous[0] not in WITHDRAWN):
+                gos[-1]["withdrawn"] = {"commit": commit, "status": status or "off the board"}
             previous = (status, date) if current else None
             continue
         if bmad:
