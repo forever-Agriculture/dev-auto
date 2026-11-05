@@ -168,6 +168,52 @@ class RunNeedsTests(unittest.TestCase):
         self.assertEqual(result["state"], "NO_GO_RECORD")
         self.assertIn("cannot be read", result["reason"])
 
+    def bmad_with_platform_file(self, root: Path, board_note: str = "") -> dict:
+        for folder in ("_bmad-output/implementation-artifacts", "_bmad-output/planning-artifacts", "docs/platform"):
+            (root / folder).mkdir(parents=True)
+        subprocess.run(["git", "init", "-qb", "main", str(root)], check=True)
+        sprint = root / "_bmad-output/implementation-artifacts/sprint-status.yaml"
+        sprint.write_text(f"development_status:\n  epic-44: in-progress{board_note}\n")
+        (root / "_bmad-output/planning-artifacts/epics.md").write_text("## Epic 44: Listed here only\nOne line.\n")
+        (root / "docs/platform/epic-44-1-a-story-of-it.md").write_text("# Story\n\n## Run needs\n- **Money cap:** $99.\n")
+        (root / "docs/platform/epic-440-another-epic.md").write_text("# Epic 440\n\n## Run needs\n- **Money cap:** $98.\n")
+        (root / "docs/platform/epic-44-an-automation.md").write_text("# MODULE: x\n# Epic 44: An automation\n\n## Run needs\n\n- **Extra repair rounds:** 4 per boundary, the default.\n- **Money cap:** $1, AI and E2B together.\n\n## Stories\n\n## Story 44.1: One\n")
+        subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+        subprocess.run(["git", "-C", str(root), "-c", "user.name=F", "-c", "user.email=f@example.invalid", "commit", "-qm", "plan"], check=True)
+        return {"ok": True, "format": "bmad", "history": "product-repository", "plan_root": None, "product_root": str(root), "board_checkout": str(root), "default_checkout": str(root), "board": str(sprint)}
+
+    def test_a_bmad_epic_in_its_own_platform_file_gives_its_terms_at_the_gos_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            status = self.bmad_with_platform_file(root, " # go 2026-11-05")
+            with mock.patch.object(run_needs, "resolve", return_value=status):
+                result = run_needs.run_needs(root, 44)
+        self.assertEqual(result["state"], "GO")
+        self.assertEqual(result["parsed"]["money_cap"], 1.0)
+        self.assertEqual(result["changed_since_go"], [])
+
+    def test_a_bmad_epic_in_its_own_platform_file_is_found_now_and_an_uncommitted_go_grants_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            status = self.bmad_with_platform_file(root)
+            sprint = Path(status["board"])
+            sprint.write_text(sprint.read_text().replace("in-progress", "in-progress # go 2026-11-05"))
+            with mock.patch.object(run_needs, "resolve", return_value=status):
+                result = run_needs.run_needs(root, 44)
+        self.assertEqual(result["state"], "NO_GO_RECORD")
+        self.assertEqual(result["uncommitted_go"], "2026-11-05")
+
+    def test_planning_artifacts_with_run_needs_still_win_over_a_platform_file(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            status = self.bmad_with_platform_file(root, " # go 2026-11-05")
+            (root / "_bmad-output/planning-artifacts/epics.md").write_text("## Epic 44: Here\n\n### Run needs\n- **Money cap:** $7.\n")
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+            subprocess.run(["git", "-C", str(root), "-c", "user.name=F", "-c", "user.email=f@example.invalid", "commit", "--amend", "-qm", "plan"], check=True)
+            with mock.patch.object(run_needs, "resolve", return_value=status):
+                result = run_needs.run_needs(root, 44)
+        self.assertEqual(result["parsed"]["money_cap"], 7.0)
+
     def test_bmad_go_is_the_dated_go_comment_in_the_product_history(self) -> None:
         root = self.plan.root.parent / "product"
         (root / "_bmad-output" / "implementation-artifacts").mkdir(parents=True)

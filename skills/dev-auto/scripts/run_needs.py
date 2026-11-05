@@ -283,6 +283,22 @@ def epic_text_bmad(text: str | None, epic: int) -> str | None:
     return match.group(0) if match else None
 
 
+def epic_text_platform(epic: int, names: list[str], read) -> str | None:
+    """A BMAD project's epic kept in its own file, `docs/platform/epic-N-slug.md`, for an epics.md that only lists it (BMN 110.7).
+
+    A story's file beside it (`epic-N-M-slug.md`) is not the epic's. The file with Run needs wins.
+    """
+    found = None
+    for name in sorted(names):
+        if not re.fullmatch(rf"docs/platform/epic-0*{epic}-(?!\d+-)[^/]*\.md", name):
+            continue
+        text = read(name)
+        if sections(text)["Run needs"] is not None:
+            return text
+        found = found or text
+    return found
+
+
 def split_needs(value: str) -> list[str]:
     """A Prepared line's needs: split at each `;` outside backticks and parentheses, which a target or a command may hold."""
     parts, current, depth, quoted = [], "", 0, False
@@ -424,11 +440,16 @@ def run_needs(project: Path, epic: int) -> dict:
                 return epic_text_bmn(epic, current_read)
             except OSError:
                 return None
+        planned = None
         for path in sorted((board.parent.parent / "planning-artifacts").rglob("*.md")):
-            text = epic_text_bmad(path.read_text(encoding="utf-8", errors="replace"), epic)
-            if text:
-                return text
-        return None
+            planned = epic_text_bmad(path.read_text(encoding="utf-8", errors="replace"), epic)
+            if planned:
+                break
+        if sections(planned)["Run needs"] is not None:
+            return planned
+        folder = repo / "docs" / "platform"
+        names = [f"docs/platform/{path.name}" for path in folder.glob("epic-*.md")] if folder.is_dir() else []
+        return epic_text_platform(epic, names, lambda name: (repo / name).read_text(encoding="utf-8", errors="replace")) or planned
 
     text_now = epic_now()
     legacy = bool(re.search(r"^<!--\s*bmn-plan:\s*bmad-legacy\b", text_now or "", re.M))
@@ -471,10 +492,13 @@ def run_needs(project: Path, epic: int) -> dict:
         """The epic's text as a go's commit holds it."""
         if bmad or any(g["commit"] == commit and g.get("bmad") for g in gos):
             found = None
-            for path in git(repo, "ls-tree", "-r", "--name-only", commit).split():
+            paths = git(repo, "ls-tree", "-r", "--name-only", commit).split()
+            for path in paths:
                 if path.endswith(".md") and "planning-artifacts" in path:
                     found = epic_text_bmad(git(repo, "show", f"{commit}:{path}"), epic) or found
-            return found
+            if sections(found)["Run needs"] is not None:
+                return found
+            return epic_text_platform(epic, paths, lambda path: git(repo, "show", f"{commit}:{path}")) or found
         try:
             return epic_text_bmn(epic, lambda path: read_in(commit, path))
         except RuntimeError:

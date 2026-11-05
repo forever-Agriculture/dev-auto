@@ -198,6 +198,19 @@ class MovedPlanTests(unittest.TestCase):
                         self.assertNotEqual(spend_ledger.main(["round", "--budget", budget, "--boundary", "epic", "--use-id", mutation]), 0)
                     self.assertEqual({p.name: p.read_bytes() for p in spend_ledger.budgets().iterdir()}, before)
 
+    def test_a_go_whose_text_lives_in_docs_platform_keeps_its_terms_after_a_move(self):
+        # BMN 110.7 AC2: the read at a go's commit stays when a move retires the current read.
+        self.file("_bmad-output/planning-artifacts/epics.md", "## Epic 7: Fixture\nA line in the list.\n")
+        self.file("docs/platform/epic-7-fixture.md", TEXT.replace("$12", "$1"))
+        self.commit("the epic in its own file")
+        self.file(OLD, "development_status:\n  epic-7: in-progress # go 2026-09-01\n")
+        commit = self.commit("go")
+        self.assertEqual(self.read()["parsed"]["money_cap"], 1.0)
+        self.move()
+        moved = self.read(moved=True)
+        self.assertEqual((moved["state"], moved["go_commit"]), ("GO", commit))
+        self.assertEqual(moved["parsed"]["money_cap"], 1.0)
+
     def test_withdrawn_go_stays_withdrawn_after_a_later_in_progress_snapshot(self):
         self.file(OLD, "development_status:\n  epic-7: in-progress # go 2026-11-01\n")
         self.commit("old Go")
