@@ -1,6 +1,7 @@
-# Lessons for dev-auto from the earlier workflow and direct development
+<!-- MODULE: LESSONS.md - what dev-auto took from the earlier workflow, the retired workflow it replaced, and from direct development -->
+# Lessons from the earlier workflow and direct development
 
-Recorded 2026-09-17 from historical project notes, not a new replay of those runs. These are implementation lessons, not proof that dev-auto is more efficient. Keep the agreed model choices; historical model-routing prescriptions do not override current owner decisions.
+the earlier workflow is the retired workflow dev-auto replaced. Recorded 2026-09-17 from its project notes, not a new replay of those runs. These lessons shaped the design; they don't prove dev-auto is more efficient, and they aren't a checklist of machinery to rebuild.
 
 ## 1. Prove the approach serves the project before polishing it
 
@@ -24,11 +25,11 @@ Apply: preserve artifacts and independently inspect their actual state. Distingu
 
 Evidence: one troubled Epic 64 story accumulated 415 worker-minutes and about 21 review-lens dispatches; every story was classified high/critical. The diagnosis explicitly cautions that some late findings were real, so the lesson is not to dismiss them.
 
-Apply: prioritize material requirements and consequential boundaries; keep Astra → Fable as a tier rather than a default pair; use focused corrections and explicit blocked outcomes. Reuse evidence only where semantically valid. A change in another part of the same file does not automatically require a full repeat review, but unchanged hunks can still be affected by changed shared contracts or dependencies. Do not replace semantic impact analysis with a hunk-only rule.
+Apply: prioritize material requirements and consequential boundaries; treat stronger reviewers as a chain to escalate along rather than a default pair; use focused corrections and explicit blocked outcomes. Reuse evidence only where semantically valid. A change in another part of the same file does not automatically require a full repeat review, but unchanged hunks can still be affected by changed shared contracts or dependencies. Do not replace semantic impact analysis with a hunk-only rule.
 
 ## 5. Runtime evidence and model diversity both matter
 
-Evidence: ProjectQ passed 120 tests and an initial Astra review before a later audit found three material defects: prelaunch authority, unsafe capability pairing and migration rollback/reapply. GLM Flash found the migration defect. Six new regressions failed on the old implementation; the final aggregate passed 126 tests.
+Evidence: one direct-development project passed 120 tests and an initial Astra review before a later audit found three material defects: prelaunch authority, unsafe capability pairing and migration rollback/reapply. GLM Flash found the migration defect. Six new regressions failed on the old implementation; the final aggregate passed 126 tests.
 
 Apply: test important invariants, negative cases, races, rollback and existing user journeys. Independent testers derive missing cases. Preserve original requirements and source access for reviewers. A strong-model verdict, coverage percentage or test count cannot establish correctness by itself.
 
@@ -42,13 +43,13 @@ Apply: affected tests during changes, integration/regression checks at epic boun
 
 Evidence: direct Codex lost GLM's Claude Code route across compaction; the owner had to correct it. the earlier workflow had distinct source and installed copies and required explicit hash verification.
 
-Apply: canonical shared skill, concrete registry-backed routes and explicit owner restrictions. Persist unresolved findings, later-epic obligations and exact next action. Validate dispatch against current route/restriction files and restore state after compaction. Record policy revision so stale loaded instructions are detectable. Treat board status as progress metadata, not proof of acceptance.
+Apply: canonical shared skill, routes from the owner's BMN team and explicit owner restrictions. Persist unresolved findings, later-epic obligations and exact next action. Let BMN check each ask against the team, and restore state after compaction by rereading the skill and handoff. Treat board status as progress metadata, not proof of acceptance.
 
 ## 8. Preserve useful parallelism with real boundaries
 
 Evidence: the September 15 restoration note records parallelism as an established requirement that had been removed during simplification. It verifies overlap and conflict handling in local tests but explicitly does not prove an OS boundary or real model-run speedup.
 
-Apply: keep useful independent implementation helpers, as the owner requested. Consider shared test databases, ports, fixtures and input dependencies as well as write files. Isolate or serialize conflicting resources. Do not describe file ownership prompts as a sandbox. Record actual overlap and integration outcome before claiming a speed benefit.
+Apply: where work does run in parallel, consider shared test databases, ports, fixtures and input dependencies as well as write files. Isolate or serialize conflicting resources. Do not describe file ownership prompts as a sandbox. Record actual overlap and integration outcome before claiming a speed benefit.
 
 ## 9. Permissions must work even when prompts are ignored
 
@@ -61,16 +62,3 @@ Apply: enforce access through the host's sandbox/permissions, keep credentials o
 Evidence: the earlier workflow acceptance/reporting repairs replaced reliance on done-board tokens with current evidence. Direct-development records distinguish controlled-local acceptance from unresolved production gates and record substantial usage gaps.
 
 Apply: separate implemented, verified, reviewed and externally blocked states. Declare the intended acceptance boundary; avoid completed local work being described as deployed production. Include repair, review, waits, escaped defects and owner attention in comparisons. A quiet report, many tests or many completed stories is not proof of efficiency.
-
-## Source records
-
-- a retired project note
-- a retired project note
-- a retired project note
-- a retired project note
-- a retired project note
-- a retired project note
-
-## Using this during implementation
-
-Sol/xhigh implements dev-auto when implementation starts. GLM Flash/max through Claude Code then performs routine review and driven testing. Give both this note and IMPLEMENTATION.md; verify their findings against artifacts. These assignments are for building dev-auto itself and do not restrict its future lead's choice of helpers. Runtime product work has not started in this design discussion.

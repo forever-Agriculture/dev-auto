@@ -1,128 +1,136 @@
-<!-- MODULE: README.md - shared dev-auto setup, execution and report delivery -->
+<!-- MODULE: README.md - what dev-auto is, how to install and run it, and what a run does -->
 # dev-auto
 
-Direct development from plans in BMN's format or BMAD's, with project-alignment checks, regression tests, independent reviews and useful model delegation. Shared skills for Codex, Claude Code and Claude Code on the GLM route (deactivated since 2026-09-30); no custom orchestration engine.
+A skill for Codex and Claude Code that implements planned epics directly and keeps going until they pass acceptance, with bounded reviews, manual QA, spend limits and recovery after compaction.
 
-Direct Codex/Claude implementation is the foundation. Dev-auto adds a thin layer
-of proportionate quality, security, and recovery checks. Real runs inform the
-ongoing search for the best balance of quality, total cost, elapsed time, and owner
-attention; simplify when evidence shows overhead does not earn its cost.
+One lead agent writes the code. dev-auto adds only the checks that earn their cost, and judges itself by accepted outcomes: quality, total cost, elapsed time and owner attention together. It has no controller, scheduler or second approval stage. It is a skill, a few small scripts and one recovery hook, and it works from plans in [BMN](https://github.com/forever-Agriculture/BMN)'s format or BMAD's without running BMAD's build workflows.
 
-Dev-auto owns the implementation workflow: consume plans (BMN's `plan/` or BMAD's) directly, without
-nesting another build workflow or introducing a second approval for authorized
-work. Repeated failed outcomes trigger diagnosis of the shared boundary before
-another repair, even when successive errors differ.
+It is one person's working setup, not a packaged product: the text addresses "the owner", and it assumes his BMN team. The repository has no license yet, so you may read it but no reuse rights are granted.
+
+## Requirements
+
+- Python 3.10 or newer and Codex, Claude Code or both.
+- BMN for finding the plan, helpers, QA, away grants and report publishing. Without `bmn`, an approved team or BMN running, a lead asks no helper and reports BLOCKED; local away mode still works.
+- Linux for process inventories (`/proc`, pidfd) and detached paid jobs (`systemd-run --user`, or `--direct`).
 
 ## Install
-
-Requires Python 3 and the coding clients you intend to use. From this repository:
 
 ```bash
 python3 scripts/install-dev-auto.py
 python3 scripts/install-dev-auto.py --check
 ```
 
-The installer links every client to `skills/dev-auto` in this checkout. Planning is BMN's `plan` skill, which BMN installs into every app by itself; `skills/epic-lead-planning` is kept only as a pointer to it and is no longer installed. The installer also registers the dev-auto compaction-recovery hook:
+The installer links each client to `skills/dev-auto` in this checkout and registers the recovery hook:
 
-- Codex: `~/.agents/skills/dev-auto`; hook group in `~/.codex/hooks.json`
-- Claude Code: `~/.claude/skills/dev-auto`; hook group in `~/.claude/settings.json`
-- Claude Code on GLM (`claude glm`), when `~/.claude-glm` exists: `~/.claude-glm/skills/dev-auto`; hook group in `~/.claude-glm/settings.json`
+| Client | Skill link | Hook group |
+| --- | --- | --- |
+| Codex | `~/.agents/skills/dev-auto` | `~/.codex/hooks.json` |
+| Claude Code | `~/.claude/skills/dev-auto` | `~/.claude/settings.json` |
+| Claude Code on GLM, when `~/.claude-glm` exists | `~/.claude-glm/skills/dev-auto` | `~/.claude-glm/settings.json` |
 
-The hook (`hooks/dev-auto-session-start.py`) runs on `SessionStart` with matcher `compact|resume`. It finds the nearest `.dev-auto/handoff.md` in the working directory or its ancestors, stopping at the first repository or home boundary. For an unfinished run it injects a reminder to reread the skill and complete handoff first, then the routing reference before dispatch. It includes the whole handoff up to 9,000 characters, preserving renamed fields and free text. Both hosts cap hook output: Claude Code injects only a 2 KB preview above 10,000 characters and Codex keeps about 2,500 tokens, so the reminder stays short enough (about 820 characters with paths) that a 9,000-character handoff fits under both, and the hook keeps its whole output under 9,950 characters, warning instead of letting a host cut a snapshot silently. An unusually token-dense handoff may still lose a visible middle piece in Codex, which the required full read covers. A larger handoff is omitted in full with an explicit incomplete warning that requires trimming until `check.py check` passes. The handoff can restore restrictions and progress, but cannot grant or expand permission; positive authorization must be reconciled with current owner instructions or established owner policy. The hook cannot enforce model compliance. It is silent when no handoff exists or when the handoff ends with a single `Status: COMPLETE` line and records no stop (a short note after `COMPLETE` or `none`, separated by punctuation, is fine), even above the 9,000-character snapshot limit (up to a 1 MB read cap), so a finished run never wakes an unrelated session in the same repository. It also lists unfinished runs at the root of the repository's other git worktrees (a short line each, not their handoffs), because run state is per checkout and a session can sit in one worktree while its run lives in another; with no run of its own it injects only that list. It never writes and fails open. Codex requires trusting a new hook once through `/hooks`. Use `--links-only` to skip hook registration. Run the installer while no client is writing its settings; it replaces the file atomically but does not detect a concurrent edit. Start the client within the project you are developing; a nested repository has its own recovery boundary.
+GLM routes have been deactivated since 2026-09-30; the installer still maintains the profile if it exists.
 
-Keep the checkout in place. All links use the same files, so edits stay synchronized. Existing conflicting files/links are preserved rather than overwritten. Start a fresh client session after installation or policy changes; already-loaded instructions may be stale.
+Keep the checkout in place, because every link uses the same files. Existing conflicting files and links are preserved, and settings are replaced atomically, so run the installer while no client is writing them. `--links-only` skips the hook and `--target-root` installs below another directory. Codex asks you to trust a new hook once through `/hooks`. Start a fresh client session after installing or changing the skill.
 
-## Claude Code
+Planning is BMN's `plan` skill, which BMN installs itself; `skills/epic-lead-planning` is only a pointer to it.
 
-Start Claude Code in the project to develop, with the chosen lead model:
+## Run
 
-```bash
-cd /path/to/your-project
-claude --model opus --effort xhigh
-```
-
-Then:
-
-```text
-/dev-auto epics 1-3
-/dev-auto project
-/dev-auto status
-/dev-auto resume
-```
-
-Use `epics` for selected epic numbers/ranges; `project` covers the planned project. Add `away` (`/dev-auto epics 1-3 away`), or say you are leaving, when you will not be there: the lead first says what will run and what waits, with one card for unresolved reserved decisions unless questions are forbidden, then records what waits instead of asking until you say you are back (see Owner decisions in [SKILL.md](skills/dev-auto/SKILL.md)). Inside BMN the lead forwards your words with `bmn away` / `bmn back`, follows BMN's away state (`check.py away`), adopts an away you set there without a departure card, and also records its decisions in BMN while you are away. Before you leave, each run asks you on one card (`bmn grant ask`) for only the extra repair rounds and named merges or pushes its night needs; only your answer, in BMN or on Telegram, grants them, until you are back ([away-grant.md](skills/dev-auto/references/away-grant.md), `check.py grant`). Without BMN the local away mode is unchanged. Start one of these scopes, not both concurrently. Status reports current progress; resume continues the recorded scope, and when the current checkout holds no unfinished run it looks in the repository's other worktrees and asks when more than one could match.
-
-Optional continuation in the same Claude session:
-
-```text
-/loop 20m /dev-auto resume
-```
-
-Start the initial dev-auto run first. The loop is a recovery wakeup if the agent stalls or a turn ends while work remains. Its interval does not limit the run: dev-auto keeps working until the selected scope is accepted. Scheduled prompts wait until the current turn is idle, so this cannot interrupt a hung tool or recover a closed client; the session must stay running. Cancel its associated job after COMPLETE or an explicit stop; on BLOCKED, resolve the named blocker and cancel the loop if repeated wakeups cannot help. Start with a supervised epic; scheduled execution has not yet been exercised by this project. `resume` reconciles actual progress and avoids restarting completed or still-active work. Do not create multiple development sessions for the same working tree.
-
-Claude documents skill composition with `/loop` in [scheduled tasks](https://code.claude.com/docs/en/scheduled-tasks). This skill provides no independent scheduler or hard timeout.
-
-## Codex
-
-Start Codex in the project with the chosen lead model:
+Start a client in the project to develop, with a lead the BMN team allows (`bmn roster role lead --json`):
 
 ```bash
-cd /path/to/your-project
-codex -m gpt-6-sol -c model_reasoning_effort=xhigh
+claude --model <lead-model> --effort <effort>
+codex -m <lead-model> -c model_reasoning_effort=<effort>
 ```
 
-Then invoke the shared skill:
+Then invoke the skill, with `/dev-auto` in Claude Code or `$dev-auto` in Codex:
 
 ```text
-$dev-auto epics 1-3
-$dev-auto project
-$dev-auto status
-$dev-auto resume
+/dev-auto epics 1-3     selected epics
+/dev-auto project       unfinished planned epics, then a final cross-epic evaluation
+/dev-auto status        read-only report
+/dev-auto resume        continue the recorded scope
 ```
 
-Codex's native skill picker may also expose it. The skill does not switch the current model itself. Resume manually or through the host's supported continuation features; Claude's `/loop` is not installed as a Codex command by this project.
+Add `away`, or say you are leaving, when you will be unreachable. The skill does not switch the current model. Don't run two development sessions on one working tree.
 
-## What it does
+Work continues until the selected scope is accepted, with no time limit. A real blocker, an explicit stop or a host interruption leaves a resumable handoff. In Claude Code, `/loop 20m /dev-auto resume` can wake a stalled session, but it cannot interrupt a hung tool or revive a closed client, and it never undoes a stop. Scheduled execution hasn't been exercised by this project.
 
-1. Finds the plan with `bmn plan status --json` and reads project instructions and the plan's requirements, architecture, epics/stories and acceptance criteria.
-2. Checks the selected epic against the project before implementing it directly.
-3. Works on its own branch in its own worktree with its own dependencies, and updates its own board rows (`bmn plan set` in BMN's format, `sprint-status.yaml` in BMAD's) in both the default checkout, where the owner reads them, and its worktree, preserving unrelated entries and comments; the default branch gets the work through an owner-authorized merge.
-4. Uses focused story tests and appropriate project regression/integration checks; checks existing behavior, not just new tests.
-5. Runs a quick pre-review and manual QA of the frozen running interface alongside its own final checks, repairs once, then one independent Astra whole-epic review with a focused recheck, never editing a candidate while a reviewer reads it. Repair loops are bounded (see [SKILL.md](skills/dev-auto/SKILL.md)); every material finding ends with a disposition, and acceptance confirms each in-scope story's board row.
-6. Preserves pending findings, restrictions, routes, evidence and next actions in a short project handoff.
-7. Asks the owner only about spend beyond the approved total, scope or acceptance changes, actions his global rules reserve, credentials or private data, owner-only checks and brake decisions; method questions go to the consultant, and everything else is decided on the recommended option and listed under `Decided for you` in the handoff. Away mode permits one more narrow repair and recheck per boundary; the brake's card, spend beyond the total, reserved actions, acceptance changes and owner-only checks still wait for him. His lasting model choices for a project live in his BMN team as project choices he approves.
-8. As each epic is accepted, creates and checks its HTML report, publishes it privately and requests the default browser without another owner question; host permission prompts still apply. A receipt identifies the page by SHA256 so resume reuses successful delivery and avoids another browser launch for the same revision. BMN publication names keep `.html`, and the owner gets every report link/id. Unavailable or failed publishing/opening is reported with the local page path and does not block product acceptance; read-only status opens nothing.
+## What a run does
 
-The handoff keeps every selected epic and its dependency visible. At material
-updates, replace stale state and link detailed receipts; append owner quotes,
-superseded terms and history to the append-only `.dev-auto/log.md` so the handoff stays within the hook's 9,000-character snapshot limit. Never drop
-unresolved restrictions or findings to fit; move resolved material instead. Run state is local to each checkout or worktree and never committed: one `.dev-auto/` line in the repository's shared `info/exclude` covers every worktree, and receipts and raw evidence live in `.dev-auto/evidence/`, never in `/tmp` or session scratch. The lead records receipt paths and lead session IDs; elapsed time, usage and owner prompts are read from those host records when runs are evaluated.
+1. **Finds the plan** with `bmn plan status --json`. Two undeclared plans, an unknown schema or a malformed BMN plan stop the run with that error named. `project` scope follows the plan's `queue`, skipping `paused` and `dropped` epics.
+2. **Reads its authority.** `spend_ledger.py open` reads the owner's go on the epic, and the run keeps its terms, money cap and rounds. Prepared needs are checked at the start and again when the owner leaves.
+3. **Checks fit**, then implements directly on its own branch, worktree and dependencies.
+4. **Keeps the board current** at every state change: BMN rows with `bmn plan set`, always on the plan in the default checkout, or BMAD's `sprint-status.yaml` by its existing two-checkout convention. `bmn plan publish` runs at each story's end on a tracked plan. Delivery counts only once the work is confirmed on the default branch.
+5. **Tests behavior**: focused tests during repairs, required broad gates once at acceptance, and a regression test that fails on the original defect.
+6. **Reviews a frozen candidate.** A quick pre-review and manual QA run alongside the lead's final checks, followed by one consolidated repair, then one full independent review with one focused recheck. Nothing edits a candidate while a reviewer reads it, and every material finding ends with a disposition. A project's own PR review runs as its rules say.
+7. **Accepts** only after exercising the affected path the owner uses. A check only he can do keeps acceptance BLOCKED until he passes or defers it.
+8. **Reports**: as each epic is accepted, it writes, checks and privately publishes an HTML page with BMN's `report-artifact` skill. A Claude Code Artifact publish opens the page itself; otherwise the lead launches the default browser once. A receipt with the page's SHA256 stops resume from repeating this, and a publishing failure doesn't block acceptance.
+9. **Cleans up**: `check.py leftovers` inventories what the run started before it ends, and only finished, clean, merged worktrees are offered for removal.
 
-Mechanical handoff rules are checked by a read-only helper instead of prose. `skills/dev-auto/scripts/check.py check` fails any handoff over the 9,000-character snapshot limit, with a Status longer than 200 characters, or without exactly one Status, Explicit user stop and Next safe action field; or when git does not ignore `.dev-auto/`, and notes `.dev-auto` files earlier work committed (removing them needs a repository change the owner approves); at COMPLETE it also fails placeholder text in the observed-model and lead-session fields. `-h` prints its help. `check.py usage PATH` prints model, effort and usage from a BMN ask's exported record (its usage as BMN counted it, once per its app's basis), a Codex rollout or a Claude Code session or subagent transcript, plus timestamps and owner prompts (or Codex turns) from rollouts and transcripts. The lead runs `check` after each handoff save (a FAIL before COMPLETE means the next save fixes it) and `usage` when collecting each receipt; the helper never writes, launches or decides, and it is not a hook.
+Each run ends with `DEV-AUTO: ACTIVE|PAUSED|BLOCKED|COMPLETE`.
 
-Two helpers serve planned epics (BMN Epic 90). `skills/dev-auto/scripts/run_needs.py EPIC` names the owner's go on the epic (the plan commit in which its row went to `ready` with `go YYYY-MM-DD`) and prints the Run needs approved there, or `NO_GO_RECORD` / `NO_RUN_NEEDS`, and `CHANGED_SINCE_GO` when they were edited after the go; it only reads. `skills/dev-auto/scripts/spend_ledger.py` keeps one reservation ledger per plan and epic under `$XDG_STATE_HOME/dev-auto/budgets/`: `launch` reserves a paid job's maximum against the go's money cap under a lock and starts the job only when it fits, and settling, releasing or an unknown outcome never resets what was spent or reserved.
+## Owner decisions
 
-Inside BMN, its native hooks manage question and permission cards; dev-auto makes no manual cockpit calls.
+The lead asks only about what is reserved to the owner: spend beyond what he approved, changes to selected work or acceptance criteria, actions his global rules reserve, credentials or private data, owner-only checks and model choices. Method questions go to the consultant. Everything else is decided on the recommended option and listed under `Decided for you` in the handoff and report. A question goes out once, in one batch, and only when no work can proceed; otherwise the affected story parks and the rest continues.
 
-The owner's team in BMN defines helper and reviewer routing: [models.md](skills/dev-auto/references/models.md#helpers-and-reviewers) says how the lead reads it (`bmn roster role`) and asks a helper through BMN (`bmn team ask`), which checks the ask against the team, runs it in the teammate's own app's read-only mode and keeps its record.
-Manual QA follows [qa-brief.md](skills/dev-auto/references/qa-brief.md): curated goals and criteria, a disposable running target, checked reports and retests inside the existing allowance. Unsupported account/desktop targets stay explicitly unverified.
+**Stuck work is bounded.** After two failed fixes, or three failed runs of one gate, the lead compares the failures and asks the consultant. Each further attempt needs a different method the consultant agrees, recorded first. Rounds come from the ledger with no card: at least 4 per boundary, as an allowance rather than a target, and the last needs a step-back by a different agent. After that, work the go lists as deferrable is deferred; otherwise the story parks BLOCKED and the rest continues.
 
-Credentials are never part of this repository. An unavailable route is reported; no silent model or effort substitution.
+**Away mode** lasts until the owner says he is back; inside BMN the lead follows BMN's away state (`bmn away`, `bmn back`, `check.py away`). Before he leaves, each run asks once on one card (`bmn grant ask`) for the named actions its night needs: a merge, a push, an exact command or an exact message. Only his answer, in BMN or on Telegram, grants them, and `check.py grant` reads the grant fresh before each use. See [away-grant.md](skills/dev-auto/references/away-grant.md).
 
-## Completion, permissions and limits
+**Spend and messages** go through `spend_ledger.py`. Every paid job launches through it against the go's cap, and a message the go's Run needs name is limited to 2 per person and purpose. No resume, new lead or worktree resets what was used.
 
-Dev-auto works until the selected scope passes its implementation, test and review requirements. There is no automatic time limit or need to renew a work window. A real blocker, explicit user stop, or host interruption leaves a resumable handoff. Tell the agent to stop when you want to stop; this also stops its identified recovery loop when the host supports cancellation. Scheduled wakeups cannot undo your stop. The skill cannot override host rate limits or keep a closed client running.
+## Helpers
 
-The skill uses native host tools and permissions. It does not create a sandbox or make concurrent sessions safe by itself. Helpers must have appropriate actual access restrictions, ownership and nonconflicting resources. Native Codex helpers inherit the lead's sandbox; asks run in each app's own read-only mode under BMN's supervision. Read-only review prevents writes, not arbitrary reads; use the project directly only when its readable scope is appropriate, otherwise prepare a smaller workspace. Raw provider transcripts, screenshots and runtime dumps stay in the checkout's ignored `.dev-auto/evidence/`, never in `/tmp` or session scratch, which a reboot deletes; the handoff cites them by path and hash. Asks' exported records, Codex rollout files and Claude Code transcripts supply the observed model and effort the handoff records; usage and owner prompts are read from the same records when runs are evaluated. Honor the owner's standing permission for local commits of ready, checked task changes while preserving unrelated work. Push, merge, deploy and production access follow the owner's global rules: pushes, merges and pull requests go only as far as `bmn policy --repo OWNER/NAME` authorizes.
+The owner's BMN team says who does what, so the skill assigns no model to any role: the lead reads the chain with `bmn roster role <role>` and asks with `bmn team ask`, which runs the teammate read-only and keeps a record. An unavailable route is reported, never silently substituted. See [models.md](skills/dev-auto/references/models.md).
 
-Independent review and green tests are evidence, not guarantees. Unverified flows, unattended reliability, unmeasured costs and external gates remain explicit. Judge incremental quality, cost and owner-attention improvements against recent real runs.
+| Work | Role |
+| --- | --- |
+| Routine chores | `helper` |
+| Bounded review or debugging look | `focused-reviewer` |
+| Manual QA of the running interface | `qa` |
+| Epic pre-review and review | `pre-reviewer`, `epic-reviewer` |
+| Project pre-review and final review | `project-pre-reviewer`, `final-reviewer` |
+| Method questions and step-backs | `consultant` |
+
+Manual QA follows [qa-brief.md](skills/dev-auto/references/qa-brief.md). A missing report, mandatory verification gap or unachieved goal blocks acceptance unless approved Run needs defer it. Account-dependent criteria need BMN's verified owner grant and otherwise stay BLOCKED; a desktop candidate that can't be driven keeps its review with the gap stated.
+
+## Run state and recovery
+
+Run state lives in `.dev-auto/` in each checkout or worktree and is never committed; one line in the repository's shared `info/exclude` covers every worktree. It holds `handoff.md` (current terms, kept within 9,000 characters), the append-only `log.md`, and `evidence/` for receipts and raw records. The handoff restores restrictions and progress, but it can't grant permission.
+
+`hooks/dev-auto-session-start.py` runs on `SessionStart` with matcher `compact|resume`. It finds the nearest handoff and, for an unfinished run, injects a reminder to reread the skill and the whole handoff, plus a short list of unfinished runs in the repository's other worktrees (up to 6). Its output stays under 9,950 characters to fit both hosts' caps, and a larger handoff is replaced by an explicit warning. An unusually token-dense handoff may still lose a visible middle piece in Codex, which the required full read covers. It stays silent when no run is unfinished, never writes and fails open. It guides the model but can't enforce anything.
+
+## Scripts
+
+All are under `skills/dev-auto/scripts/`. Only `spend_ledger.py` writes run state, in its own ledger under `$XDG_STATE_HOME/dev-auto/budgets/`; the rest only read.
+
+| Script | Purpose |
+| --- | --- |
+| `check.py` | `check` lints the handoff, `usage` reads model and usage from host records, `away` and `grant` read BMN's state, `leftovers` and `worktrees` list what a run left |
+| `run_needs.py` | Names the owner's go on an epic and the Run needs and Decisions it approved, from the plan's history |
+| `spend_ledger.py` | Money caps, paid launches, repair rounds and named messages, shared by every resume, lead and worktree |
+| `qa_gate.py` | Checks a QA report from a BMN ask's export |
+| `interruptions.py` | Counts what asked the owner during named runs, plus rounds, parked hours and usage |
+| `review_misses.py` | Per ticket, whether the agent review ran and what people or production flagged |
+| `handoff_state.py`, `run_resources.py` | Libraries behind the hook and `check.py` |
+
+## Limits
+
+- The skill uses host tools and permissions. It creates no sandbox and doesn't make concurrent sessions safe.
+- Read-only review limits writes, not reads, and a native helper's read-only mode with approvals enabled may still permit writes.
+- Credentials are never part of this repository, and the owner's rules bound what may reach a provider.
+- Pushes, merges and pull requests go only as far as `bmn policy --repo OWNER/NAME` authorizes.
+- The skill can't override host rate limits or keep a closed client running.
+- Reviews and green tests are evidence, not guarantees. Unverified flows, unattended reliability and external gates stay stated, and efficiency against plain direct development is still unmeasured.
 
 ## Development
 
-- [Verification evidence and limits](docs/verification.md)
-- [Current implementation scope](IMPLEMENTATION.md)
-- [Design decisions](DESIGN.md)
-- [Lessons from earlier workflows](LESSONS.md)
-- [Fable's design consultation](docs/reviews/2026-09-17-fable-high.md)
+```bash
+python3 -m unittest discover -s tests
+```
 
-Repository: [forever-Agriculture/dev-auto](https://github.com/forever-Agriculture/dev-auto) (private).
+- [SKILL.md](skills/dev-auto/SKILL.md): the workflow itself, which wins over any summary here
+- [DESIGN.md](DESIGN.md): why it is built this way
+- [LESSONS.md](LESSONS.md): lessons from the workflow it replaced
+- [docs/verification.md](docs/verification.md) and [docs/reviews/](docs/reviews/): dated records, which describe the version and models of their day

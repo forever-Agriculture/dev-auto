@@ -12,6 +12,11 @@ Usage:
   spend_ledger.py settle --budget B --job J (--spent USD | --unknown)
   spend_ledger.py release --budget B --job J              the job never ran: its reservation is returned
   spend_ledger.py round --budget B --boundary STORY|epic --use-id ID   take one of the go's extra repair rounds
+  spend_ledger.py limit --budget B --rounds N --source TEXT   record the owner's narrower word on rounds
+  spend_ledger.py message reserve --budget B --use-id ID --person P --destination D --purpose TEXT --text-hash H
+  spend_ledger.py message sent --budget B --use-id ID --receipt TEXT
+  spend_ledger.py message unsent --budget B --use-id ID --read TEXT
+  spend_ledger.py message list --budget B
   spend_ledger.py status --budget B
 
 One ledger per plan and epic, under $XDG_STATE_HOME/dev-auto/budgets/ (default ~/.local/state), outside every
