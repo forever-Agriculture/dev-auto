@@ -24,7 +24,8 @@ moving the epic's row past `ready`, and keep
 what it prints in the handoff's `Go` field: the same go means its terms, rounds left and money
 as printed, nothing to ask him. Take each extra round it printed with `spend_ledger.py round`
 before using it; that ledger counts them for every lead, resume and worktree. A run has at least
-4 per boundary, go or no go (his card, 2026-11-04), an allowance and never a target. On NO_GO_RECORD
+4 per boundary, go or no go (his card, 2026-11-04), unless its allowances file names its own
+`repair_rounds` (BMN Epic 110 D13: his 2 means 2); an allowance and never a target. On NO_GO_RECORD
 go on under the invocation with what `open` printed and without deferrals; a withdrawn or
 unconfirmed go prints no rounds, and his later narrower word is recorded with `spend_ledger.py
 limit`. Approval evidence you find explains the missing
