@@ -147,7 +147,13 @@ def migration_origin(repo: Path, plan_root: Path, board_rel: str, *, deadline: f
     metadata_path = plan_root / "migration.json"
     metadata_rel = metadata_path.relative_to(repo).as_posix()
     origin = None
-    for commit in read("log", "--reverse", "--topo-order", "--full-history", "--diff-filter=A", "--format=%H", "HEAD", "--", metadata_rel).split():
+    try:
+        # A recut supersedes the cut it merges: the committed declaration names which genuine move is current.
+        current_head = json.loads(read("show", f"HEAD:{metadata_rel}")).get("history_head")
+    except (RuntimeError, ValueError, AttributeError):
+        current_head = None  # No committed declaration: every genuine move is a candidate, as before.
+    # A recut merges the previous cut as its second parent; read each merge against its first parent so it counts as the move.
+    for commit in read("log", "--reverse", "--topo-order", "--full-history", "--diff-merges=first-parent", "--no-patch", "--diff-filter=A", "--format=%H", "HEAD", "--", metadata_rel).split():
         try:
             recorded = json.loads(read("show", f"{commit}:{metadata_rel}"))
             source, anchor = recorded["source_board"], recorded["history_head"]
@@ -156,6 +162,8 @@ def migration_origin(repo: Path, plan_root: Path, board_rel: str, *, deadline: f
                 continue
             if not isinstance(anchor, str) or not re.fullmatch(r"[0-9a-f]{40,64}", anchor) or read("rev-parse", f"{commit}^1").strip() != anchor:
                 continue  # A publication projection is not the original cutover.
+            if current_head is not None and anchor != current_head:
+                continue  # An earlier cut the recut replaced.
             path = Path(source)
             if path.is_absolute() or any(part in (".", "..") for part in source.split("/")) or path.name != "sprint-status.yaml":
                 continue

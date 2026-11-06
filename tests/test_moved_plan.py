@@ -87,6 +87,31 @@ class MovedPlanTests(unittest.TestCase):
             self.assertEqual(after[key], before[key], key)
         self.assertEqual(after["go_commit"], original)
 
+    def test_a_go_survives_a_recut_whose_move_commit_merges_the_previous_cut(self):
+        self.file(OLD, "development_status:\n  epic-7: in-progress # go 2026-11-01\n")
+        original = self.commit("old BMAD Go")
+        before = self.read()
+        self.git("switch", "-qc", "cut")
+        self.move()
+        first_cut = self.git("rev-parse", "HEAD")
+        self.git("switch", "-q", "main")
+        self.file("product.txt", "master advanced\n")
+        tip = self.commit("product on master")
+        # The rebuilt cut is a merge: first parent the advanced master, second the previous cut, so no force push is needed.
+        self.git("switch", "-qc", "recut")
+        self.git("checkout", first_cut, "--", "plan")
+        self.git("rm", "-q", OLD)
+        self.file("plan/migration.json", json.dumps({"version": 1, "source_board": OLD, "history_head": tip}))
+        self.git("add", "-A")
+        rebuilt = self.git("commit-tree", self.git("write-tree"), "-p", tip, "-p", first_cut, "-m", "recut")
+        self.git("reset", "-q", "--hard")
+        self.git("switch", "-q", "main")
+        self.git("merge", "-q", "--no-ff", "-m", "Merge recut", rebuilt)
+        after = self.read(True)
+        for key in ("state", "go_commit", "go_date", "approved_text", "parsed", "stories"):
+            self.assertEqual(after[key], before[key], key)
+        self.assertEqual(after["go_commit"], original)
+
     def test_a_go_only_in_local_commits_survives_a_divergent_cutover_and_needs_the_cutover_to_name_it(self):
         self.file("product.txt", "base\n")
         self.commit("base")
