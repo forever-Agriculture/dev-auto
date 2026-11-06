@@ -5,7 +5,7 @@
 
 ## Purpose
 
-Deliver accepted project outcomes with a direct coding lead. Optimize accepted quality, total cost, elapsed time and owner attention together, never one at the others' expense. The plan, in BMN's format or BMAD's, is the source of planning intent; BMAD's implementation workflow isn't invoked.
+Deliver accepted project outcomes with a direct coding lead. Optimize accepted quality, total cost, elapsed time and owner attention together, never one at the others' expense. The plan, in BMN's format, is the source of planning intent; a project still on BMAD reads NEEDS_MOVE and runs nothing until it moves (BMN Epic 108).
 
 ## Principles
 

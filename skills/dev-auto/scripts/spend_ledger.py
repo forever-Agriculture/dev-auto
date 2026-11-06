@@ -66,9 +66,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 EXIT_REFUSED, EXIT_USAGE = 1, 2
-# A row in one of these has not begun its run: BMN's `ready`, BMAD's states before work (a BMAD go is a dated comment, often on
-# a backlog row). Any other status, an unknown or missing one included, says a run may have begun under the go (96 Astra recheck).
-NOT_STARTED = ("ready", "backlog", "ready-for-dev", "contexted", "drafted", "optional")
+# A row in one of these has not begun its run: BMN's `ready`, and `backlog`, where a moved plan's BMAD-era go (a dated comment,
+# often on a backlog row) lands. Any other status, an unknown or missing one included, says a run may have begun under the go (96 Astra recheck).
+NOT_STARTED = ("ready", "backlog")
 BUDGET_ID = re.compile(r"[0-9a-f]{16}-epic-\d+")
 BOUNDARY = re.compile(r"(\d+)\.\d+|epic")
 ROUND_FLOOR = 4
@@ -359,6 +359,10 @@ def open_budget(args: dict) -> int:
     import run_needs
     project = Path(args.get("--project") or Path.cwd())
     needs = run_needs.run_needs(project, int(epic))
+    if needs["state"] == "NEEDS_MOVE":
+        # A project still on BMAD runs no dev-auto run (BMN 108.6): no budget opens, nothing is written.
+        print(f"NEEDS_MOVE: {needs['reason']}; start no run here and report the move to the owner")
+        return EXIT_REFUSED
     budget = hashlib.sha256(plan_identity(needs["plan_root"]).encode()).hexdigest()[:16] + f"-epic-{epic}"
     with (ledger := Ledger(budget)) as data:
         current = hashlib.sha256(location_identity(needs["plan_root"]).encode()).hexdigest()[:16] + f"-epic-{epic}"

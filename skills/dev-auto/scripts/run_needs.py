@@ -8,8 +8,8 @@ The go is the approval event, not a later snapshot: the commit of the board in w
 changed to `ready` with `go YYYY-MM-DD` in its note, from a parent where the row had another status or
 another go date, or a commit `bmn plan go` wrote for the epic (its Go-Epic trailer), however little the row
 changed: a second go on the same day with new terms is a new go. A go date first committed while the row is
-already past `ready` (the `ready` snapshot was never committed) grants nothing. A BMAD board's go is the commit in which the row's dated `go` comment
-appeared or changed. Later commits keeping the row keep the go; a new go date or a return to `ready` is a
+already past `ready` (the `ready` snapshot was never committed) grants nothing. A moved plan's BMAD-era go is the commit in which the row's dated `go`
+comment appeared or changed. Later commits keeping the row keep the go; a new go date or a return to `ready` is a
 reapproval, a new go, and what earlier gos let the run use stays used. A go recorded with `bmn plan go`
 (BMN Epic 96.1) names in its commit message the epic (Go-Epic), the go date (Go-Date), the owner's act
 (Approval-Source: his quoted words with their time), the SHA-256 of the Run needs and Decisions he approved
@@ -25,7 +25,10 @@ An epic whose go's commit holds plan/allowances/N.yaml (BMN Epic 110) is read th
 one parser of that file: the go's hash covers the file's text too, and its limits come from the go's version and
 the last recorded `bmn plan allow` after it. A go whose commit holds none reads as before.
 
-Prints one of GO, NO_GO_RECORD or NO_RUN_NEEDS, then CHANGED_SINCE_GO when Run needs or Decisions differ
+A project still on a BMAD board prints NEEDS_MOVE with the move `bmn plan status` names, and grants nothing:
+dev-auto starts no run there (BMN Epic 108). A moved plan's earlier BMAD gos are still read from its history.
+
+Prints one of GO, NO_GO_RECORD, NO_RUN_NEEDS or NEEDS_MOVE, then CHANGED_SINCE_GO when Run needs or Decisions differ
 today from the go's commit (the run keeps the go's text and records the change for the owner). Exit 0;
 2 only when the plan cannot be resolved (UNABLE).
 """
@@ -430,6 +433,10 @@ def run_needs(project: Path, epic: int) -> dict:
         repo = plan_root
     prefix = "" if plan_root == repo else plan_root.relative_to(repo).as_posix() + "/"
     identity = {"plan_root": str(plan_root), "epic": epic, "format": status.get("format"), "history_repo": str(repo)}
+    if bmad:
+        # BMN and dev-auto no longer run a BMAD plan (BMN 108.6): it reads, and names the move.
+        move = status.get("needs_move") or f"{board} is a BMAD board; BMN no longer writes it or runs it. Move the plan first (BMN docs/planning.md, \"Moving a BMAD plan safely\")"
+        return {**identity, "state": "NEEDS_MOVE", "unconfirmed": True, "reason": move}
     if epic in status.get("conflicts", []):
         return {**identity, "state": "PLAN_CONFLICT", "unconfirmed": True, "reason": "local and upstream plan values conflict; both are kept in the Git publication journal; this epic grants nothing"}
     if status.get("authority_unconfirmed"):
@@ -443,26 +450,15 @@ def run_needs(project: Path, epic: int) -> dict:
         return sorted(p.name for p in target.iterdir()) if target.is_dir() else target.read_text(encoding="utf-8", errors="replace")
 
     def epic_now() -> str | None:
-        if not bmad:
-            try:
-                return epic_text_bmn(epic, current_read)
-            except OSError:
-                return None
-        planned = None
-        for path in sorted((board.parent.parent / "planning-artifacts").rglob("*.md")):
-            planned = epic_text_bmad(path.read_text(encoding="utf-8", errors="replace"), epic)
-            if planned:
-                break
-        if sections(planned)["Run needs"] is not None:
-            return planned
-        folder = repo / "docs" / "platform"
-        names = [f"docs/platform/{path.name}" for path in folder.glob("epic-*.md")] if folder.is_dir() else []
-        return epic_text_platform(epic, names, lambda name: (repo / name).read_text(encoding="utf-8", errors="replace")) or planned
+        try:
+            return epic_text_bmn(epic, current_read)
+        except OSError:
+            return None
 
     text_now = epic_now()
     legacy = bool(re.search(r"^<!--\s*bmn-plan:\s*bmad-legacy\b", text_now or "", re.M))
     try:
-        origin = migration_origin(repo, plan_root, board_rel) if not bmad and board.is_file() else None
+        origin = migration_origin(repo, plan_root, board_rel) if board.is_file() else None
     except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired) as exc:
         return {**identity, "state": "NO_GO_RECORD", "unconfirmed": True, "reason": f"migration origin cannot be read or confirmed: {exc}"}
     moved = origin is not None
@@ -470,7 +466,7 @@ def run_needs(project: Path, epic: int) -> dict:
     # The default rounds (BMN D19): where no go was ever recorded, or his go stands; never where one was withdrawn or cannot be confirmed.
     floor = {"floor": True, "stories": STORY.findall(text_now or "")}
     try:
-        gos, committed_row = moved_gos(repo, plan_root, board_rel, epic, origin) if moved else find_gos(repo, board_rel, epic, bmad)
+        gos, committed_row = moved_gos(repo, plan_root, board_rel, epic, origin) if moved else find_gos(repo, board_rel, epic, False)
     except (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired) as exc:
         if moved:
             return {**identity, "state": "NO_GO_RECORD", "unconfirmed": True, "reason": f"old approval history cannot be confirmed: {exc}"}
@@ -498,7 +494,7 @@ def run_needs(project: Path, epic: int) -> dict:
 
     def text_at(commit: str) -> str | None:
         """The epic's text as a go's commit holds it."""
-        if bmad or any(g["commit"] == commit and g.get("bmad") for g in gos):
+        if any(g["commit"] == commit and g.get("bmad") for g in gos):
             found = None
             paths = git(repo, "ls-tree", "-r", "--name-only", commit).split()
             for path in paths:
@@ -514,7 +510,7 @@ def run_needs(project: Path, epic: int) -> dict:
 
     def allowances_at(commit: str) -> str | None:
         """The text of the epic's allowances file as a go's commit holds it (BMN D7), or None."""
-        if bmad or any(g["commit"] == commit and g.get("bmad") for g in gos):
+        if any(g["commit"] == commit and g.get("bmad") for g in gos):
             return None
         try:
             name = allowance_name(epic, git(repo, "ls-tree", "--name-only", f"{commit}:{prefix}allowances").split())
@@ -531,7 +527,7 @@ def run_needs(project: Path, epic: int) -> dict:
               "changed_since_go": changed, "approved_text": f"sha256:{approval_text(then, then_allowances)}"}
     recorded = trailers(git(repo, "log", "-1", "--format=%B", go["commit"]))
     result["approval_source"] = recorded["source"]
-    historical_bmad = bmad or go.get("bmad", False)
+    historical_bmad = go.get("bmad", False)
     if legacy and not historical_bmad:
         return {**result, "state": "NEEDS_NORMALIZE", "reason": "new approvals require normalized work; the legacy marker grants no exemption"}
     has_record = not historical_bmad and any(recorded.values())
@@ -654,6 +650,8 @@ def main(argv: list[str]) -> int:
                     print(f"- {one['kind']}: {one['target']}; {how}{last}")
             for problem in prepared_problems(prepared):
                 print(f"PREPARED GAP, read it yourself: {problem}")
+    elif result["state"] == "NEEDS_MOVE":
+        print(f"NEEDS_MOVE: {result['reason']}; start no run here and report the move to the owner")
     else:
         print(f"{result['state']}: {result['reason']}; nothing is delegated beyond the invocation")
         if result.get("floor"):

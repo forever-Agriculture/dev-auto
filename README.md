@@ -3,7 +3,7 @@
 
 A skill for Codex and Claude Code that implements planned epics directly and keeps going until they pass acceptance, with bounded reviews, manual QA, spend limits and recovery after compaction.
 
-One lead agent writes the code. dev-auto adds only the checks that earn their cost, and judges itself by accepted outcomes: quality, total cost, elapsed time and owner attention together. It has no controller, scheduler or second approval stage. It is a skill, a few small scripts and one recovery hook, and it works from plans in [BMN](https://github.com/forever-Agriculture/BMN)'s format or BMAD's without running BMAD's build workflows.
+One lead agent writes the code. dev-auto adds only the checks that earn their cost, and judges itself by accepted outcomes: quality, total cost, elapsed time and owner attention together. It has no controller, scheduler or second approval stage. It is a skill, a few small scripts and one recovery hook, and it works from plans in [BMN](https://github.com/forever-Agriculture/BMN)'s format; a project still on BMAD is named for its move and runs nothing.
 
 It is one person's working setup, not a packaged product: the text addresses "the owner", and it assumes his BMN team. The repository has no license yet, so you may read it but no reuse rights are granted.
 
@@ -61,7 +61,7 @@ Work continues until the selected scope is accepted, with no time limit. A real 
 1. **Finds the plan** with `bmn plan status --json`. Two undeclared plans, an unknown schema or a malformed BMN plan stop the run with that error named. `project` scope follows the plan's `queue`, skipping `paused` and `dropped` epics.
 2. **Reads its authority.** `spend_ledger.py open` reads the owner's go on the epic, and the run keeps its terms, money cap and rounds. Prepared needs are checked at the start and again when the owner leaves.
 3. **Checks fit**, then implements directly on its own branch, worktree and dependencies.
-4. **Keeps the board current** at every state change: BMN rows with `bmn plan set`, always on the plan in the default checkout, or BMAD's `sprint-status.yaml` by its existing two-checkout convention. `bmn plan publish` runs at each story's end on a tracked plan. Delivery counts only once the work is confirmed on the default branch.
+4. **Keeps the board current** at every state change: BMN rows with `bmn plan set`, always on the plan in the default checkout. `bmn plan publish` runs at each story's end on a tracked plan. Delivery counts only once the work is confirmed on the default branch.
 5. **Tests behavior**: focused tests during repairs, required broad gates once at acceptance, and a regression test that fails on the original defect.
 6. **Reviews a frozen candidate.** A quick pre-review and manual QA run alongside the lead's final checks, followed by one consolidated repair, then one full independent review with one focused recheck. Nothing edits a candidate while a reviewer reads it, and every material finding ends with a disposition. A project's own PR review runs as its rules say.
 7. **Accepts** only after exercising the affected path the owner uses. A check only he can do keeps acceptance BLOCKED until he passes or defers it.

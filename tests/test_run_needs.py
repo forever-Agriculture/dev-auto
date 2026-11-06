@@ -182,61 +182,28 @@ class RunNeedsTests(unittest.TestCase):
         subprocess.run(["git", "-C", str(root), "-c", "user.name=F", "-c", "user.email=f@example.invalid", "commit", "-qm", "plan"], check=True)
         return {"ok": True, "format": "bmad", "history": "product-repository", "plan_root": None, "product_root": str(root), "board_checkout": str(root), "default_checkout": str(root), "board": str(sprint)}
 
-    def test_a_bmad_epic_in_its_own_platform_file_gives_its_terms_at_the_gos_commit(self) -> None:
+    def test_a_bmad_board_needs_the_move_and_grants_nothing_even_with_a_committed_go(self) -> None:
+        # BMN 108.6 AC2: a project still on BMAD reads, names the move bmn plan status gives, and starts no run.
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             status = self.bmad_with_platform_file(root, " # go 2026-11-05")
+            status["needs_move"] = f"{status['board']} is a BMAD board; BMN no longer writes it or runs it. Move the plan first: node /x/migrate-bmad-plan.mjs stage"
             with mock.patch.object(run_needs, "resolve", return_value=status):
                 result = run_needs.run_needs(root, 44)
-        self.assertEqual(result["state"], "GO")
-        self.assertEqual(result["parsed"]["money_cap"], 1.0)
-        self.assertEqual(result["changed_since_go"], [])
-
-    def test_a_bmad_epic_in_its_own_platform_file_is_found_now_and_an_uncommitted_go_grants_nothing(self) -> None:
+                write = io.StringIO()
+                with contextlib.redirect_stdout(write):
+                    self.assertEqual(run_needs.main(["44", "--project", str(root)]), 0)
+        self.assertEqual((result["state"], result["unconfirmed"]), ("NEEDS_MOVE", True))
+        self.assertEqual(result["reason"], status["needs_move"])
+        self.assertNotIn("go_commit", result)
+        self.assertIn(f"NEEDS_MOVE: {status['needs_move']}; start no run here", write.getvalue())
+        # An older bmn that does not print the move yet: the same refusal, naming the doc.
+        del status["needs_move"]
         with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            status = self.bmad_with_platform_file(root)
-            sprint = Path(status["board"])
-            sprint.write_text(sprint.read_text().replace("in-progress", "in-progress # go 2026-11-05"))
             with mock.patch.object(run_needs, "resolve", return_value=status):
-                result = run_needs.run_needs(root, 44)
-        self.assertEqual(result["state"], "NO_GO_RECORD")
-        self.assertEqual(result["uncommitted_go"], "2026-11-05")
-
-    def test_planning_artifacts_with_run_needs_still_win_over_a_platform_file(self) -> None:
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            status = self.bmad_with_platform_file(root, " # go 2026-11-05")
-            (root / "_bmad-output/planning-artifacts/epics.md").write_text("## Epic 44: Here\n\n### Run needs\n- **Money cap:** $7.\n")
-            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
-            subprocess.run(["git", "-C", str(root), "-c", "user.name=F", "-c", "user.email=f@example.invalid", "commit", "--amend", "-qm", "plan"], check=True)
-            with mock.patch.object(run_needs, "resolve", return_value=status):
-                result = run_needs.run_needs(root, 44)
-        self.assertEqual(result["parsed"]["money_cap"], 7.0)
-
-    def test_bmad_go_is_the_dated_go_comment_in_the_product_history(self) -> None:
-        root = self.plan.root.parent / "product"
-        (root / "_bmad-output" / "implementation-artifacts").mkdir(parents=True)
-        (root / "_bmad-output" / "planning-artifacts").mkdir(parents=True)
-        # Committed after HAND_GO_CUTOVER: a BMAD board keeps its dated go comment, which bmn plan go never records.
-        late = {**os.environ, "GIT_COMMITTER_DATE": "2026-10-28T10:00:00Z", "GIT_AUTHOR_DATE": "2026-10-28T10:00:00Z"}
-        run = lambda *a: subprocess.run(["git", "-C", str(root), "-c", "user.name=F", "-c", "user.email=f@example.invalid", *a],
-                                        check=True, capture_output=True, text=True, env=late).stdout.strip()
-        run("init", "-qb", "main")
-        sprint = root / "_bmad-output" / "implementation-artifacts" / "sprint-status.yaml"
-        epics = root / "_bmad-output" / "planning-artifacts" / "epics.md"
-        epics.write_text("# Epics\n\n## Epic 7: Fixture\n\n### Run needs\n\n" + NEEDS + "\n### Story 7.1: One\n\n## Epic 8: Next\n")
-        sprint.write_text("development_status:\n  epic-7: backlog\n")
-        run("add", "-A"); run("commit", "-qm", "plan")
-        sprint.write_text("development_status:\n  epic-7: backlog # go 2026-10-21\n")
-        run("commit", "-qam", "go"); go = run("rev-parse", "HEAD")
-        sprint.write_text("development_status:\n  epic-7: in-progress # go 2026-10-21\n")
-        run("commit", "-qam", "started")
-        status = {"ok": True, "format": "bmad", "history": "product-repository", "plan_root": None,
-                  "board": str(sprint), "board_checkout": str(root), "product_root": str(root)}
-        with mock.patch.object(run_needs, "resolve", return_value=status):
-            result = run_needs.run_needs(root, 7)
-        self.assertEqual((result["state"], result["go_commit"], result["parsed"]["rounds"]), ("GO", go, 2))
+                result = run_needs.run_needs(Path(folder), 44)
+        self.assertEqual(result["state"], "NEEDS_MOVE")
+        self.assertIn("Moving a BMAD plan safely", result["reason"])
 
     def test_a_go_committed_by_hand_once_bmn_plan_go_records_gos_grants_nothing(self) -> None:
         self.plan.write("epic-7: backlog", epic())

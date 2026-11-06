@@ -68,6 +68,26 @@ class MovedPlanTests(unittest.TestCase):
         with mock.patch.object(run_needs, "resolve", return_value=status):
             return run_needs.run_needs(self.repo, 7)
 
+    def expected_go(self, commit, date="2026-11-01", text=TEXT):
+        """What a BMAD-era go approved, read from its commit: since BMN 108.6 the board itself reads NEEDS_MOVE until it moves."""
+        then = run_needs.sections(run_needs.epic_text_bmad(text, 7))
+        return {"state": "GO", "go_commit": commit, "go_date": date, "approved_text": f"sha256:{run_needs.approval_text(then)}",
+                "parsed": run_needs.parse_needs(then["Run needs"]), "stories": ["7.1"]}
+
+    def legacy_read(self):
+        """What dev-auto read on the BMAD board before 108.6, for a ledger opened then: a copy moved and read, named by the old board."""
+        original = self.repo
+        with tempfile.TemporaryDirectory() as folder:
+            subprocess.run(["git", "clone", "-q", str(original), folder], check=True, capture_output=True)
+            self.repo = Path(folder)
+            try:
+                status, note = run_needs.row((self.repo / OLD).read_text(), 7)
+                self.move(status={"ready-for-dev": "ready"}.get(status, status), note=note)
+                needs = self.read(True)
+            finally:
+                self.repo = original
+        return {**needs, "plan_root": str(original / "_bmad-output"), "format": "bmad", "history_repo": str(original)}
+
     def move(self, status="in-progress", note="go 2026-11-01"):
         anchor = self.git("rev-parse", "HEAD")
         self.file("plan/status.yaml", f"format: bmn-plan\nschema_version: 1\nmoved_from: {OLD}\nqueue: []\ndevelopment_status:\n  epic-7: {status} # {note}\n  7-1-keep: backlog\n")
@@ -79,18 +99,17 @@ class MovedPlanTests(unittest.TestCase):
     def test_existing_go_keeps_its_commit_text_hash_and_terms_when_old_board_is_removed(self):
         self.file(OLD, "development_status:\n  epic-7: in-progress # go 2026-11-01\n")
         original = self.commit("old BMAD Go")
-        before = self.read()
-        self.assertEqual(before["state"], "GO")
+        self.assertEqual(self.read()["state"], "NEEDS_MOVE")
+        before = self.expected_go(original)
         self.move()
         after = self.read(True)
         for key in ("state", "go_commit", "go_date", "approved_text", "parsed", "stories"):
             self.assertEqual(after[key], before[key], key)
-        self.assertEqual(after["go_commit"], original)
 
     def test_a_go_survives_a_recut_whose_move_commit_merges_the_previous_cut(self):
         self.file(OLD, "development_status:\n  epic-7: in-progress # go 2026-11-01\n")
         original = self.commit("old BMAD Go")
-        before = self.read()
+        before = self.expected_go(original)
         self.git("switch", "-qc", "cut")
         self.move()
         first_cut = self.git("rev-parse", "HEAD")
@@ -110,7 +129,6 @@ class MovedPlanTests(unittest.TestCase):
         after = self.read(True)
         for key in ("state", "go_commit", "go_date", "approved_text", "parsed", "stories"):
             self.assertEqual(after[key], before[key], key)
-        self.assertEqual(after["go_commit"], original)
 
     def test_a_go_only_in_local_commits_survives_a_divergent_cutover_and_needs_the_cutover_to_name_it(self):
         self.file("product.txt", "base\n")
@@ -119,8 +137,7 @@ class MovedPlanTests(unittest.TestCase):
         branch = self.git("branch", "--show-current")
         self.file(OLD, "development_status:\n  epic-7: in-progress # go 2026-11-01\n")
         local = self.commit("local go, never pushed")
-        before = self.read()
-        self.assertEqual(before["state"], "GO")
+        before = self.expected_go(local)
         self.git("switch", "-qc", "upstream", base)
         self.move(note="plan")
         upstream = self.git("rev-parse", "HEAD")
@@ -167,7 +184,10 @@ class MovedPlanTests(unittest.TestCase):
         self.git("rm", "-rqf", "plan")
         self.file(OLD, "development_status:\n  epic-7: in-progress # go 2026-11-01\n")
         self.commit("plan: roll back move and retain later rows")
-        after = self.read()
+        self.assertEqual(self.read()["state"], "NEEDS_MOVE")
+        # Moved again, the first move's retirement of the old board withdrew nothing.
+        self.move()
+        after = self.read(True)
         self.assertEqual((after["state"], after["go_commit"]), ("GO", original))
 
     def test_an_ordinary_deletion_of_the_old_board_still_withdraws_a_go(self):
@@ -177,7 +197,9 @@ class MovedPlanTests(unittest.TestCase):
         deleted = self.commit("remove the board")
         self.file(OLD, "development_status:\n  epic-7: in-progress # go 2026-11-01\n")
         self.commit("restore identical bytes")
-        after = self.read()
+        self.assertEqual(self.read()["state"], "NEEDS_MOVE")
+        self.move()
+        after = self.read(True)
         self.assertEqual(after["state"], "NO_GO_RECORD")
         self.assertEqual(after["withdrawn_go"], "2026-11-01")
         self.assertIn(deleted[:12], after["reason"])
@@ -230,7 +252,6 @@ class MovedPlanTests(unittest.TestCase):
         self.commit("the epic in its own file")
         self.file(OLD, "development_status:\n  epic-7: in-progress # go 2026-09-01\n")
         commit = self.commit("go")
-        self.assertEqual(self.read()["parsed"]["money_cap"], 1.0)
         self.move()
         moved = self.read(moved=True)
         self.assertEqual((moved["state"], moved["go_commit"]), ("GO", commit))
@@ -238,15 +259,12 @@ class MovedPlanTests(unittest.TestCase):
 
     def test_withdrawn_go_stays_withdrawn_after_a_later_in_progress_snapshot(self):
         self.file(OLD, "development_status:\n  epic-7: in-progress # go 2026-11-01\n")
-        self.commit("old Go")
+        original = self.commit("old Go")
         self.file(OLD, "development_status:\n  epic-7: backlog # put back\n")
         self.commit("withdraw")
-        before = self.read()
         self.move()
         after = self.read(True)
-        self.assertEqual(after["state"], before["state"])
-        self.assertEqual(after["withdrawn_go"], before["withdrawn_go"])
-        self.assertEqual(after["go_commit"], before["go_commit"])
+        self.assertEqual((after["state"], after["withdrawn_go"], after["go_commit"]), ("NO_GO_RECORD", "2026-11-01", original))
 
     def test_copied_uncommitted_date_and_legacy_new_go_grant_nothing(self):
         self.move(status="ready")
@@ -274,7 +292,7 @@ class MovedPlanTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(self.repo / "state")}):
             def open_budget(moved):
                 out = io.StringIO()
-                with mock.patch.object(run_needs, "run_needs", return_value=self.read(moved)), contextlib.redirect_stdout(out):
+                with mock.patch.object(run_needs, "run_needs", return_value=self.read(True) if moved else self.legacy_read()), contextlib.redirect_stdout(out):
                     self.assertEqual(spend_ledger.main(["open", "--epic", "7", "--project", str(self.repo)]), 0, out.getvalue())
                 return out.getvalue().split()[1].rstrip(":")
             budget = open_budget(False)
@@ -305,7 +323,7 @@ class MovedPlanTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(self.repo / "state")}):
             def opened(moved):
                 out = io.StringIO()
-                with mock.patch.object(run_needs, "run_needs", return_value=self.read(moved)), contextlib.redirect_stdout(out):
+                with mock.patch.object(run_needs, "run_needs", return_value=self.read(True) if moved else self.legacy_read()), contextlib.redirect_stdout(out):
                     self.assertEqual(spend_ledger.main(["open", "--epic", "7", "--project", str(self.repo)]), 0, out.getvalue())
                 return out.getvalue().split()[1].rstrip(":")
             budget = opened(False)
@@ -360,7 +378,7 @@ class MovedPlanTests(unittest.TestCase):
                     self.commit("old approved plan")
                     with mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(self.repo / "state")}):
                         def opened(moved):
-                            needs = self.read(moved)
+                            needs = self.read(True) if moved else self.legacy_read()
                             out = io.StringIO()
                             with mock.patch.object(run_needs, "run_needs", return_value=needs), contextlib.redirect_stdout(out):
                                 self.assertEqual(spend_ledger.main(["open", "--epic", "7", "--project", str(self.repo)]), 0, out.getvalue())

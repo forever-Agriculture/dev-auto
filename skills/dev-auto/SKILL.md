@@ -1,12 +1,12 @@
 ---
 name: dev-auto
-description: Implement, resume, or report selected epics planned in BMN's plan format or BMAD's, directly, preserving scope, acceptance evidence and recovery state. Use for explicit dev-auto work in a planned project.
+description: Implement, resume, or report selected epics planned in BMN's plan format, directly, preserving scope, acceptance evidence and recovery state. Use for explicit dev-auto work in a planned project.
 ---
 # MODULE: SKILL.md - direct implementation with bounded review, acceptance and recovery
 
 # Dev Auto
 
-Deliver the selected epics (BMN's plan or BMAD's) with host tools under existing authority, adding no
+Deliver the selected epics (BMN's plan) with host tools under existing authority, adding no
 unnecessary approval stage.
 Optimize accepted quality, total cost, elapsed time and owner attention together. Each
 check earns its place by a failure it prevents; reuse valid evidence.
@@ -110,8 +110,8 @@ planning paths, reads delivery policy, and publishes the plan difference without
 `unpublished N` or `PLAN_CONFLICT` leaves local commits and both conflicting values intact; record it
 and continue unaffected epics, never ask for publication. The conflicted epic grants nothing through
 `run_needs.py`. An ignored plan keeps its existing local history and is not published.
-A BMAD project is read and updated as before this format existed: its epics
-and story files, and the `sprint-status.yaml` board the status names.
+A project still on BMAD runs nothing: `run_needs.py` and `open` print NEEDS_MOVE with the move
+`bmn plan status` names; report that move to him and start no run (BMN Epic 108).
 
 Read project instructions, original acceptance criteria, relevant architecture and
 dependencies. Reconcile repository, board, handoff and active helpers;
@@ -137,7 +137,7 @@ Implement the smallest complete change and continue authorized work until the wh
 selected scope passes acceptance. The lead owns integration and the board: when a story
 or epic starts, gets a measured outcome, blocks or is accepted, update its rows in that
 step on the board in the default checkout, where the owner reads it; a canonical BMN plan is written
-there even from a linked worktree. BMAD keeps its existing two-checkout convention. Touch only the
+there even from a linked worktree. Touch only the
 run's own epics' rows; implemented work
 awaiting checks stays in an unfinished active state; record verified acceptance and its
 branch using the board's convention; delivery is complete only once you confirm the work
