@@ -38,6 +38,7 @@ rules (BMN never runs one), and write each result to the handoff. A failed need,
 not done, goes under `Needs your decision` with the stories that name it: those stories park and
 every other story continues; at his departure say a step not done once, in one line.
 A story you park gets the log line `<UTC stamp> parked N.M`, and `<UTC stamp> unparked N.M` when it resumes; `scripts/interruptions.py` counts those hours.
+Keep the handoff's `Waiting on` current (the person, service or session the run waits for and on what, `nobody` when none; never him, BMN shows his open cards), and as each story is accepted add its `N.M STARTED FINISHED` line, UTC, under `Finished stories`; BMN's Now reads both (BMN Story 110.9).
 Reserved to him however sure you are: spend beyond what he approved or delegated, changes
 to selected work or its acceptance criteria, actions the global rules reserve to him,
 credentials or private data, owner-only acceptance checks and model choices; a broad "continue" or "work autonomously" answers none of these. His model choices live in his BMN team: a lasting

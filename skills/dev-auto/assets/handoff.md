@@ -21,6 +21,8 @@
 - Implemented:
 - Associated loop (optional; host and native loop/task ID):
 - Active helpers (ID, route, scope, ownership, state; finished ones go to the log):
+- Waiting on: nobody | the person, service or session the run waits for, and on what (`Marta, review`); never the owner
+- Finished stories (one line each, `N.M STARTED FINISHED` in UTC, as each is accepted):
 
 ## Decisions and findings
 
