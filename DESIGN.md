@@ -31,7 +31,9 @@ Deliver accepted project outcomes with a direct coding lead. Optimize accepted q
 
 **A failure gets a different method, not another try.** After two failed fixes or three failed gate runs, the lead compares failures and asks the consultant, and each further attempt needs a different agreed method recorded first. This also counts failures across different symptoms at one boundary, since successive errors can share one cause. A failure in the lead's own harness counts once as a gate run, not a failed method.
 
-**Rounds and parking replace waiting.** A run has at least 4 rounds per boundary, taken without a card, and the last needs a step-back from a different agent. After that, work is deferred if the go allows it or the story parks, and everything else continues. Nights were being lost to a single stuck story or an unanswered question.
+**Plan for autonomous implementation.** Before the go, planning covers foreseeable limits, permissions, money, commands and targets, prerequisites, delivery and cleanup, with justified contingency. An unforeseen gap may need an amendment card while the owner is present: exact before/after, reason, cost/exposure and work unlocked. Only approval recorded through `bmn plan allow` changes the named YAML terms; prior usage stays counted. This is recovery, never routine renegotiation.
+
+**Rounds and parking replace waiting.** A run has at least 4 rounds per boundary unless its approved file sets another allowance, taken without a card, and the last needs a step-back from a different agent. Exhausted work is deferred if approved or parks pending any unforeseen amendment; everything independent continues. Away and external refusals still hold. Nights were being lost to a single stuck story or an unanswered question.
 
 **Questions are rare and batched.** Everything not reserved to the owner is decided on the recommended option and listed where he can reverse it. A broad "continue" answers no reserved point.
 

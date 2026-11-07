@@ -68,5 +68,5 @@ ask the consultant for a step-back with [step-back-brief.md](step-back-brief.md)
 pass it to `round` with `--step-back <ask id> --record <file> --method <text> --lead <you>`. For a granted round, report the chosen option with `bmn grant report --run
 <Run id> --boundary <boundary> --step-back --text <option>` before its use. The last round
 follows the recorded method, or the boundary parks BLOCKED with no round used when none is
-different. With the rounds used, the skill's deferral or parking follows; no card asks for a round. Back during a granted
+different. With the rounds used, the skill's deferral or parking follows. While away no new allowance card is sent; an unforeseen YAML gap is recorded for Back, when the skill's amendment-card rule applies. Approval preserves prior usage and changes only the named terms. Back during a granted
 round lets it finish; no new granted round starts.

@@ -560,7 +560,8 @@ def take_use(args: dict) -> int:
             print(f"RAISE: room under its ceiling {ceiling:g}, no card: bmn plan allow {epic} limits.{name}.limit={used + quantity:g} --reason TEXT --expect {token}; then a new --use-id")
         else:
             print(f"REFUSED: use {use_id}, {name} at {where}: {used:g} of {one['limit']:g} used, {'at its ceiling' if ceiling is not None else 'no ceiling'}; nothing counted")
-            print(f"AT_CEILING: park this story, every other story continues; ask one card only if the epic says so, whose recommended answer writes a limit that finishes the work")
+            print("AT_CEILING: park affected work; every independent story continues; nothing authorized")
+            print("OWNER_CHANGE: for an unforeseen YAML gap, send one amendment card while the owner is present: exact before/after, reason, cost/exposure and work unlocked, recommending enough to finish; only approval recorded with bmn plan allow --source permits a fresh use id. Preserve usage; Away and external refusals still hold")
     return EXIT_REFUSED
 
 
@@ -782,6 +783,8 @@ def take_round(args: dict) -> int:
         if answer == "REFUSED":
             reason = "no recorded go gives extra rounds" if not allowed and go is None else f"{allowed} extra per boundary and {used} are used at {boundary}"
             print(f"REFUSED: round {use_id} at {boundary}: {reason}; nothing taken")
+            if fields is not None:
+                print("OWNER_CHANGE: an unforeseen exhausted YAML allowance may need one exact amendment card while the owner is present; apply only his approved change with bmn plan allow --source, preserving usage. Until then park affected work; Away and external refusals still hold")
             return EXIT_REFUSED
         print(f"TAKEN: round {use_id} at {boundary}, {used + 1} of {allowed} from {'go ' + go['commit'][:12] if go else 'the default'}")
     return 0

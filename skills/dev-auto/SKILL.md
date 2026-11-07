@@ -30,9 +30,10 @@ go on under the invocation with what `open` printed and without deferrals; a wit
 unconfirmed go prints no rounds, and his later narrower word is recorded with `spend_ledger.py
 limit`. Approval evidence you find explains the missing
 record in the handoff, grants nothing and never makes you ask him to restate or record a go.
+Planning must cover foreseeable limits, permissions, money, commands and targets, prerequisites, delivery and cleanup before the go, so implementation runs autonomously. An allowance amendment is recovery for an unforeseen gap, never a substitute for readiness.
 An epic with `plan/allowances/NNN.yaml` (BMN `docs/planning.md`) has every limit there; `open` prints them. Before each use run
 `spend_ledger.py use --limit NAME --boundary B --amount A --use-id ID`, which reads the file each time, and use one id per use. A limit used up with room under its ceiling: raise it with
-`bmn plan allow N limits.NAME.limit=V --reason R --expect TOKEN` (token from `bmn plan allowances N --json`) and go on, no card. At the ceiling that story parks and every other continues, or one card if the epic says so. Do what `may` names without a card, never ask to cross `stays_out`. A card you raise recommends a limit that finishes the work, never one more slice, and never one narrower than the file's. A host's or reviewer's refusal of a `may` action stands: defer that action and name it in the report.
+`bmn plan allow N limits.NAME.limit=V --reason R --expect TOKEN` (token from `bmn plan allowances N --json`) and go on, no card. Do what `may` already authorizes without a card; `stays_out` binds until he explicitly changes that named restriction. For an unforeseen YAML limit or permission gap requiring his decision, send one amendment card while he is present, even if independent work remains. Show the epic/boundary, exact before/after, reason, cost or exposure and work unlocked; recommend enough to finish, never one more slice or a narrower limit than the file's. Batch related gaps in that card. Pending or declined approval parks only affected work; continue the rest and do not ask again without new facts. Approval covers only the named change. Reread `bmn plan allowances N --json`, apply that change with `bmn plan allow ... --source` quoting his answer and time, and read it back before a fresh ledger use id. A materially stale proposal needs a new decision. Never hand-edit authority or reset usage. This card needs no epic-specific opt-in (owner, 2026-11-08). While he is away keep the gap for Back under the Away rules; never treat silence as approval. A host's or reviewer's refusal still stands, and a YAML amendment cannot override it or replace required diagnosis, a consultant-agreed method, step-back or acceptance evidence.
 Its Run needs may list `Prepared` (BMN Epic 103), printed by `run_needs.py`. At the run's start and at
 his departure, run each `check:` yourself, as its own tool call under the app's and the guard's
 rules (BMN never runs one), and write each result to the handoff. A failed need, or an owner step
@@ -51,9 +52,9 @@ answer. A reserved point, or one the consultant cannot settle, goes at once unde
 your decision` in the handoff (evidence, missing decision, affected criteria, untouched
 and remaining work);
 continue every story it does not block, and ask him once, with a recommendation, only
-when no work can proceed and he is not away. The final report lists open entries.
+when no work can proceed and he is not away, except the unforeseen allowance-amendment cards above. The final report lists open entries.
 During a run, decide within your authority or park the story: rounds, retries, windows, one
-more file, ticket status, labels and harness repairs are not questions. Ask him only when no
+more file, ticket status, labels and harness repairs within existing authority are not questions. Other than an unforeseen allowance-amendment card, ask him only when no
 work can proceed, once, in one batch.
 Decide everything else on your recommended option when it keeps the requirements,
 acceptance criteria, privacy and limits. Log each
@@ -165,8 +166,8 @@ agent looks at the big picture ([references/step-back-brief.md](references/step-
 With the rounds used, defer what Run needs lists as deferrable (other criteria pass; row `done`
 noted `deferred: <N.M ACk>, <reason>`; Known limits; a new story proposed) and continue. Else
 the story parks BLOCKED with its evidence and every other story continues: record the brake
-record, the consultant's options and your recommendation in the report, and ask him for no round;
-nothing lifts an authorization, spend, review allowance or acceptance gate.
+record, the consultant's options and your recommendation in the report. An unforeseen exhausted YAML allowance follows the amendment-card rule above; without approval it stays exhausted.
+Nothing lifts an authorization, spend, review allowance or acceptance gate.
 A message the go's Run needs name (`run_needs.py` prints each) goes only to that person, destination
 and purpose, only facts or access, no commitments, saying his agent wrote it. Before sending, `spend_ledger.py message reserve`
 (refused past 2 per purpose, or for the same text); after, `message sent --receipt`. With no receipt, read the

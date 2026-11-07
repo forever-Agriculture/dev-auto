@@ -205,6 +205,11 @@ class Allowances(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("at its ceiling", out)
         self.assertIn("AT_CEILING", out)
+        self.assertIn("OWNER_CHANGE", out)
+        self.assertNotIn("only if the epic says so", out)
+        self.assertEqual(self.data(budget)["uses"]["r5"]["answer"], "REFUSED")
+        # Advice to request an amendment cannot grant a use or refill earlier ones.
+        self.assertEqual(self.use(budget, "r5")[0], 1)
 
     def test_hours_are_decimals_and_a_count_is_whole(self) -> None:
         self.go()
