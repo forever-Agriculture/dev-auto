@@ -56,6 +56,10 @@ For a plan under review: does each answer in the epic's `## Challenges` hold (Sc
    the code and other cosmetic slop are optional polish: list them in one line
    for a repair already needed; alone they never justify a repair or recheck.
 5. Which boundaries did you not examine? Say so explicitly.
+6. Does any change work against a principle or a "We refuse" line of the project's
+   vision? BMN attaches the project's `VISION.md` to `focused-reviewer`,
+   `epic-reviewer` and `final-reviewer` asks; with none attached, answer "no vision
+   given".
 
 At project scope, also examine the aggregate multi-epic change for consequential
 duplication, dependency or pattern drift and accumulated complexity, and verify
@@ -65,6 +69,8 @@ the obligations due within the selected scope.
 
 A finding names the violated requirement or invariant, a concrete location or
 reproduction, the consequence, and a proposed verification. No finding quotas.
+A vision finding (question 6) quotes the principle or refusal line, gives the code's
+`file:line` and says the consequence.
 Optional polish does not block acceptance.
 
 For a recheck or later evidence-triggered delta review, give each material finding

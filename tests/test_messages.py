@@ -256,6 +256,29 @@ class Words(unittest.TestCase):
     def test_the_review_brief_asks_whether_each_challenge_holds(self) -> None:
         self.assertIn("## Challenges", (REPO / "skills" / "dev-auto" / "references" / "review-brief.md").read_text(encoding="utf-8"))
 
+    def test_the_review_brief_asks_question_6_about_the_vision_and_its_finding_form(self) -> None:
+        # BMN Epic 112.2 AC1: question 6 and a vision finding's form; the quick pre-review keeps mapping without the vision.
+        brief = (REPO / "skills" / "dev-auto" / "references" / "review-brief.md").read_text(encoding="utf-8")
+        questions = brief.split("## Questions for the reviewer", 1)[1].split("## Findings", 1)[0]
+        self.assertRegex(questions, r'\n6\. Does any change work against a principle or a "We refuse" line of the project\'s\s+vision\?')
+        self.assertIn('"no vision\n   given"', questions)
+        findings = brief.split("## Findings", 1)[1].split("## Reviewer output", 1)[0]
+        self.assertRegex(findings, r"A vision finding \(question 6\) quotes the principle or refusal line, gives the code's\s+`file:line` and says the consequence\.")
+        pre = brief.split("## Quick pre-review", 1)[1].split("## Questions for the reviewer", 1)[0]
+        self.assertNotIn("vision", pre.lower())
+
+    def test_the_skill_states_d1_once(self) -> None:
+        # BMN Epic 112.2 AC2: his D1 rule for a vision finding, in one place.
+        skill = (REPO / "skills" / "dev-auto" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertEqual(skill.count("BMN Epic 112 D1"), 1)
+        rule = skill.split("BMN Epic 112 D1", 1)[1].split("\n\n", 1)[0]
+        for words in ("applicable approved\nprinciple or refusal line", "keeps those requirements, the acceptance criteria, the permissions and the\nlimits",
+                      '"against Pn"', "park the story under `Needs your decision`", "Never rewrite the vision or an acceptance\ncriterion",
+                      "grants no new authority"):
+            self.assertIn(words, rule)
+        handoff = (REPO / "skills" / "dev-auto" / "assets" / "handoff.md").read_text(encoding="utf-8")
+        self.assertIn("- Vision findings (SKILL.md, by his D1", handoff)
+
 
 if __name__ == "__main__":
     unittest.main()

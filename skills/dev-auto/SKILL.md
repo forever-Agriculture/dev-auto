@@ -203,6 +203,17 @@ one full review, consolidated repairs and one focused recheck, the candidate une
 while a reviewer or gate reads it. Further review needs a named material risk or a consequential new
 change or evidence, reusing unaffected results.
 
+A vision finding (the review brief's question 6; BMN gives reviewers the project's
+`VISION.md`), by his rule (BMN Epic 112 D1): confirm it against an applicable approved
+principle or refusal line, the reviewed code, and the agreed requirements and decisions.
+If a repair keeps those requirements, the acceptance criteria, the permissions and the
+limits, make it through the normal review process and record the principle, finding and
+disposition under `Vision findings` in the handoff and on the report page as "against Pn".
+Otherwise park the story under `Needs your decision`, continue independent work and ask
+under the timing and Away rules above. Never rewrite the vision or an acceptance
+criterion. Draft or provisional vision text grants no new authority: follow its recorded
+precedence and approved sources; a finding it alone supports is recorded not confirmed.
+
 From the full review on, at one acceptance boundary: if a recheck finds a material
 defect introduced by the previous repair, or a second recheck finds material defects
 (any review of a repaired candidate is a recheck), stop repairing. Reread the original
