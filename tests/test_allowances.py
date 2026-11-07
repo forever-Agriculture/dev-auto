@@ -303,6 +303,68 @@ class Allowances(unittest.TestCase):
         self.assertEqual([data["rounds"][f"r{n}"]["answer"] for n in (1, 2)], ["TAKEN", "TAKEN"])
         self.assertEqual([data["uses"][f"u{n}"]["answer"] for n in (1, 2)], ["TAKEN", "TAKEN"])
 
+    def test_round_exhaustion_uses_delegated_headroom_without_a_card(self) -> None:
+        self.go()
+        values = fields(rounds=3)
+        values["limits"]["repair_rounds"] = {"limit": 3, "ceiling": 4, "per": "boundary", "unit": "count"}
+        self.reader(values)
+        budget = self.open()
+        take = lambda name: self.ledger("round", "--budget", budget, "--boundary", "7.1", "--use-id", name)
+        for name in ("r1", "r2"):
+            self.assertEqual(take(name)[0], 0)
+        values["rounds"] = values["limits"]["repair_rounds"]["limit"] = 2
+        self.reader(values)
+        code, out = take("r3")
+        self.assertEqual(code, 1)
+        self.assertIn("RAISE:", out)
+        self.assertIn("limits.repair_rounds.limit=3", out)
+        self.assertIn("--expect tok1", out)
+        self.assertNotIn("OWNER_CHANGE", out)
+        values["rounds"] = values["limits"]["repair_rounds"]["limit"] = 4
+        self.reader(values)
+        self.assertEqual(take("r3")[0], 1)  # a refused id stays refused after a raise
+        self.assertEqual(take("r4")[0], 0)
+        self.assertEqual(sum(item["answer"] == "TAKEN" for item in self.data(budget)["rounds"].values()), 3)
+
+    def test_round_exhaustion_names_a_binding_owner_restriction(self) -> None:
+        self.go()
+        values = fields(rounds=4)
+        values["limits"]["repair_rounds"] = {"limit": 4, "ceiling": 8, "per": "boundary", "unit": "count"}
+        self.reader(values)
+        budget = self.open()
+        take = lambda name: self.ledger("round", "--budget", budget, "--boundary", "7.1", "--use-id", name)
+        for name in ("r1", "r2"):
+            self.assertEqual(take(name)[0], 0)
+        code, out = self.ledger("limit", "--budget", budget, "--rounds", "2", "--source", "'two rounds only' 2026-11-08T01:00")
+        self.assertEqual(code, 0, out)
+        code, out = take("r3")
+        self.assertEqual(code, 1)
+        self.assertIn("OWNER_LIMIT:", out)
+        self.assertNotIn("RAISE:", out)
+        self.assertNotIn("OWNER_CHANGE", out)
+        values["rounds"] = values["limits"]["repair_rounds"]["limit"] = 8
+        self.reader(values)
+        self.assertEqual(take("r4")[0], 1)  # YAML cannot remove the later owner restriction
+        self.assertEqual(sum(item["answer"] == "TAKEN" for item in self.data(budget)["rounds"].values()), 2)
+
+    def test_round_exhaustion_at_its_yaml_ceiling_requests_an_amendment(self) -> None:
+        self.go()
+        values = fields(rounds=3)
+        values["limits"]["repair_rounds"] = {"limit": 3, "ceiling": 4, "per": "boundary", "unit": "count"}
+        self.reader(values)
+        budget = self.open()
+        take = lambda name: self.ledger("round", "--budget", budget, "--boundary", "7.1", "--use-id", name)
+        for name in ("r1", "r2"):
+            self.assertEqual(take(name)[0], 0)
+        values["rounds"] = values["limits"]["repair_rounds"]["limit"] = 2
+        values["limits"]["repair_rounds"]["ceiling"] = 2
+        self.reader(values)
+        code, out = take("r3")
+        self.assertEqual(code, 1)
+        self.assertIn("OWNER_CHANGE:", out)
+        self.assertNotIn("RAISE:", out)
+        self.assertEqual(self.data(budget)["rounds"]["r3"]["answer"], "REFUSED")
+
     def test_money_is_the_files_value_now_and_never_refills(self) -> None:
         self.go()
         self.reader(fields(money=2))

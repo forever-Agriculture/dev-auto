@@ -783,8 +783,17 @@ def take_round(args: dict) -> int:
         if answer == "REFUSED":
             reason = "no recorded go gives extra rounds" if not allowed and go is None else f"{allowed} extra per boundary and {used} are used at {boundary}"
             print(f"REFUSED: round {use_id} at {boundary}: {reason}; nothing taken")
-            if fields is not None:
-                print("OWNER_CHANGE: an unforeseen exhausted YAML allowance may need one exact amendment card while the owner is present; apply only his approved change with bmn plan allow --source, preserving usage. Until then park affected work; Away and external refusals still hold")
+            restriction = round_limit(data, go)
+            if restriction and used >= restriction["rounds"]:
+                print("OWNER_LIMIT: his later round restriction still binds; raising YAML cannot authorize more rounds. Park affected work and follow that recorded instruction")
+            elif fields is not None:
+                one = fields["limits"].get("repair_rounds", {})
+                ceiling = one.get("ceiling")
+                if ceiling is not None and used + 1 <= ceiling:
+                    token = needs["allowances"]["token"]
+                    print(f"RAISE: room under its ceiling {ceiling:g}, no card: bmn plan allow {data['epic']} limits.repair_rounds.limit={used + 1} --reason TEXT --expect {token}; then a new --use-id; required method and step-back still apply")
+                else:
+                    print("OWNER_CHANGE: an unforeseen exhausted YAML allowance may need one exact amendment card while the owner is present; apply only his approved change with bmn plan allow --source, preserving usage. Until then park affected work; Away and external refusals still hold")
             return EXIT_REFUSED
         print(f"TAKEN: round {use_id} at {boundary}, {used + 1} of {allowed} from {'go ' + go['commit'][:12] if go else 'the default'}")
     return 0
