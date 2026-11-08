@@ -177,6 +177,27 @@ def read_items(connection: sqlite3.Connection, run: dict, deadline: float | None
     return items
 
 
+def run_sessions(connection: sqlite3.Connection, run: dict) -> set:
+    """The BMN sessions a run's conversations ran in: hook card rows carry the BMN session, a handoff names conversations."""
+    sessions = set(run["conversations"])
+    if not run["conversations"]:
+        return sessions
+    marks = ",".join("?" * len(run["conversations"]))
+    window = (run["start"].isoformat().replace("+00:00", "Z"), run["end"].isoformat().replace("+00:00", "Z"))
+    if connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'conversation_binding'").fetchone():
+        sessions |= {row[0] for row in connection.execute(
+            f"SELECT session_id FROM conversation_binding WHERE conversation_reference IN ({marks})", run["conversations"])}
+    for session, producer in connection.execute(
+            "SELECT session_id, producer_json FROM attention_request WHERE opened_at >= ? AND opened_at <= ? AND producer_json IS NOT NULL", window):
+        try:
+            conversation = (json.loads(producer) or {}).get("conversationReference")
+        except (ValueError, AttributeError):
+            continue
+        if conversation in run["conversations"]:
+            sessions.add(session)
+    return sessions
+
+
 def hook_records(connection: sqlite3.Connection, run: dict, deadline: float | None = None) -> dict:
     """BMN Story 113.5 AC3: phantoms, duplicates and suppressions from the run's hook card records, or the old note."""
     if connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'hook_card_record'").fetchone() is None:
@@ -184,12 +205,13 @@ def hook_records(connection: sqlite3.Connection, run: dict, deadline: float | No
     rows = connection.execute(
         "SELECT run_id, session_id, event, method, tool_call_id, outcome FROM hook_card_record WHERE observed_at >= ? AND observed_at <= ? ORDER BY observed_at, run_id, position",
         (run["start"].isoformat().replace("+00:00", "Z"), run["end"].isoformat().replace("+00:00", "Z"))).fetchall()
+    sessions = run_sessions(connection, run)
     opened: dict[tuple, set] = {}
     calls: dict[tuple, set] = {}
     counted_runs: set = set()
     suppressions = refused = kept = 0
     for run_id, session, event, method, call, outcome in checked(rows, deadline, "hook records"):
-        if session not in run["conversations"]:
+        if session not in sessions:
             continue
         kept += 1
         counted_runs.add(run_id)

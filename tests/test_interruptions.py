@@ -164,6 +164,17 @@ class CountTests(unittest.TestCase):
         self.assertIn("hook runs 5 (5 card calls): phantoms 1, duplicates 2, suppressions 2 (1 refused while away)", lines)
         self.assertNotIn("not counted, BMN keeps no record", lines)
 
+    # A real handoff names the lead conversation, not its BMN session: the session comes from the run's own cards.
+    def test_hook_card_records_found_through_the_lead_conversation(self) -> None:
+        (self.handoff).write_text(f"- Run id: epic7-20261026\n- Lead sessions: {LEAD}\n- Status: ACTIVE\n")
+        os.utime(self.handoff, (1793017800, 1793017800))
+        other = "cccccccc-2222-4333-8444-555555555555"
+        self.add("10:00", session=other, prompt=json.dumps({"toolUseId": "call-1"}))
+        self.hook_cards(("r1", other, "PreToolUse", "open", "call-1", "opened", "10:00"),
+                        ("r2", other, "PreToolUse", "open", "call-1", "opened", "10:00"),
+                        ("r3", BMN_SESSION, "PreToolUse", "open", "call-2", "opened", "10:02"))  # a session this run never used
+        self.assertEqual(self.run_count()["hook_records"], {"kept": True, "runs": 2, "rows": 2, "phantoms": 1, "duplicates": 1, "suppressions": 0, "refused": 0})
+
     def test_hook_runs_behind_one_card_are_stated_as_not_counted(self) -> None:
         # Two hook runs, one card (.dev-auto/evidence/106-19/sessions-after.json): the store shows one row, so the count says what it cannot see.
         self.add("10:00", title="Codex asks: Which colour?", key="codex:question", prompt=json.dumps({"toolUseId": "call-1"}))
