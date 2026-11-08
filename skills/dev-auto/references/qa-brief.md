@@ -55,9 +55,36 @@ report digest, then supplies it to the shared checker. Missing, changed, foreign
 block acceptance. A receipt proves neither native confinement nor service execution; reservation
 and send-commitment counts overlap and never create fresh allowance. Use `mode: session`;
 authenticated work requires approved aliases and local-only private evidence. Never substitute
-a signed-out ask for an account criterion. The current bench fallback remains web-only: `--bench` is refused, and a
-desktop candidate keeps its code/runtime review with the manual-QA gap explicit.
+a signed-out ask for an account criterion. The teammate's desktop `--bench` route remains refused.
+When the owner selects lead-run desktop QA, the lead uses the disposable bench route below.
 An unavailable QA route is BLOCKED, with its named reason; silence or a failed launch is no pass.
+
+## Lead-run desktop bench
+
+This declared route uses the same V1 manual-QA brief/report and shared checker; it is not a
+teammate session or proof against a writer who can change the record. Use `mode: quick-bench`,
+`accounts: []`, and `target: bmn-bench:pending` in the source brief. Name the frozen candidate
+revision and a synthetic seed JSON with an `id`. Start an already built disposable BMN checkout:
+
+```bash
+node scripts/qa/bench.mjs --no-build --qa-brief "$BRIEF" --qa-seed "$SEED"
+# For a packaged candidate, replace --no-build with --binary /path/to/candidate.
+node scripts/qa/bench.mjs do snapshot
+node scripts/qa/bench.mjs do screenshot goal
+# Exercise the brief through the bench UI; record observations and a V1 report.
+node scripts/qa/bench.mjs --stop
+node scripts/qa/bench-receipt.mjs --run-id "$GENERATION" --report "$REPORT"
+python3 "$SKILL/scripts/qa_gate.py" "$RECORD" --lead-bench --revision "$REVISION" --target "bmn-bench:$GENERATION"
+```
+
+Read the retained `qa/brief.json` after start: its exact target is the allocated generation.
+The bench reserves the revision, actually loaded candidate digest, seed, brief and target
+before launch. Finalize only after shutdown; retain the action log, screenshots, every workload
+and recovery launch (including successors), capture certificates and cleanup result. The gate
+refuses missing, changed, foreign-generation or symlinked evidence and report references outside
+that retained capture. Hashes check consistency, not hostile-writer authenticity. An observed
+boundary escape is a finding; incomplete capture or cleanup blocks acceptance. Inspect screenshots
+and exercise the goal before writing the verdict; an admitted receipt alone proves no UI behaviour.
 
 ## Repairs and retests
 
@@ -80,6 +107,7 @@ intermittent defect as a verified fix. Read recorded regression gaps and track m
 outside a finding's original reproduction.
 
 For a session retest, also supply `--prior-session-run "$PRIOR_WAIT_RECEIPT"` with `--prior`.
+For a lead-run bench retest, use `--lead-bench` and add `--prior-lead-bench` with `--prior`.
 The gate reads the saved native ask outcome or session receipt, brief/report and screenshot hashes, then calls BMN's
 shared report checker. It accepts only a bound GO or GO WITH ISSUES; a valid NO-GO exits 1 and
 keeps that verdict. Missing/invalid records, mandatory FAIL/BLOCKED/NOT RUN, an unachieved or

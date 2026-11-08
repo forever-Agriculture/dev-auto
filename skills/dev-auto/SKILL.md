@@ -216,6 +216,11 @@ one full review, consolidated repairs and one focused recheck, the candidate une
 while a reviewer or gate reads it. Further review needs a named material risk or a consequential new
 change or evidence, reusing unaffected results.
 
+For owner-selected lead-run desktop QA, use the versioned bench receipt route in that reference:
+reserve inputs before launch, finalize retained evidence after cleanup, and check with
+`qa_gate.py --lead-bench`. Keep the teammate's refused desktop route refused; native web and
+account routes retain their existing permission and receipt checks.
+
 A vision finding (the review brief's question 6; BMN gives reviewers the project's
 `VISION.md`), by his rule (BMN Epic 112 D1): confirm it against an applicable approved
 principle or refusal line, the reviewed code, and the agreed requirements and decisions.

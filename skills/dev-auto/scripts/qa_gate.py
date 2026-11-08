@@ -23,7 +23,16 @@ def load(path: Path) -> dict:
     return value
 
 
-def checked_record(root: Path, bmn: str, session_run: Path | None = None) -> tuple[dict, dict]:
+def checked_record(root: Path, bmn: str, session_run: Path | None = None, lead_bench: bool = False) -> tuple[dict, dict]:
+    if lead_bench:
+        if session_run:
+            raise Invalid("Choose lead bench or native session receipt, not both")
+        from lead_bench_record import checked_lead_record
+        brief, report = checked_lead_record(root)
+        checked = subprocess.run([bmn, "qa", "report", "check", str(root / "qa/report.json"), "--brief", str(root / "qa/brief.json")], capture_output=True, text=True, timeout=30)
+        if checked.returncode != 0:
+            raise Invalid("BMN's shared report checker rejected this lead bench brief/report")
+        return brief, report
     brief_path, report_path = root / "qa/brief.json", root / "qa/report.json"
     brief, report = load(brief_path), load(report_path)
     run = None
@@ -108,11 +117,11 @@ def checked_record(root: Path, bmn: str, session_run: Path | None = None) -> tup
 
 
 def evaluate(args: argparse.Namespace) -> dict:
-    brief, report = checked_record(args.record, args.bmn, args.session_run)
+    brief, report = checked_record(args.record, args.bmn, args.session_run, args.lead_bench)
     if brief["revision"] != args.revision or brief["target"] != args.target:
         raise Invalid("QA report belongs to a different candidate or target")
     if args.prior:
-        prior_brief, prior_report = checked_record(args.prior, args.bmn, args.prior_session_run)
+        prior_brief, prior_report = checked_record(args.prior, args.bmn, args.prior_session_run, args.prior_lead_bench)
         previous = {item["id"]: item for item in prior_report["findings"]}
         required = set(args.retest) | {key for key, item in previous.items() if item["status"] == "open"}
         supplied = {item["finding"]["id"]: item["finding"] for item in brief.get("prior_findings", [])}
@@ -126,6 +135,8 @@ def evaluate(args: argparse.Namespace) -> dict:
             retest = current.get(key, {}).get("retest", {})
             if not retest.get("steps") or not str(retest.get("observations", "")).strip():
                 raise Invalid(f"{key}: no current original-repro retest; open status alone proves nothing")
+    elif args.prior_lead_bench:
+        raise Invalid("--prior-lead-bench requires --prior")
     elif args.prior_session_run:
         raise Invalid("--prior-session-run requires --prior")
     elif args.retest:
@@ -140,6 +151,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--revision", required=True)
     parser.add_argument("--target", required=True)
     parser.add_argument("--bmn", default="bmn", help="BMN CLI executable; report validation opens no socket")
+    parser.add_argument("--lead-bench", action="store_true", help="declared V1 lead-run desktop bench receipt")
+    parser.add_argument("--prior-lead-bench", action="store_true", help="earlier --prior uses a lead-run bench receipt")
     parser.add_argument("--session-run", type=Path, help="native bmn qa wait JSON receipt for this record folder")
     parser.add_argument("--prior-session-run", type=Path, help="native wait receipt when --prior is a session record")
     parser.add_argument("--prior", type=Path)
