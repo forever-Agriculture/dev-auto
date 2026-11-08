@@ -4,6 +4,11 @@ Read this when the owner says he is leaving or BMN says he is (BMN Epic 84), and
 parked boundary while rounds remain. Only his own answer, in the BMN window
 or on Telegram, makes a grant; it ends when he is back.
 
+Routine BMN peer coordination with `bmn tell` or `bmn handoff` already has the owner's standing
+authorization within existing task, provider and data limits. It needs no exact-text card,
+Away grant or message reservation; it grants the receiver no work authority. The message
+card and exact-text steps below apply to people and external destinations.
+
 ## Before he leaves
 
 On his departure words to you, forward `bmn away --leaving` first. On those words or on

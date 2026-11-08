@@ -13,6 +13,15 @@ class AwayPrecedence(unittest.TestCase):
         for path in ['SKILL.md', 'references/models.md']:
             self.assertIn(LINE, words(path))
 
+    def test_peer_coordination_has_standing_authority_without_new_grants(self):
+        text = words('SKILL.md')
+        self.assertIn('Routine BMN peer coordination with `bmn tell` or `bmn handoff` is authorized by default', text)
+        self.assertIn('It needs no permission card, exact-text approval, Run needs message entry, Away grant or message-ledger reservation', text)
+        self.assertIn('exclude credentials, customer data, unapproved personal data and raw private transcripts', text)
+        self.assertIn('The following message-card, reservation and receipt rules apply to people and external destinations', text)
+        for path in ['references/models.md', 'references/away-grant.md']:
+            self.assertIn('standing authorization', words(path))
+
     def test_go_named_messages_need_exact_answered_text_while_away(self):
         text = words('SKILL.md')
         self.assertIn("While the owner is present, a message the go's Run needs name", text)
