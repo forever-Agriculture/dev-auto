@@ -22,8 +22,10 @@ A hook's card stores its tool call's id (`toolUseId` in its prompt). The same id
 one call's second card. A card the agent's next question replaced in its slot keeps its opened time, so rows of one
 session and key at the same instant were one card to him: with other ids, or none to compare, it is `replaced`, one
 card to him whoever asked. Each counts once as asked and the extra is named. BMN keeps no record of hook runs, and two
-runs of one call open one card, so extra hook runs behind one card are not counted and the output says so (`hook_records`):
-`bmn hooks check` names the overlapping entries that cause them. A duplicate is one question also asked through another
+runs of one call open one card, so extra hook runs behind one card are not counted from cards alone. A BMN with hook card records (BMN Story 113.5, table hook_card_record: one text-free
+row per card call of a hook run) adds `hook_records`: phantoms (one call opened by more than one run), duplicates (more
+than one run for one call and event, from overlapping hook entries) and suppressions (an open refused or changing nothing);
+an older BMN keeps the old note there and `bmn hooks check` names the overlapping entries. A duplicate is one question also asked through another
 route: a mirror, folded or possible.
 Beside them, for BMN Epic 106: rounds and step-backs from the run's ledger, its stories done and parked from the board
 the handoff names, the parked hours from the log's `<stamp> parked N.M` and `<stamp> unparked N.M` lines, usage from
@@ -173,6 +175,35 @@ def read_items(connection: sqlite3.Connection, run: dict, deadline: float | None
                       "conversation": conversation, "generation": origin.get("generation") or "",
                       "_title": title or "", "_call": tool_call(whole), "_questions": question_texts(whole, title or ""), "_text": " ".join(filter(None, [title, body, prompt if kind == "permission" else ""]))})
     return items
+
+
+def hook_records(connection: sqlite3.Connection, run: dict, deadline: float | None = None) -> dict:
+    """BMN Story 113.5 AC3: phantoms, duplicates and suppressions from the run's hook card records, or the old note."""
+    if connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'hook_card_record'").fetchone() is None:
+        return HOOK_RECORDS
+    rows = connection.execute(
+        "SELECT run_id, session_id, event, method, tool_call_id, outcome FROM hook_card_record WHERE observed_at >= ? AND observed_at <= ? ORDER BY observed_at, run_id, position",
+        (run["start"].isoformat().replace("+00:00", "Z"), run["end"].isoformat().replace("+00:00", "Z"))).fetchall()
+    opened: dict[tuple, set] = {}
+    calls: dict[tuple, set] = {}
+    counted_runs: set = set()
+    suppressions = refused = kept = 0
+    for run_id, session, event, method, call, outcome in checked(rows, deadline, "hook records"):
+        if session not in run["conversations"]:
+            continue
+        kept += 1
+        counted_runs.add(run_id)
+        if call:
+            calls.setdefault((session, event, call), set()).add(run_id)
+            if method == "open" and outcome == "opened":
+                opened.setdefault((session, call), set()).add(run_id)
+        if method == "open" and outcome in ("refused", "unchanged"):
+            suppressions += 1
+            refused += outcome == "refused"
+    return {"kept": True, "runs": len(counted_runs), "rows": kept,
+            "phantoms": sum(len(ids) - 1 for ids in opened.values() if len(ids) > 1),
+            "duplicates": sum(len(ids) - 1 for ids in calls.values() if len(ids) > 1),
+            "suppressions": suppressions, "refused": refused}
 
 
 def correct(items: list[dict], deadline: float | None = None) -> list[dict]:
@@ -423,6 +454,7 @@ def runs(handoffs: list[Path], connection: sqlite3.Connection, deadline: float, 
             entry = summary(run, correct(read_items(connection, run, deadline), deadline), deadline)
             entry["native_prompts"] = native_prompts(entry["_items"], deadline)
             entry.update(outcomes(run, deadline))
+            entry["hook_records"] = hook_records(connection, run, deadline)
             if past(deadline, "counted"):
                 raise OutOfTime("counted")
         except (OutOfTime, sqlite3.OperationalError) as exc:
@@ -475,7 +507,12 @@ def main(argv: list[str]) -> int:
         finished = (f"stories done {stories['done']}, parked {len(stories['parked'])} ({stories['parked_hours']} hours{unstamped}), others {stories['other']}"
                     f"{'' if stories['counts_as_success'] else '; not a success: it parked more than it finished'}") if stories["readable"] else "stories: no board"
         print(f"  {finished}; usage {usage['asks']} asks, {usage['input_tokens']} in, {usage['output_tokens']} out, {usage['lead_sessions']} lead sessions")
-        print("  extra hook runs behind one card: not counted, BMN keeps no record of them; `bmn hooks check` names overlapping entries")
+        hooks = run.get("hook_records", HOOK_RECORDS)
+        if hooks.get("kept"):
+            print(f"  hook runs {hooks['runs']} ({hooks['rows']} card calls): phantoms {hooks['phantoms']}, duplicates {hooks['duplicates']}, "
+                  f"suppressions {hooks['suppressions']} ({hooks['refused']} refused while away)")
+        else:
+            print("  extra hook runs behind one card: not counted, BMN keeps no record of them; `bmn hooks check` names overlapping entries")
     print("COVERAGE: complete" if result["complete"] else "COVERAGE: partial, the time bound was reached")
     return 0
 

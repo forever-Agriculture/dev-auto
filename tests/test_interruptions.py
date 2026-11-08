@@ -138,6 +138,32 @@ class CountTests(unittest.TestCase):
         self.assertEqual([item["class"] for item in run["items"]][1:], ["replaced", "phantom"])
         self.assertEqual(run["items"][2]["same_card_as"], second)
 
+    def hook_cards(self, *rows: tuple) -> None:
+        connection = sqlite3.connect(self.db)
+        connection.execute("CREATE TABLE IF NOT EXISTS hook_card_record (run_id TEXT, position INTEGER, session_id TEXT, incarnation_id TEXT, agent TEXT, event TEXT, "
+                           "method TEXT, request_key TEXT, kind TEXT, tool_call_id TEXT, outcome TEXT, rule_source TEXT, observed_at TEXT)")
+        for index, (run_id, session, event, method, call, outcome, at) in enumerate(rows):
+            connection.execute("INSERT INTO hook_card_record VALUES (?,?,?,NULL,'codex',?,?,'codex:question','question',?,?,?,?)",
+                               (run_id, index, session, event, method, call, outcome, "away-question-refusal" if outcome == "refused" else None, f"2026-10-26T{at}:00.000Z"))
+        connection.commit()
+        connection.close()
+
+    # BMN Story 113.5 AC3: with hook card records kept, the three counts come from them.
+    def test_hook_card_records_count_phantoms_duplicates_and_suppressions(self) -> None:
+        self.hook_cards(
+            ("r1", BMN_SESSION, "PreToolUse", "open", "call-1", "opened", "10:00"),
+            ("r2", BMN_SESSION, "PreToolUse", "open", "call-1", "opened", "10:00"),   # a second run opened the same call: phantom + duplicate
+            ("r3", BMN_SESSION, "PreToolUse", "open", "call-2", "refused", "10:05"),  # refused while away: suppression
+            ("r4", BMN_SESSION, "PreToolUse", "open", "call-2", "unchanged", "10:05"),  # overlapping entry, nothing changed: duplicate + suppression
+            ("r5", BMN_SESSION, "PostToolUse", "resolve", "call-1", "answered", "10:06"),
+            ("r6", "bbbbbbbb-2222-4333-8444-555555555555", "PreToolUse", "open", "call-9", "opened", "10:07"),  # another session's: not this run's
+            ("r7", BMN_SESSION, "PreToolUse", "open", "call-3", "opened", "13:30"))  # after the run: outside its time
+        run = self.run_count()
+        self.assertEqual(run["hook_records"], {"kept": True, "runs": 5, "rows": 5, "phantoms": 1, "duplicates": 2, "suppressions": 2, "refused": 1})
+        lines = self.printed()
+        self.assertIn("hook runs 5 (5 card calls): phantoms 1, duplicates 2, suppressions 2 (1 refused while away)", lines)
+        self.assertNotIn("not counted, BMN keeps no record", lines)
+
     def test_hook_runs_behind_one_card_are_stated_as_not_counted(self) -> None:
         # Two hook runs, one card (.dev-auto/evidence/106-19/sessions-after.json): the store shows one row, so the count says what it cannot see.
         self.add("10:00", title="Codex asks: Which colour?", key="codex:question", prompt=json.dumps({"toolUseId": "call-1"}))
