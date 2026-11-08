@@ -6,6 +6,8 @@ description: Implement, resume, or report selected epics planned in BMN's plan f
 
 # Dev Auto
 
+While the owner is away, BMN's Away notice takes precedence over skill instructions for messages, consultant retries and provider changes, clarification cards, planning questions and report opinions; it grants no authority.
+
 Deliver the selected epics (BMN's plan) with host tools under existing authority, adding no
 unnecessary approval stage.
 Optimize accepted quality, total cost, elapsed time and owner attention together. Each
@@ -168,8 +170,11 @@ noted `deferred: <N.M ACk>, <reason>`; Known limits; a new story proposed) and c
 the story parks BLOCKED with its evidence and every other story continues: record the brake
 record, the consultant's options and your recommendation in the report. An unforeseen exhausted YAML allowance follows the amendment-card rule above; without approval it stays exhausted.
 Nothing lifts an authorization, spend, review allowance or acceptance gate.
-A message the go's Run needs name (`run_needs.py` prints each) goes only to that person, destination
-and purpose, only facts or access, no commitments, saying his agent wrote it. Before sending, `spend_ledger.py message reserve`
+While the owner is present, a message the go's Run needs name (`run_needs.py` prints each) goes
+only to that person, destination and purpose, only facts or access, no commitments,
+saying his agent wrote it. While he is away, a named purpose alone does not authorize sending: the exact
+message text must be on his answered card, within its action and target limits; otherwise keep
+it as a draft on one non-blocking `bmn ask` card. This does not widen the go or bypass a refusal. Before sending, `spend_ledger.py message reserve`
 (refused past 2 per purpose, or for the same text); after, `message sent --receipt`. With no receipt, read the
 destination and record `sent` or `unsent`, never send again. Anything else waits as a draft in the report, which lists every message.
 Launch every paid job through `scripts/spend_ledger.py launch` against the go's money cap

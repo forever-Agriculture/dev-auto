@@ -1,6 +1,8 @@
 # MODULE: models.md - approved model routes, dispatch and background launch context
 # Model and dispatch reference
 
+While the owner is away, BMN's Away notice takes precedence over skill instructions for messages, consultant retries and provider changes, clarification cards, planning questions and report opinions; it grants no authority.
+
 Routes require configured, authorized access. Verify model and effort from actual
 receipts; a CLI option or prompt alone does not prove a live route.
 
@@ -67,7 +69,7 @@ BLOCKED, never substituted.
   `bmn team asks export <id> --output .dev-auto/evidence/<story>/<name>` and read it once
   with `scripts/check.py usage` on that folder. Without `bmn`, an approved team or BMN
   running, ask nothing and report BLOCKED.
-- **When an ask does not answer.** A refusal (exit 10) is reported with its code and
+- **When an ask does not answer, while the owner is present.** A refusal (exit 10) is reported with its code and
   words, never worded around. One that means the route is unavailable
   (`AGENT_NOT_ELIGIBLE`, `DATA_FORBIDDEN`, `PRIVATE_NOT_ALLOWED`, an app
   `bmn team ask --features` does not offer for it) and a failure (exit 1) move on like
@@ -76,6 +78,12 @@ BLOCKED, never substituted.
   the pick or the choice. Out of time (15): one longer `--time-limit` under a new key.
   Not attributed (17): once more under a new key; a second is a failed route. A BMN
   lacking a feature the ask needs is BLOCKED, naming the upgrade.
+- **While the owner is away.** A consultant ask needs existing dispatch consent, permitted
+  provider/data and remaining allowances: one stable key, a bounded time limit, no recursion
+  and no other provider. On refusal, timeout or uncertain completion, read the existing ask
+  record instead of asking again; do not use a new retry key or change providers. Report the
+  refusal and park only dependent work. This Away rule overrides the present-owner retry and
+  route sequence above; it creates no dispatch or spending authority.
 - **Helpers review; the lead writes the code and tests.** **Routine chores**: wide
   lookups, evidence gathering, log and test-output triage, checklist rechecks.
   **Focused review**: another model's eyes on a bounded area when the lead wants
