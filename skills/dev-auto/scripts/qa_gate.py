@@ -14,6 +14,9 @@ class Invalid(ValueError):
     pass
 
 
+REVIEW_ROLES = {"epic-reviewer", "consultant", "focused-reviewer", "final-reviewer"}
+
+
 def load(path: Path) -> dict:
     if path.stat().st_size > 2 * 1024 * 1024:
         raise Invalid(f"{path.name}: record exceeds 2 MiB")
@@ -107,10 +110,76 @@ def checked_record(root: Path, bmn: str, session_run: Path | None = None) -> tup
     return brief, report
 
 
+def facts(finding: dict, *keys: str) -> dict:
+    return {key: value for key, value in finding.items() if key not in {"evidence", *keys}}
+
+
+def native_answer(root: Path) -> str:
+    """An independent teammate's answer, bound to the final message in its own native ask record."""
+    request, outcome, manifest = load(root / "request.json"), load(root / "outcome.json"), load(root / "inputs/manifest.json")
+    if (outcome.get("state") != "answered" or not request.get("id") or request.get("id") != outcome.get("id")
+            or manifest.get("id") != request.get("id") or request.get("role") not in REVIEW_ROLES):
+        raise Invalid("history review is not an answered native reviewer ask")
+    final = None
+    for line in (root / "events.jsonl").read_text(encoding="utf-8").splitlines():
+        event = json.loads(line) if line.strip() else {}
+        item = event.get("item") if isinstance(event.get("item"), dict) else {}
+        if event.get("type") == "item.completed" and item.get("type") == "agent_message":
+            final = item.get("text")
+        elif event.get("type") == "result" and isinstance(event.get("result"), str):
+            final = event["result"]
+    answer = root / "answer.md"
+    if answer.stat().st_size > 2 * 1024 * 1024 or not isinstance(final, str) or answer.read_text(encoding="utf-8").rstrip() != final.rstrip():
+        raise Invalid("history review answer differs from its native record")
+    return final
+
+
+def history_closures(args, closing, prior_brief, prior_report, brief, report) -> list[str]:
+    """Close, on the same candidate, only findings the prior reopened for missing coverage; an independent review binds it."""
+    if args.retest or brief["revision"] != prior_brief["revision"] or not closing:
+        raise Invalid("--history serves only a closure on the prior's own candidate label, never with --retest")
+    _, past_report = checked_record(args.history, args.bmn, args.history_session_run)
+    review = native_answer(args.history_review).splitlines()
+    digest = lambda root: hashlib.sha256((root / "qa/report.json").read_bytes()).hexdigest()
+    binding = (f"HISTORY REVIEW: history-report {digest(args.history)}; prior-report {digest(args.prior)}; "
+               f"revision {brief['revision']}; target {brief['target']}")
+    if binding not in review:
+        raise Invalid("history review does not name these exact records, candidate and target")
+    past = {item["id"]: item for item in past_report["findings"]}
+    handed = {item["finding"]["id"]: item["finding"] for item in prior_brief.get("prior_findings", [])}
+    reopened = {item["id"]: item for item in prior_report["findings"]}
+    linked = {key for item in prior_report["criteria"] for key in item.get("finding_ids", [])}
+    asked = {item["id"]: item for item in brief.get("criteria", [])}
+    answered = {item["id"]: item for item in report["criteria"]}
+    current = {item["id"]: item for item in report["findings"]}
+    for key in sorted(closing):
+        if [line for line in review if line.startswith(key + ":")] != [key + ": NO RECURRENCE"]:
+            raise Invalid(f"{key}: the history review does not state exactly '{key}: NO RECURRENCE'")
+        resolved, retest = past.get(key, {}), past.get(key, {}).get("retest", {})
+        if resolved.get("status") != "resolved" or not retest.get("steps") or not str(retest.get("observations", "")).strip():
+            raise Invalid(f"{key}: --history holds no retested resolution")
+        if key not in handed or facts(handed[key]) != facts(resolved):
+            raise Invalid(f"{key}: the prior brief did not hand over the resolved facts unchanged")
+        prior = reopened.get(key, {})
+        if (prior.get("status") != "open" or prior.get("evidence") != [] or key in linked
+                or facts(prior, "status", "retest") != facts(resolved, "status", "retest")):
+            raise Invalid(f"{key}: the prior record observed or changed this finding; only a coverage reopen closes on history")
+        if facts(current[key], "status", "retest") != facts(prior, "status", "retest"):
+            raise Invalid(f"{key}: current finding facts differ from the prior record")
+        criterion, result = asked.get("retest:" + key, {}), answered.get("retest:" + key, {})
+        description = str(criterion.get("description", ""))
+        if (criterion.get("mandatory") is not True or not resolved.get("steps")
+                or not all(str(step) in description for step in resolved["steps"])
+                or result.get("status") != "PASS" or not result.get("evidence")):
+            raise Invalid(f"{key}: no passing mandatory retest:{key} criterion with the full original reproduction and evidence")
+    return sorted(closing)
+
+
 def evaluate(args: argparse.Namespace) -> dict:
     brief, report = checked_record(args.record, args.bmn, args.session_run)
     if brief["revision"] != args.revision or brief["target"] != args.target:
         raise Invalid("QA report belongs to a different candidate or target")
+    history = []
     if args.prior:
         prior_brief, prior_report = checked_record(args.prior, args.bmn, args.prior_session_run)
         previous = {item["id"]: item for item in prior_report["findings"]}
@@ -118,7 +187,11 @@ def evaluate(args: argparse.Namespace) -> dict:
         supplied = {item["finding"]["id"]: item["finding"] for item in brief.get("prior_findings", [])}
         current = {item["id"]: item for item in report["findings"]}
         closing = {key for key in required if current.get(key, {}).get("status") == "resolved"}
-        if (set(args.retest) | closing) and brief["revision"] == prior_brief["revision"]:
+        if args.history or args.history_session_run or args.history_review:
+            if not (args.history and args.history_review):
+                raise Invalid("--history needs --history-review")
+            history = history_closures(args, closing, prior_brief, prior_report, brief, report)
+        elif (set(args.retest) | closing) and brief["revision"] == prior_brief["revision"]:
             raise Invalid("an unchanged candidate is not a verified fix recheck")
         for key in required:
             if key not in previous or supplied.get(key) != previous[key]:
@@ -126,12 +199,15 @@ def evaluate(args: argparse.Namespace) -> dict:
             retest = current.get(key, {}).get("retest", {})
             if not retest.get("steps") or not str(retest.get("observations", "")).strip():
                 raise Invalid(f"{key}: no current original-repro retest; open status alone proves nothing")
-    elif args.prior_session_run:
-        raise Invalid("--prior-session-run requires --prior")
+    elif args.prior_session_run or args.history or args.history_session_run or args.history_review:
+        raise Invalid("--prior-session-run and --history require --prior")
     elif args.retest:
         raise Invalid("--retest requires the earlier admitted --prior record")
-    return {"status": "blocked" if report["verdict"] == "NO-GO" else "pass", "verdict": report["verdict"],
-            "goal": report["goal_check"]["status"], "revision": brief["revision"], "target": brief["target"]}
+    result = {"status": "blocked" if report["verdict"] == "NO-GO" else "pass", "verdict": report["verdict"],
+              "goal": report["goal_check"]["status"], "revision": brief["revision"], "target": brief["target"]}
+    if history:
+        result["history_closures"] = history
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -144,6 +220,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--prior-session-run", type=Path, help="native wait receipt when --prior is a session record")
     parser.add_argument("--prior", type=Path)
     parser.add_argument("--retest", action="append", default=[])
+    parser.add_argument("--history", type=Path, help="earlier admitted record that resolved findings the prior reopened untested")
+    parser.add_argument("--history-session-run", type=Path, help="native wait receipt when --history is a session record")
+    parser.add_argument("--history-review", type=Path, help="independent native reviewer ask export declaring NO RECURRENCE")
     args = parser.parse_args(argv)
     try:
         result = evaluate(args)

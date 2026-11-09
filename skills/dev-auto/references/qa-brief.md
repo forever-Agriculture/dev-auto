@@ -76,7 +76,20 @@ and verdict visible. Run the gate with `--prior "$PRIOR_RECORD" --retest FINDING
 additional repaired findings). Every prior open finding, including a minor left for follow-up, needs current original-repro
 steps and observations; merely remaining open proves no retest. An unchanged candidate may confirm
 that it remains open. A repeat of the unchanged candidate cannot close an
-intermittent defect as a verified fix. Read recorded regression gaps and track mandatory coverage
+intermittent defect as a verified fix. The revision label is the gate's only candidate identity:
+give a new candidate a new label, and never relabel an unchanged one to pass this rule.
+
+One bounded exception covers a prior run on the same label that reopened a finding only because its
+reproduction was not assigned: no evidence, no linked criterion, facts unchanged from the earlier
+admitted resolution it was handed. Supply that finding with a mandatory `retest:ID` criterion that
+carries every original step, reuse the prior's exact label, and pass `--history EARLIER_RECORD` and
+`--history-review REVIEW` beside `--prior`, never with `--retest`. REVIEW is an independent
+reviewer's native ask export that read the whole prior report and the chain between the records. Its
+answer holds the line `HISTORY REVIEW: history-report <sha256 of EARLIER_RECORD/qa/report.json>;
+prior-report <sha256 of PRIOR/qa/report.json>; revision <label>; target <target>` and exactly
+`ID: NO RECURRENCE` for each finding it clears. Any other line for that ID blocks. The review proves
+provenance, not truth; read it and the new run's evidence before accepting.
+Read recorded regression gaps and track mandatory coverage
 outside a finding's original reproduction.
 
 For a session retest, also supply `--prior-session-run "$PRIOR_WAIT_RECEIPT"` with `--prior`.
