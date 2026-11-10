@@ -21,7 +21,7 @@ class LeadBenchTests(unittest.TestCase):
         raw = (root / name).read_bytes()
         return {'path': name, 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest(), 'runId': RUN}
 
-    def record(self, name='current', revision='candidate-2', verdict='GO', finding=None, prior=None):
+    def record(self, name='current', revision='candidate-2', verdict='GO', finding=None, prior=None, candidate=None, defect=None):
         root = self.root / name
         brief = {'version': 1, 'mode': 'quick-bench', 'revision': revision, 'target': TARGET,
                  'prior_findings': [] if prior is None else [{'finding': prior, 'disposition': 'Repair needs retest'}]}
@@ -30,9 +30,9 @@ class LeadBenchTests(unittest.TestCase):
                   'criteria': [{'id': 'AC1', 'evidence': ['bench/screen.png', 'bench/actions.jsonl']}],
                   'findings': [] if finding is None else [finding]}
         self.write(root, 'qa/brief.json', brief); self.write(root, 'qa/report.json', report)
-        self.write(root, 'bench/seed.json', {'id': 'synthetic-seed-v1', 'defect': verdict == 'NO-GO'})
+        self.write(root, 'bench/seed.json', {'id': 'synthetic-seed-v1', 'defect': verdict == 'NO-GO' if defect is None else defect})
         binding = {'version': 1, 'runId': RUN, 'route': 'lead-bench', 'executor': 'lead', 'revision': revision, 'target': TARGET,
-                   'candidateSha256': ('1' if revision == 'candidate-1' else '2') * 64,
+                   'candidateSha256': candidate or ('1' if revision == 'candidate-1' else '2') * 64,
                    'fixture': {'id': 'synthetic-seed-v1', 'seedSha256': self.describe(root, 'bench/seed.json')['sha256']},
                    'briefSha256': self.describe(root, 'qa/brief.json')['sha256'], 'startedAt': '2026-11-08T19:00:00Z'}
         self.write(root, 'bench/input.json', binding)
@@ -120,6 +120,16 @@ class LeadBenchTests(unittest.TestCase):
         self.assertEqual(self.invoke(root)[1]['status'], 'invalid')
         root = self.record('checker'); self.checker.write_text('#!/usr/bin/env python3\nraise SystemExit(1)\n')
         self.assertEqual(self.invoke(root)[1]['status'], 'invalid')
+
+    def test_same_loaded_candidate_and_fixture_under_a_new_label_is_no_repair(self):
+        original = self.finding(); prior = self.record('prior', 'candidate-1', 'NO-GO', original)
+        old = lambda: json.loads(json.dumps(original))
+        relabelled = self.record('relabelled', 'candidate-2', finding=self.finding(True, True), prior=old(), candidate='1' * 64, defect=True)
+        result = self.invoke(relabelled, 'candidate-2', '--prior', prior, '--prior-lead-bench')[1]
+        self.assertEqual(result['status'], 'invalid'); self.assertIn('same loaded candidate', result['reason'])
+        for name, extra in [('new-bytes', {'defect': True}), ('new-fixture', {'candidate': '1' * 64})]:
+            root = self.record(name, 'candidate-2', finding=self.finding(True, True), prior=old(), **extra)
+            self.assertEqual(self.invoke(root, 'candidate-2', '--prior', prior, '--prior-lead-bench')[1]['status'], 'pass')
 
     def test_lead_prior_retest_uses_same_facts_and_repaired_candidate_rules(self):
         original = self.finding(); prior = self.record('prior', 'candidate-1', 'NO-GO', original)

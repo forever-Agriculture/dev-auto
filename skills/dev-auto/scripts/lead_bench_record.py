@@ -104,3 +104,10 @@ def checked_lead_record(root):
     if not names or not names.issubset(allowed):
         raise ValueError('Lead bench report names evidence absent from the retained capture')
     return brief, report
+
+
+def lead_candidate(root):
+    """What an admitted lead bench run loaded: its candidate bytes and its fixture seed (call after checked_lead_record)."""
+    root = Path(os.path.abspath(root))
+    binding = document(root / document(root / 'lead-bench.json')['input']['path'])
+    return binding['candidateSha256'], binding['fixture']['seedSha256']

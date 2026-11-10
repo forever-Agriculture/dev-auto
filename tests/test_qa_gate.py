@@ -198,6 +198,145 @@ class QaGateTests(unittest.TestCase):
         self.assertIn("requires the earlier", self.invoke(self.record(), "candidate-2", "http://127.0.0.1:4173", "--retest", "F1")[1]["reason"])
 
 
+    # History: an earlier admitted resolution, a prior on the same label that reopened it only for missing coverage,
+    # an independent native review declaring no recurrence, and a full new reproduction.
+    STEPS = ["Open the cart", "Repeat the selection"]
+
+    def history_chain(self, name="", current_verdict="GO"):
+        base = {"id": "F1", "severity": "major", "steps": self.STEPS, "actual": "Selection disappears", "evidence": []}
+        resolved = dict(base, status="resolved", evidence=["browser/cart.png"],
+                        retest={"steps": self.STEPS, "observations": "Selection kept", "regression_gaps": []})
+        history = self.record("history" + name, "candidate-1", "GO", resolved)
+        reopened = dict(base, status="open")
+        prior = self.record("prior" + name, "candidate-2", "NO-GO", reopened)
+        brief = self.load(prior, "qa/brief.json")
+        brief["prior_findings"] = [{"finding": dict(resolved, evidence=[]), "disposition": "Resolved earlier"}]
+        self.write_qa(prior, "qa/brief.json", brief)
+        closed = dict(base, status="resolved", evidence=["browser/cart.png"],
+                      retest={"steps": self.STEPS, "observations": "Selection kept on the full reproduction", "regression_gaps": []})
+        current = self.record("current" + name, "candidate-2", current_verdict, closed)
+        brief = self.load(current, "qa/brief.json")
+        brief["prior_findings"] = [{"finding": reopened, "disposition": "Reopened untested; full reproduction assigned"}]
+        brief["criteria"] = [{"id": "retest:F1", "description": "Full original reproduction: " + "; ".join(self.STEPS), "mandatory": True}]
+        self.write_qa(current, "qa/brief.json", brief)
+        report = self.load(current, "qa/report.json")
+        report["criteria"] = [{"id": "retest:F1", "status": "PASS", "evidence": ["browser/cart.png"]}]
+        self.write_qa(current, "qa/report.json", report)
+        return history, prior, current
+
+    def binding(self, history, prior, revision="candidate-2", target="http://127.0.0.1:4173"):
+        digest = lambda root: hashlib.sha256((root / "qa/report.json").read_bytes()).hexdigest()
+        return f"HISTORY REVIEW: history-report {digest(history)}; prior-report {digest(prior)}; revision {revision}; target {target}"
+
+    def review(self, history, prior, name="review", lines=None, role="epic-reviewer", claude=False):
+        root = self.root / name
+        text = "\n".join([self.binding(history, prior), "F1: NO RECURRENCE"] if lines is None else lines) + "\n\nRESULT: done"
+        self.write(root, "request.json", {"id": name, "role": role})
+        self.write(root, "outcome.json", {"id": name, "state": "answered"})
+        self.write(root, "inputs/manifest.json", {"id": name})
+        event = ({"type": "result", "result": text} if claude
+                 else {"type": "item.completed", "item": {"id": "m", "type": "agent_message", "text": text}})
+        (root / "events.jsonl").write_text(json.dumps({"type": "thread.started"}) + "\n" + json.dumps(event) + "\n")
+        (root / "answer.md").write_text(text + "\n")
+        return root
+
+    def gate(self, history, prior, current, review, *extra, revision="candidate-2"):
+        return self.invoke(current, revision, "http://127.0.0.1:4173", "--prior", prior, "--history", history,
+                           "--history-review", review, *extra)
+
+    def test_history_closes_a_coverage_reopen_on_the_same_candidate(self):
+        for claude in [False, True]:
+            with self.subTest(claude=claude):
+                history, prior, current = self.history_chain(f"-{claude}")
+                review = self.review(history, prior, f"review-{claude}", claude=claude)
+                before = {str(p): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
+                code, result = self.gate(history, prior, current, review)
+                self.assertEqual((code, result["status"], result.get("history_closures")), (0, "pass", ["F1"]))
+                self.assertEqual(before, {str(p): p.read_bytes() for p in self.root.rglob("*") if p.is_file()})
+
+    def test_history_closure_keeps_a_no_go_blocked(self):
+        history, prior, current = self.history_chain(current_verdict="NO-GO")
+        code, result = self.gate(history, prior, current, self.review(history, prior))
+        self.assertEqual((code, result["status"], result.get("history_closures")), (1, "blocked", ["F1"]))
+
+    def test_same_label_without_history_still_cannot_close(self):
+        history, prior, current = self.history_chain()
+        self.assertIn("unchanged candidate", self.invoke(current, "candidate-2", "http://127.0.0.1:4173", "--prior", prior)[1]["reason"])
+
+    def test_history_arguments_never_stand_alone_or_widen_a_repair_claim(self):
+        history, prior, current = self.history_chain()
+        review = self.review(history, prior)
+        target = "http://127.0.0.1:4173"
+        self.assertIn("--retest", self.gate(history, prior, current, review, "--retest", "F1")[1]["reason"])
+        self.assertIn("needs --history-review", self.invoke(current, "candidate-2", target, "--prior", prior, "--history", history)[1]["reason"])
+        self.assertIn("needs --history-review", self.invoke(current, "candidate-2", target, "--prior", prior, "--history-review", review)[1]["reason"])
+        self.assertIn("require --prior", self.invoke(current, "candidate-2", target, "--history", history, "--history-review", review)[1]["reason"])
+
+    def test_history_refuses_a_different_label(self):
+        history, prior, current = self.history_chain()
+        brief = self.load(current, "qa/brief.json"); brief["revision"] = "candidate-3"; self.write_qa(current, "qa/brief.json", brief)
+        review = self.review(history, prior)
+        self.assertIn("own candidate label", self.gate(history, prior, current, review, revision="candidate-3")[1]["reason"])
+
+    def test_history_review_must_be_an_independent_bound_native_answer(self):
+        cases = {"no-binding": (["F1: NO RECURRENCE"], {}), "uncertain": (None, {"line": "F1: UNCERTAIN"}),
+                 "missing-id": (None, {"line": None}), "duplicate": (None, {"extra": "F1: recurred in another section"}),
+                 "stale": (None, {"stale": True}), "target": (None, {"target": "http://127.0.0.1:4174"}),
+                 "revision": (None, {"revision": "candidate-1"}), "role": (None, {"role": "qa"}),
+                 "substituted": (None, {"substitute": True}), "unanswered": (None, {"unanswered": True})}
+        for name, (lines, change) in cases.items():
+            with self.subTest(case=name):
+                history, prior, current = self.history_chain("-" + name)
+                binding = self.binding(history, prior, change.get("revision", "candidate-2"), change.get("target", "http://127.0.0.1:4173"))
+                if change.get("stale"): binding = binding.replace("prior-report ", "prior-report 0")
+                if lines is None:
+                    lines = [binding] + ([change["line"]] if "line" in change and change["line"] else [] if "line" in change else ["F1: NO RECURRENCE"])
+                    if "extra" in change: lines.append(change["extra"])
+                review = self.review(history, prior, "review-" + name, lines, change.get("role", "epic-reviewer"))
+                if change.get("substitute"): (review / "answer.md").write_text("\n".join([binding, "F1: NO RECURRENCE"]) + "\n")
+                if change.get("unanswered"): self.write(review, "outcome.json", {"id": "review-" + name, "state": "failed"})
+                self.assertEqual(self.gate(history, prior, current, review)[1]["status"], "invalid")
+
+    def mutate(self, history, prior, current, change):
+        hr, pb, pr = self.load(history, "qa/report.json"), self.load(prior, "qa/brief.json"), self.load(prior, "qa/report.json")
+        cb, cr = self.load(current, "qa/brief.json"), self.load(current, "qa/report.json")
+        if change == "prior-linked": pr["criteria"] = [{"id": "AC1", "status": "FAIL", "evidence": ["browser/cart.png"], "finding_ids": ["F1"]}]
+        elif change == "prior-evidence":
+            pr["findings"][0]["evidence"] = ["browser/cart.png"]; cb["prior_findings"][0]["finding"] = pr["findings"][0]
+        elif change == "prior-actual":
+            for finding in [pr["findings"][0], cb["prior_findings"][0]["finding"], cr["findings"][0]]: finding["actual"] = "Selection flickers"
+        elif change == "prior-new": pb["prior_findings"] = []
+        elif change == "handed-severity": pb["prior_findings"][0]["finding"]["severity"] = "minor"
+        elif change == "history-open": hr["findings"][0]["status"] = "open"
+        elif change == "history-no-steps": hr["findings"][0]["retest"]["steps"] = []
+        elif change == "history-no-observations": hr["findings"][0]["retest"]["observations"] = " "
+        elif change == "criterion-missing": cb["criteria"] = []
+        elif change == "criterion-optional": cb["criteria"][0]["mandatory"] = False
+        elif change == "criterion-partial": cb["criteria"][0]["description"] = "Full original reproduction: " + self.STEPS[1]
+        elif change == "criterion-blocked": cr["criteria"][0]["status"] = "BLOCKED"
+        elif change == "criterion-no-evidence": cr["criteria"][0]["evidence"] = []
+        elif change == "current-severity": cr["findings"][0]["severity"] = "minor"
+        for root, name, value in [(history, "qa/report.json", hr), (prior, "qa/brief.json", pb), (prior, "qa/report.json", pr),
+                                  (current, "qa/brief.json", cb), (current, "qa/report.json", cr)]:
+            self.write_qa(root, name, value)
+
+    def test_history_mutations_never_close(self):
+        reasons = {"prior-linked": "coverage reopen", "prior-evidence": "coverage reopen", "prior-actual": "coverage reopen",
+                   "prior-new": "hand over", "handed-severity": "hand over", "history-open": "retested resolution",
+                   "history-no-steps": "retested resolution", "history-no-observations": "retested resolution",
+                   "criterion-missing": "retest:F1", "criterion-optional": "retest:F1", "criterion-partial": "retest:F1",
+                   "criterion-blocked": "retest:F1", "criterion-no-evidence": "retest:F1",
+                   "current-severity": "current finding facts", "history-answer": ""}
+        for change, reason in reasons.items():
+            with self.subTest(change=change):
+                history, prior, current = self.history_chain("-" + change)
+                if change == "history-answer": (history / "answer.md").write_text("not the report")
+                else: self.mutate(history, prior, current, change)
+                result = self.gate(history, prior, current, self.review(history, prior, "review-" + change))[1]
+                self.assertEqual(result["status"], "invalid")
+                self.assertIn(reason, result["reason"])
+
+
     def session_record(self, verdict="GO", name="current"):
         return self.as_session_record(self.record(name=name, verdict=verdict))
 
