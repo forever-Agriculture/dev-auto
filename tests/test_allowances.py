@@ -252,13 +252,13 @@ class Allowances(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("use same-id: REFUSED pages", out)
 
-    def test_use_grants_nothing_with_no_file_or_a_withdrawn_go(self) -> None:
+    def test_use_defaults_with_no_file_but_refuses_a_withdrawn_go(self) -> None:
         self.body = test_run_needs.epic()
         self.go(None)
         budget = self.open()
         code, out = self.use(budget, "a")
-        self.assertEqual(code, 1)
-        self.assertIn("holds no allowances file", out)
+        self.assertEqual(code, 0, out)
+        self.assertIn("DEFAULT: rechecks: 4 per boundary", out)
         self.body = test_run_needs.epic(POINTER)
         self.go(FILE, "2026-10-24")
         self.reader(fields())
@@ -268,6 +268,29 @@ class Allowances(unittest.TestCase):
         code, out = self.use(budget, "c")
         self.assertEqual(code, 1)
         self.assertIn("was withdrawn", out)
+
+    def test_default_names_never_fill_a_gap_in_an_approved_file(self) -> None:
+        self.go()
+        self.reader(fields())
+        budget = self.open()
+        code, out = self.use(budget, "no-consult", limit="consults")
+        self.assertEqual(code, 1, out)
+        self.assertIn("file names no limit consults", out)
+        self.assertNotIn("DEFAULT:", out)
+        values = fields()
+        values["limits"].update({"consults": {"limit": 1, "per": "epic"},
+                                 "senior_consults": {"limit": 0, "per": "epic"},
+                                 "full_reviews": {"limit": 1, "ceiling": 2, "per": "boundary"}})
+        self.reader(values)
+        self.assertEqual(self.use(budget, "consult", limit="consults")[0], 0)
+        self.assertEqual(self.use(budget, "consult-over", limit="consults")[0], 1)
+        self.assertEqual(self.use(budget, "senior-zero", limit="senior_consults")[0], 1)
+        self.assertEqual(self.use(budget, "full", limit="full_reviews")[0], 0)
+        code, out = self.use(budget, "full-over", limit="full_reviews")
+        self.assertEqual(code, 1, out)
+        self.assertIn("RAISE: room under its ceiling 2", out)
+        self.reader(values, state="invalid")
+        self.assertEqual(self.use(budget, "invalid-consult", limit="consults")[0], 1)
 
     # 110.6 AC4: D13
 

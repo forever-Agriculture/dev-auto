@@ -9,6 +9,8 @@ fingerprints with the diff between them (task-owned untracked content included),
 the relevant source and tests, execution evidence, a risk map and test
 instructions. Use exact paths within the reviewer's readable scope; attach authorized
 task material outside it with `--file`, including required plans and checkpoints.
+List every solo technical decision of the run with its one line of evidence from the
+handoff and ask the reviewer to judge them; a run with none says so explicitly.
 Implementation and test summaries are claims to check, not orientation. Exclude
 credentials, raw private transcripts and unrelated files. Include the prior review and
 disposition evidence still relevant to this scope.

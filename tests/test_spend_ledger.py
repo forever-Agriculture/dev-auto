@@ -96,6 +96,36 @@ class LedgerTests(unittest.TestCase):
     def ledger(self, budget: str) -> dict:
         return json.loads((self.root / "state" / "dev-auto" / "budgets" / f"{budget}.json").read_text())
 
+    def test_default_consult_and_review_limits_with_no_go_or_no_file(self) -> None:
+        for state in ("no-go", "go-no-file"):
+            needs = (go("d" * 40, None) if state == "go-no-file" else
+                     {"state": "NO_GO_RECORD", "floor": True, "plan_root": str(self.mock_plan / "other"),
+                      "stories": ["7.1", "7.2"], "reason": "no go", "row_status": "ready"})
+            budget = self.budget(needs)
+            def use(name, boundary, uid, *extra):
+                out = io.StringIO()
+                with mock.patch.object(run_needs, "run_needs", return_value=needs), contextlib.redirect_stdout(out):
+                    code = spend_ledger.main(["use", "--budget", budget, "--limit", name,
+                                              "--boundary", boundary, "--use-id", uid, *extra])
+                return code, out.getvalue()
+            for name, maximum, per in (("consults", 6, "epic"), ("senior_consults", 1, "epic"),
+                                       ("full_reviews", 2, "boundary"), ("rechecks", 4, "boundary")):
+                for n in range(maximum):
+                    code, out = use(name, "7.1", f"{name}-{n}")
+                    self.assertEqual(code, 0, (state, out))
+                    self.assertIn("default", out.lower())
+                self.assertEqual(use(name, "7.1", f"{name}-0")[0], 0)  # retry never refills
+                code, out = use(name, "7.1" if per == "boundary" else "7.2", f"{name}-over")
+                self.assertEqual(code, 1, out)
+                self.assertIn("park affected work", out)
+                self.assertNotIn("RAISE:", out)
+                self.assertEqual(use(name, "7.2", f"{name}-other")[0], 0 if per == "boundary" else 1)
+            self.assertEqual(use("consults", "7.99", "bad-story")[0], 2)
+            self.assertEqual(use("consults", "7.1", "fraction", "--amount", "0.5")[0], 2)
+            self.assertEqual(use("qa_passes", "7.1", "no-qa-default")[0], 1)
+            taken = [v for v in self.ledger(budget)["uses"].values() if v["answer"] == "TAKEN"]
+            self.assertEqual(len(taken), 15)
+
     def test_one_ledger_per_plan_and_epic_outside_the_worktree_and_a_none_cap_refuses(self) -> None:
         budget = self.budget(go("a" * 40, None))
         self.assertRegex(budget, r"^[0-9a-f]{16}-epic-7$")

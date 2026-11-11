@@ -1,16 +1,30 @@
-# MODULE: step-back-brief.md - BMN Story 106.7: the fixed brief for the big-picture look before a boundary's last round
+# MODULE: step-back-brief.md - BMN Stories 106.7 and 118.2: the collected big-picture look before a boundary's last round
 
 # Step-back before the last round
 
-Before a boundary's last round, save its failed-method record to a file (`.dev-auto/evidence/<boundary>/failed-methods.md`:
-every method tried and what it established), then ask a different agent, the consultant role, read-only:
+Before a boundary's last round, save its failed-method record to
+`.dev-auto/evidence/<boundary>/failed-methods.md`: every method tried and what it
+established. Collect the epic's main open and most complex questions with their evidence
+into one request using [consult-brief.md](consult-brief.md), at most five numbered
+questions ranked by consequence, grouping related issues. Each gives its boundary, what
+was tried and failed, and what the answer must settle; include the epic's Outcome, stories,
+criteria and limits left. One question alone is right only if no other is open; do not
+wait for more before a needed ask.
+
+Take `senior_consults` first (`fable_consults` in Epics 114–117 whose approved file names
+it so). Ask a different agent, read-only, attaching the epic with `--file`:
 
 ```bash
-bmn team ask --role consultant --project "$PROJECT" --question-file "$BRIEF" --key "$(date -u +%Y%m%d)-<boundary>-step-back"
+bmn team ask --role senior-consultant --time-limit 40 --project "$PROJECT" --file "$EPIC_FILE" --question-file "$BRIEF" --key "$(date -u +%Y%m%d)-<boundary>-step-back"
 ```
 
-The brief is this text, filled in, with nothing else asked. Its line `Step-back: ...` is what `round` checks, so write it exactly,
-with `sha256sum` of the record as it stands; change the record and the ask must be made again.
+Use BMN's shorter maximum if it is below 40 minutes. Without that role in the team,
+ask the consultant chain's next eligible agent other than its first with
+`--role consultant --agent NAME`, still counted as a senior use. Do not change the team;
+normal route/refusal and Away rules hold. A refused ledger use means no ask.
+
+Add this exact binding line and the following step-back questions to the collected brief.
+Use `sha256sum` of the record as it stands; a changed record needs a new counted ask.
 
 ```text
 Step-back: budget <the id `spend_ledger.py open` printed> boundary <N.M or epic> record sha256:<hash of the record file>
@@ -21,14 +35,20 @@ Criteria: <the acceptance criteria, word for word, with the plan's file:line>
 Failed methods: <the whole record: each method and what it established>
 Evidence: <paths to read>
 
-Answer in this order:
-1. Is the goal or the criterion wrong, or misread? Say which, with evidence.
+For this boundary, settle these points in the numbered question's answer:
+1. Is the goal or the criterion wrong, or misread? Which, with evidence?
 2. What is the real cause, as opposed to what we have been treating?
 3. What would you drop: work the story does not ask for?
 4. What different method would you try, and what would prove it worked? If none is different, say so.
-Keep the requirements, the criteria and every limit; a change to them is for the owner's report, not this round.
+Use the consult brief's answer form: verdict, evidence read with file:line, confidence,
+up to three ranked methods where asked, and what was not checked.
+Keep requirements, criteria and every limit; changing them belongs in the owner's report.
 ```
 
-Record the answer in the brake record, and choose. A different method: take the round with
+Record the ask id, answer and ranked methods in the brake record, and choose a different
+method. Take the round with
 `spend_ledger.py round --budget B --boundary <boundary> --use-id <boundary>:round-<n> --step-back <ask id> --record <file> --method "<the method>" --lead <your agent>`.
-No different method: the story parks without using the round, with this answer as its evidence, and every other story continues.
+The ledger accepts an answered `senior-consultant` or `consultant` ask by another agent;
+all its other binding and reuse checks still hold. No different method: park without
+using the round; independent stories continue. After acting, record the ask's outcome
+(`unblocked`, `partly` or `not`, with why) in the handoff and report.

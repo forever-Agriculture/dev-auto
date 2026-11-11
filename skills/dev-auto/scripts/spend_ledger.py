@@ -51,6 +51,8 @@ time, which write the value they used: a raise takes effect with no restart and 
 nothing used. `repair_rounds` is `round`'s number (4 if the file names none, so his 2 means 2; the floor stays for an epic
 with no file), `money_usd` the cap `launch` reserves against, and every other limit counts in `use`. A new go or a raise refills
 nothing. A go whose commit holds no file returns the epic to its Run needs, keeping every use counted.
+Without a file in force, `use` counts consults (6) and senior_consults (1) per epic, full_reviews (2)
+and rechecks (4) per boundary; none has a ceiling. Withdrawn or unconfirmed gos grant no defaults.
 """
 import fcntl
 import hashlib
@@ -75,6 +77,13 @@ ROUND_FLOOR = 4
 MESSAGES_PER_PURPOSE = 2  # his card, 2026-11-04
 # What the file's limits with their own count are counted by (BMN D13); every other limit counts in `use`.
 LEDGER_LIMITS = {"repair_rounds": "round", "money_usd": "launch"}
+# Owner's defaults for runs with no allowances file in force (BMN Epic 118 D2).
+DEFAULT_LIMITS = {
+    "consults": {"limit": 6, "per": "epic"},
+    "senior_consults": {"limit": 1, "per": "epic"},
+    "full_reviews": {"limit": 2, "per": "boundary"},
+    "rechecks": {"limit": 4, "per": "boundary"},
+}
 
 
 def budgets() -> Path:
@@ -462,7 +471,7 @@ def open_budget(args: dict) -> int:
         print(describe(budget, data))
         for line in describe_go(data):
             print(line)
-        for line in describe_limits(data, file_fields(needs)):
+        for line in describe_limits(data, file_fields(needs) or ({"limits": DEFAULT_LIMITS} if needs["state"] == "GO" or data.get("floor") else None)):
             print(line)
     return 0
 
@@ -524,43 +533,55 @@ def take_use(args: dict) -> int:
             return EXIT_REFUSED
 
         go = latest_go(data)
+        needs = None
         if go is None:
-            return refuse("no go in force names limits")
-        state, why, needs = go_read(data, go)
-        if state == "withdrawn":
-            withdraw(data, go, why)
-            ledger.save()
-        if state != "stands":
-            return refuse(f"the go {go['commit'][:12]} {'was withdrawn' if state == 'withdrawn' else 'cannot be confirmed'}: {why}", go["commit"])
+            if any(g.get("kind") in ("go", "withdrawn") for g in data["gos"]) or not data.get("floor"):
+                return refuse("no go in force names limits; a withdrawn or unconfirmed go gets no default")
+            stories, why = floor_stories(data)
+            if stories is None:
+                return refuse(why)
+        else:
+            state, why, needs = go_read(data, go)
+            if state == "withdrawn":
+                withdraw(data, go, why)
+                ledger.save()
+            if state != "stands":
+                return refuse(f"the go {go['commit'][:12]} {'was withdrawn' if state == 'withdrawn' else 'cannot be confirmed'}: {why}", go["commit"])
+            stories = go.get("stories", [])
         fields = file_fields(needs)
-        if fields is None:
-            return refuse("the go's commit holds no allowances file; its Run needs hold", go["commit"])
-        one = fields["limits"].get(name)
+        default = fields is None
+        limits = DEFAULT_LIMITS if default else fields["limits"]
+        one = limits.get(name)
+        go_commit = go["commit"] if go else None
         if one is None:
-            return refuse(f"the file names no limit {name} ({', '.join(fields['limits']) or 'none'}); a new limit needs his words", go["commit"])
-        if match.group(1) and boundary not in go.get("stories", []):
-            print(f"USAGE: {boundary} is not one of the stories epic {data.get('epic')} had at its go ({', '.join(go.get('stories', [])) or 'none'}); nothing counted")
+            return refuse(f"{'the defaults name' if default else 'the file names'} no limit {name} ({', '.join(limits) or 'none'}); a new limit needs his words", go_commit)
+        if match.group(1) and boundary not in stories:
+            print(f"USAGE: {boundary} is not one of epic {data.get('epic')}'s stories ({', '.join(stories) or 'none'}); nothing counted")
             return EXIT_USAGE
         if one.get("unit", "count") == "count" and not quantity.is_integer():
             print(f"USAGE: {name} counts whole uses, not {given}")
             return EXIT_USAGE
         used = limit_used(data, name, None if one["per"] == "epic" else boundary)
         answer = "TAKEN" if used + quantity <= one["limit"] + 1e-9 else "REFUSED"
-        uses[use_id] = {"answer": answer, "limit": name, "boundary": boundary, "amount": quantity, "value": one["limit"], "per": one["per"], "unit": one.get("unit", "count"), "go": go["commit"], "at": now()}
+        uses[use_id] = {"answer": answer, "limit": name, "boundary": boundary, "amount": quantity, "value": one["limit"], "per": one["per"], "unit": one.get("unit", "count"), "go": go_commit, "at": now()}
         ledger.save()
         where = "the epic" if one["per"] == "epic" else boundary
+        if default:
+            print(f"DEFAULT: {name}: {one['limit']:g} per {one['per']}, no ceiling (no allowances file in force)")
         if answer == "TAKEN":
             print(f"TAKEN: use {use_id}, {name} at {where}: {used + quantity:g} of {one['limit']:g}")
             return 0
         ceiling = one.get("ceiling")
         epic = data.get("epic")
-        token = needs["allowances"]["token"]
+        token = needs["allowances"]["token"] if not default else None
         if ceiling is not None and used + quantity <= ceiling + 1e-9:
             print(f"REFUSED: use {use_id}, {name} at {where}: {used:g} of {one['limit']:g} used; nothing counted")
             print(f"RAISE: room under its ceiling {ceiling:g}, no card: bmn plan allow {epic} limits.{name}.limit={used + quantity:g} --reason TEXT --expect {token}; then a new --use-id")
         else:
             print(f"REFUSED: use {use_id}, {name} at {where}: {used:g} of {one['limit']:g} used, {'at its ceiling' if ceiling is not None else 'no ceiling'}; nothing counted")
             print("AT_CEILING: park affected work; every independent story continues; nothing authorized")
+            if default:
+                return EXIT_REFUSED
             print("OWNER_CHANGE: for an unforeseen YAML gap, send one amendment card while the owner is present: exact before/after, reason, cost/exposure and work unlocked, recommending enough to finish; only approval recorded with bmn plan allow --source permits a fresh use id. Preserve usage; Away and external refusals still hold")
     return EXIT_REFUSED
 
@@ -597,8 +618,8 @@ def step_back_problem(data: dict, budget: str, boundary: str, args: dict) -> str
         return f"BMN knows no ask {ask}"
     if shown.get("state") != "answered" or str(shown.get("exit")) != "0" or not str(shown.get("answer") or "").strip():
         return f"ask {ask} did not end in an answer"
-    if shown.get("role") != "consultant":
-        return f"ask {ask} went to the {shown.get('role')} role, not the consultant"
+    if shown.get("role") not in ("consultant", "senior-consultant"):
+        return f"ask {ask} went to the {shown.get('role')} role, not consultant or senior-consultant"
     if (shown.get("teammate") or {}).get("agent") == lead:
         return "the lead answered its own ask"
     try:

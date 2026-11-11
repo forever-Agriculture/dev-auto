@@ -80,6 +80,14 @@ The lead asks only about what is reserved to the owner: spend beyond what he app
 
 **Spend and messages** go through `spend_ledger.py`. Every paid job launches through it against the go's cap, and a message the go's Run needs name is limited to 2 per person and purpose. No resume, new lead or worktree resets what was used.
 
+Every consultant/senior ask, full review and recheck needs a taken ledger `use`, even
+without an allowance file: defaults are 6 consults and 1 senior per epic, 2 full reviews
+and 4 rechecks per boundary, with no ceilings. Approved file limits hold instead;
+a refusal parks affected work. Ordinary technical choices stay with the lead; one stuck
+boundary consult supplies up to three ranked methods, reused without another ask.
+See [consult-brief.md](skills/dev-auto/references/consult-brief.md) for the collected ask,
+evidence, answer form and one outcome line per consult.
+
 ## Helpers
 
 The owner's BMN team says who does what, so the skill assigns no model to any role: the lead reads the chain with `bmn roster role <role>` and asks with `bmn team ask`, which runs the teammate read-only and keeps a record. An unavailable route is reported, never silently substituted. See [models.md](skills/dev-auto/references/models.md).
@@ -92,7 +100,8 @@ The owner's BMN team says who does what, so the skill assigns no model to any ro
 | Epic pre-review and review | `pre-reviewer`, `epic-reviewer` |
 | Small, well-evidenced epic review | `small-epic-reviewer` |
 | Project pre-review and final review | `project-pre-reviewer`, `final-reviewer` |
-| Method questions and step-backs | `consultant` |
+| Hard-to-undo choices and stuck boundaries | `consultant` |
+| Collected questions when development struggles; step-backs | `senior-consultant` |
 
 Manual QA follows [qa-brief.md](skills/dev-auto/references/qa-brief.md). A missing report, mandatory verification gap or unachieved goal blocks acceptance unless approved Run needs defer it. Account-dependent criteria need BMN's verified owner grant and otherwise stay BLOCKED; a desktop candidate that can't be driven keeps its review with the gap stated.
 

@@ -33,8 +33,10 @@ unconfirmed go prints no rounds, and his later narrower word is recorded with `s
 limit`. Approval evidence you find explains the missing
 record in the handoff, grants nothing and never makes you ask him to restate or record a go.
 Planning must cover foreseeable limits, permissions, money, commands and targets, prerequisites, delivery and cleanup before the go, so implementation runs autonomously. An allowance amendment is recovery for an unforeseen gap, never a substitute for readiness.
-An epic with `plan/allowances/NNN.yaml` (BMN `docs/planning.md`) has every limit there; `open` prints them. Before each use run
-`spend_ledger.py use --limit NAME --boundary B --amount A --use-id ID`, which reads the file each time, and use one id per use. A limit used up with room under its ceiling: raise it with
+An epic with `plan/allowances/NNN.yaml` (BMN `docs/planning.md`) has every limit there; `open` prints them. Without a file in force, the defaults are `consults` 6 and `senior_consults` 1 per epic, `full_reviews` 2 and `rechecks` 4 per boundary, all without a ceiling. A withdrawn or unconfirmed go grants no defaults.
+Before every consultant or senior ask, full review or recheck, with or without a file, take
+`spend_ledger.py use --budget B --limit NAME --boundary STORY|epic --amount 1 --use-id ID`:
+`consults`, `senior_consults`, `full_reviews` or `rechecks` respectively. A senior ask uses its senior limit, not both consult limits; in Epics 114–117 whose file names it `fable_consults`, use that exact name. A refused use means no ask. An exhausted default parks affected work BLOCKED into the report; independent stories continue. Every other file limit is also taken before use with this command, which rereads the file each time; use one id per use. A limit used up with room under its ceiling: raise it with
 `bmn plan allow N limits.NAME.limit=V --reason R --expect TOKEN` (token from `bmn plan allowances N --json`) and go on, no card. Do what `may` already authorizes without a card; `stays_out` binds until he explicitly changes that named restriction. For an unforeseen YAML limit or permission gap requiring his decision, send one amendment card while he is present, even if independent work remains. Show the epic/boundary, exact before/after, reason, cost or exposure and work unlocked; recommend enough to finish, never one more slice or a narrower limit than the file's. Batch related gaps in that card. Pending or declined approval parks only affected work; continue the rest and do not ask again without new facts. Approval covers only the named change. Reread `bmn plan allowances N --json`, apply that change with `bmn plan allow ... --source` quoting his answer and time, and read it back before a fresh ledger use id. A materially stale proposal needs a new decision. Never hand-edit authority or reset usage. This card needs no epic-specific opt-in (owner, 2026-11-08). While he is away keep the gap for Back under the Away rules; never treat silence as approval. A host's or reviewer's refusal still stands, and a YAML amendment cannot override it or replace required diagnosis, a consultant-agreed method, step-back or acceptance evidence.
 Its Run needs may list `Prepared` (BMN Epic 103), printed by `run_needs.py`. At the run's start and at
 his departure, run each `check:` yourself, as its own tool call under the app's and the guard's
@@ -48,9 +50,13 @@ to selected work or its acceptance criteria, actions the global rules reserve to
 credentials or private data, owner-only acceptance checks and model choices; a broad "continue" or "work autonomously" answers none of these. His model choices live in his BMN team: a lasting
 one for a project is a `## project-choices` entry he approves in BMN (if the host refuses
 your write, give him the entry), a one-time pick goes as `--agent` (and `--effort`) on
-the asks it covers, with his quote in the handoff. Decide a technical point only on
-complete evidence with nothing against it, else ask the consultant and follow a confident
-answer. A reserved point, or one the consultant cannot settle, goes at once under `Needs
+the asks it covers, with his quote in the handoff. Decide ordinary technical points yourself and record one line with the evidence under
+`Decided for you`. Consult only for a choice hard to undo (stored data or a migration,
+security or privacy, a public interface), or at the brake below; reserved points remain his.
+Use [references/consult-brief.md](references/consult-brief.md) for every ordinary or senior
+consult, with the epic attached as `--file`; follow a confident answer within existing authority.
+After acting, put the ask's run id and one outcome line beside it in the handoff: `unblocked`,
+`partly` or `not`, and why; list those lines in the report. A reserved point, or one the consultant cannot settle, goes at once under `Needs
 your decision` in the handoff (evidence, missing decision, affected criteria, untouched
 and remaining work);
 continue every story it does not block, and ask him once, with a recommendation, only
@@ -154,16 +160,19 @@ Try an uncertain approach early on a representative sample, preferring offline r
 After two unsuccessful fixes for one outcome, or three failed runs in a row of one
 acceptance or CI gate whatever fails in them, compare captured failures, the shared
 boundary and any working equivalent; if still unresolved, ask the consultant. After that,
-even under an instruction not to stop, each further attempt at that outcome or gate
-needs a different, evidence-backed method the consultant agrees, recorded first in the
-handoff's brake record for that boundary, with what the failed methods established in
-the log; later leads continue the record, never restart it. Without such a method the boundary
-stays BLOCKED. Keep changes unrelated to the failure out of these attempts. Once per
+even under an instruction not to stop, ask once for up to three ranked, evidence-backed
+methods for that outcome or gate. Keep the ranked list in the handoff's brake record,
+with what failed methods established in the log. Each later attempt first names the next
+unused method from that list; no new consult is needed to use it. Later leads continue
+the record, never restart it. If the first consult did not unblock the boundary, or its
+methods are exhausted, the next consult is the senior collected request described below.
+Without a different agreed method the boundary stays BLOCKED. Keep changes unrelated to the failure out of these attempts. Once per
 method, a failure in your own harness before product execution counts as a gate run,
 not a failed method: repair and rerun; a second such failure fails the method.
 After every third failed agreed method at one boundary, take the rounds `open` printed,
 then an Away grant's, as the away-grant reference runs them. Before the last one, a different
-agent looks at the big picture ([references/step-back-brief.md](references/step-back-brief.md)):
+agent looks at the big picture through a senior collected request
+([references/step-back-brief.md](references/step-back-brief.md)):
 `round` refuses it without that, and with no different method the story parks without using it.
 With the rounds used, defer what Run needs lists as deferrable (other criteria pass; row `done`
 noted `deferred: <N.M ACk>, <reason>`; Known limits; a new story proposed) and continue. Else
@@ -194,6 +203,15 @@ real-service access.
 
 ## Helpers and review
 
+When development struggles (the first consult did not unblock a boundary, or its step-back
+is due), collect the epic's main open and most complex questions, with each question's
+evidence, into one senior ask: at most five questions, ranked, grouping related questions
+so the open issues are covered. One question alone is right only when no other is open.
+Do not delay a needed consult to collect more. Take the senior limit, then ask
+`--role senior-consultant --time-limit 40` (or BMN's shorter maximum). Without that role,
+use the consultant chain's next eligible agent other than the first, still counted as a
+senior use; do not edit his team. The fixed consult brief and step-back brief give the form.
+
 Read [references/models.md](references/models.md) at start and follow it; a lead never
 proceeds where its own provider may not read the workspace. Dispatch consent and its data limits (no credentials or unapproved private data) come
 from the owner's global rules or session approval, never this skill; project
@@ -211,7 +229,9 @@ report, mandatory verification gap or unachieved goal blocks acceptance unless a
 needs defer it. Without an interface record QA not applicable. Make one consolidated repair
 and rerun affected checks, with no second pre-review. An independent strong
 reviewer then checks the epic against original intent, architecture and goals with the
-same brief, using the pre-review map and your dispositions as navigation, not proof:
+same brief, using the pre-review map and your dispositions as navigation, not proof.
+Give the reviewer every solo decision of the run with its one line of evidence and ask
+it to judge those decisions; if there are none, say so:
 one full review, consolidated repairs and one focused recheck, the candidate unedited
 while a reviewer or gate reads it. Further review needs a named material risk or a consequential new
 change or evidence, reusing unaffected results.

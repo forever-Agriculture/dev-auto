@@ -38,6 +38,7 @@ names no models. Ask the team for the role:
 | Project pre-review (quick) | `project-pre-reviewer` |
 | Project final review | `final-reviewer` |
 | Consultant | `consultant` |
+| Senior collected consult / step-back | `senior-consultant` |
 
 A project's own PR review asks its lenses through the routes the project's rules name
 an exception to the first-eligible chain
@@ -89,7 +90,7 @@ BLOCKED, never substituted.
   `bmn team ask --features` does not offer for it) and a failure (exit 1) move on like
   any unavailable route. A bound ask never moves on: an owner's named pick, a recheck's
   reviewer or an approved project choice that cannot answer is reported, and he changes
-  the pick or the choice. Out of time (15): one longer `--time-limit` under a new key.
+  the pick or the choice. Out of time (15): one longer `--time-limit` under a new key, never beyond the senior ask's 40-minute cap or BMN's shorter maximum. At that cap the senior route is unavailable, not a longer retry.
   Not attributed (17): once more under a new key; a second is a failed route. A BMN
   lacking a feature the ask needs is BLOCKED, naming the upgrade.
 - **While the owner is away.** A consultant ask needs existing dispatch consent, permitted
@@ -103,8 +104,26 @@ BLOCKED, never substituted.
   **Focused review**: another model's eyes on a bounded area when the lead wants
   them, or a diagnosis of a failure from the source and logs the lead supplies.
   **Manual QA**: the running goal, criteria, exploration and retests in [qa-brief.md](qa-brief.md).
-- **Consultant**: a critical decision, a reviewer disagreement, or stuck after two
-  failed approaches.
+- **Consultant**: a choice hard to undo (stored data/migration, security/privacy, public
+  interface), or the brake after two failed approaches. A reviewer disagreement alone
+  is no trigger: decide a reversible point with one evidence line; consult only if the
+  disagreement involves a hard-to-undo choice or reaches the brake. Take `consults` before asking; use
+  [consult-brief.md](consult-brief.md), attaching the epic with `--file`. One stuck-boundary
+  ask gives up to three ranked methods; reuse its recorded next method without another ask.
+- **Senior consultant**: when the first consult did not unblock a boundary, its methods
+  are exhausted or a step-back is due, collect the epic's main open and most complex
+  questions (at most five, ranked, grouping related issues) with evidence into one ask.
+  Take `senior_consults` (the exact `fable_consults` name in Epics 114–117); ask
+  `--role senior-consultant --time-limit 40`, or BMN's shorter maximum. The owner's
+  configured second candidate is Opus-2/xhigh; the roster supplies the chain. If the role
+  is absent, ask the consultant chain's next eligible agent other than its first through
+  `--role consultant --agent NAME`, still using the senior limit. A configured role's
+  failure is governed by the normal route and Away rules, never treated as absence.
+  Record each consult's run id and outcome (`unblocked`, `partly`, `not`, with why) in
+  the handoff and report. Every ordinary/senior ask, full review and recheck needs a
+  taken ledger use, including file-free runs: defaults 6 ordinary/1 senior per epic,
+  2 full reviews/4 rechecks per boundary, no ceilings. File numbers hold exactly;
+  a refusal parks dependent work and forbids the ask.
 - **Review sequence and its bounds**: SKILL.md, Helpers and review.
 
 Helper summaries are navigation aids, not acceptance proof. Reviewers examine the

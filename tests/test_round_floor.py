@@ -189,6 +189,13 @@ class Floor(unittest.TestCase):
         self.assertEqual(code, 1, out)
         self.assertIn("REFUSED", out)
 
+    def test_senior_consultant_can_answer_the_step_back(self) -> None:
+        self.go_with("4")
+        budget, _ = self.open()
+        self.take_three(budget)
+        code, out = self.round(budget, "7.1", "last", *self.step_back(self.ask(role="senior-consultant")))
+        self.assertEqual(code, 0, out)
+
     def test_another_boundarys_ask_refuses(self) -> None:
         self.refused(lambda: self.step_back(self.ask(boundary="7.2")))
 
@@ -288,7 +295,7 @@ class Floor(unittest.TestCase):
     def test_a_row_not_started_with_no_go_keeps_its_four(self) -> None:
         self.no_go()
         budget, out = self.open()
-        self.assertNotIn("used", out)
+        self.assertNotIn("used", next(line for line in out.splitlines() if line.startswith("GO:")))
         self.assertEqual(self.round(budget, "7.1", "first")[0], 0)
 
     def test_a_reused_ask_refuses_and_the_method_must_differ(self) -> None:
