@@ -22,7 +22,10 @@ spend and delegation ("decide within the cap", "work autonomously"). Record each
 delegation with its source quote as a handoff term, valid only for its named scope and
 total. His go on a planned epic is one, day or night. At start and each resume run
 `scripts/spend_ledger.py open --epic N` (it reads the go with `scripts/run_needs.py`), at start before
-moving the epic's row past `ready`, and keep
+moving the epic's row past `ready`. `run_needs.py` prints `ALLOWANCES: in force`,
+`none`, or `NOT IN FORCE`. On NOT IN FORCE start no run and leave its row unchanged:
+name the reason and the two fixes (restore the last recorded file, or his new go on
+corrected text). Never use defaults to bypass a file that is not in force. Keep
 what it prints in the handoff's `Go` field: the same go means its terms, rounds left and money
 as printed, nothing to ask him. Take each extra round it printed with `spend_ledger.py round`
 before using it; that ledger counts them for every lead, resume and worktree. A run has at least
@@ -136,10 +139,22 @@ Never commit, stash or edit another run's checkout or dependencies. From a separ
 worktree, touch in the default checkout only your epics' board rows and untracked story records, rereading just before each edit and never
 committing there; read missing or older planning files from it without copying its
 uncommitted files. `scripts/check.py worktrees` lists each worktree's branch, run state,
-ancestry, uncommitted count and disk bytes, read-only. Offer only finished, clean,
-merged runs on one card; remove only the exact worktrees he names, with `git worktree
-remove`, never `--force` without his word for that worktree. Log each size and removal
-in `.dev-auto/log.md`;
+ancestry, uncommitted count and disk bytes, read-only. At delivery, when the current recorded go's `may` includes
+"remove this run's own worktrees after delivery, once merged, clean and archived",
+remove only this run's own finished, clean worktrees whose heads are in both local
+and delivered origin default branches. First run leftovers for every checkout and
+finish resource cleanup as below. Mark each owning and companion handoff COMPLETE,
+with the same Run id and its exact Run checkouts list; archive its `.dev-auto/` as
+zstd into the main checkout's `.dev-auto/archive/<run>/`. Verify source and archive
+file counts and hashes, recheck unchanged source, then `git worktree remove` without
+`--force`. `scripts/cleanup_worktrees.py N --project OWNING --worktree PATH` implements
+those guards and logs path, bytes, archive and kept reasons beside the archives;
+invoke from outside every tree it removes, and archive the owning checkout last.
+Preserve a current handoff/log alongside the archives for final report receipts.
+Without that permission, offer only finished, clean, merged runs on one card and
+remove only exact worktrees he names; never `--force` without his word for that
+worktree. Keep and name unmerged, changed, foreign or unverifiable trees in the report.
+Log each size, archive and removal in `.dev-auto/log.md`;
 preserve its needed evidence first. Prefer one lead session per
 epic.
 
@@ -217,8 +232,21 @@ proceeds where its own provider may not read the workspace. Dispatch consent and
 from the owner's global rules or session approval, never this skill; project
 restrictions apply. Record each ask's run id and exported record, or a native helper's
 session record, and each lead session's ID; surface mismatches and failures instead of
-silently substituting. Runs are evaluated from those records, so beyond the brake's
-record do not tally time, usage or owner prompts.
+silently substituting. Runs are evaluated from those records. At start record `Run started` (UTC),
+`Run checkouts` (a JSON array of exact project paths, including companion worktrees),
+and the budget id in the handoff; keep them through resumes. After each full review
+and recheck add one line under Decisions and findings:
+`review <ask id>: <n> findings, <r> repaired, <x> rejected, <d> deferred`.
+The dispositions sum to findings; update the same line after repair, never count a
+finding twice within that review. Keep earlier lines and consult outcome lines.
+Before COMPLETE run `scripts/scorecard.py N --project CHECKOUT --check` (add `--json`
+for structured output). It reads only ledger and ask metadata, never questions,
+answers or transcripts; unknown stays unknown, and missing review lines block
+completion. Record `Run finished` (UTC) when the run ends; include the scorecard's
+one table in the report's optional `took` part, after What changed. Show per-role
+asks, observed models/efforts and minutes; per-boundary uses beside limits, repair
+rounds, review findings and dispositions; hours, consult outcomes and unknowns.
+Do not manually tally usage or owner prompts.
 
 Freeze the candidate and run the quick pre-review from
 [references/review-brief.md](references/review-brief.md) alongside your own final

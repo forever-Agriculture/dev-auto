@@ -73,7 +73,10 @@ A finding names the violated requirement or invariant, a concrete location or
 reproduction, the consequence, and a proposed verification. No finding quotas.
 A vision finding (question 6) quotes the principle or refusal line, gives the code's
 `file:line` and says the consequence.
-Optional polish does not block acceptance.
+Optional polish does not block acceptance. The lead records one line per full review
+and recheck in the handoff: `review <ask id>: <n> findings, <r> repaired, <x> rejected,
+<d> deferred`. Give findings stable names and dispositions so the counts can be
+checked against evidence; a repeated finding is counted once in that review.
 
 For a recheck or later evidence-triggered delta review, give each material finding
 a disposition against the supplied final revision/fingerprint: closed with evidence,

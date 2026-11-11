@@ -123,9 +123,31 @@ class Allowances(unittest.TestCase):
         self.go(None)
         (self.plan.root / "allowances" / "007.yaml").write_text(FILE)
         found = self.plan.read()
-        self.assertEqual(found["state"], "GO")
-        self.assertEqual(found["parsed"]["rounds"], 2)
+        self.assertEqual(found["state"], "NOT_IN_FORCE")
+        self.assertIn("never recorded", found["reason"])
         self.assertIn("Allowances", found["changed_since_go"])
+
+    def test_duplicate_unrecorded_files_refuse_without_touching_existing_ledger(self):
+        self.body = test_run_needs.epic()
+        self.go(None)
+        self.reader(fields())
+        budget = self.open()
+        before = self.data(budget)
+        folder = self.plan.root / 'allowances'
+        for name in ('007.yaml', '7.yaml'):
+            (folder / name).write_text(FILE)
+        self.assertEqual(self.plan.read()['state'], 'NOT_IN_FORCE')
+        self.assertIn('duplicate', self.plan.read()['reason'])
+        code,out = self.ledger('open','--epic','7','--project',str(self.plan.root))
+        self.assertEqual(code,1,out)
+        self.assertEqual(self.data(budget),before)
+
+    def test_duplicate_files_also_refuse_when_recorded_reader_is_unconfirmed(self):
+        self.go()
+        (self.plan.root / 'allowances/7.yaml').write_text(FILE)
+        self.reader(fields(),state='invalid')
+        self.assertEqual(self.plan.read()['state'],'NOT_IN_FORCE')
+        self.assertIn('duplicate',self.plan.read()['reason'])
 
     def test_an_edited_go_file_fails_its_hash(self) -> None:
         self.go()
@@ -146,11 +168,11 @@ class Allowances(unittest.TestCase):
         (self.root / "allowances.json").write_text("{broken")
         self.assertTrue(self.plan.read()["unconfirmed"])
 
-    def test_a_hand_edit_is_named_and_the_recorded_version_holds(self) -> None:
+    def test_a_hand_edit_stops_start_and_preserves_recorded_limits(self) -> None:
         self.go()
         self.reader(fields(), hand_edit="the working file differs from the last recorded version")
         found = self.plan.read()
-        self.assertEqual(found["state"], "GO")
+        self.assertEqual(found["state"], "NOT_IN_FORCE")
         self.assertIn("Allowances", found["changed_since_go"])
         self.assertEqual(found["parsed"]["limits"]["rechecks"]["limit"], 2)
 
@@ -163,6 +185,31 @@ class Allowances(unittest.TestCase):
         self.assertIn("- test_hours: 1.5 per epic, ceiling 3, hours", done.stdout)
         self.assertIn("MAY: one run", done.stdout)
         self.assertIn("STAYS OUT: production", done.stdout)
+
+    def test_allowance_start_status_and_no_ledger_mutation_on_hand_edit(self):
+        self.go()
+        self.reader(fields())
+        argv = [sys.executable, str(SCRIPTS / "run_needs.py"), "7", "--project", str(self.plan.root)]
+        current = subprocess.run(argv, capture_output=True, text=True)
+        self.assertEqual(current.returncode, 0)
+        self.assertIn("ALLOWANCES: in force", current.stdout)
+        budget = self.open()
+        before = self.data(budget)
+        self.reader(fields(), hand_edit="working file differs")
+        for flags in ([], ["--json"]):
+            failed = subprocess.run([*argv, *flags], capture_output=True, text=True)
+            self.assertEqual(failed.returncode, 1, failed.stdout)
+            self.assertIn("NOT IN FORCE", failed.stdout)
+            self.assertIn("put the file back", failed.stdout)
+            self.assertIn("new go", failed.stdout)
+        code, out = self.ledger("open", "--epic", "7", "--project", str(self.plan.root))
+        self.assertEqual(code, 1, out)
+        self.assertEqual(self.data(budget), before)
+        self.body = test_run_needs.epic()
+        self.go(None)
+        current = subprocess.run(argv, capture_output=True, text=True)
+        self.assertEqual(current.returncode, 0)
+        self.assertIn("ALLOWANCES: none", current.stdout)
 
     # 110.6 AC1: use
 
@@ -414,7 +461,8 @@ class Allowances(unittest.TestCase):
         (self.plan.root / "allowances" / "007.yaml").unlink()
         self.reader(fields(rechecks={"limit": 3, "ceiling": 4, "per": "boundary", "unit": "count"}), hand_edit="the file is deleted on disk; the last recorded version stands")
         self.assertEqual(self.plan.read()["parsed"]["limits"]["rechecks"]["limit"], 3)
-        self.assertEqual(self.use(budget, "a")[0], 0)
+        self.assertEqual(self.use(budget, "a")[0], 1)
+        self.assertEqual(self.plan.read()["state"], "NOT_IN_FORCE")
 
     def test_a_new_go_without_a_file_returns_to_run_needs_and_keeps_every_use_counted(self) -> None:
         self.go()

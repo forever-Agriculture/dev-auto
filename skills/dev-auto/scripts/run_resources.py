@@ -185,16 +185,22 @@ def worktree_list(root: Path) -> list[dict]:
     return [dict(line.split(" ", 1) if " " in line else (line, "") for line in block.split("\0")) for block in listing.strip("\0").split("\0\0")]
 
 
+def default_branch(root: Path) -> str | None:
+    """One default-branch policy for inventory and authorized cleanup."""
+    try:
+        default = command(["git", "-C", str(root), "symbolic-ref", "refs/remotes/origin/HEAD"]).strip().replace("refs/remotes/origin/", "")
+    except subprocess.CalledProcessError:
+        branches = command(["git", "-C", str(root), "for-each-ref", "--format=%(refname:short)", "refs/heads/"]).splitlines()
+        conventional = [b for b in branches if b in ("main", "master")]
+        default = conventional[0] if len(conventional) == 1 else (branches[0] if len(branches) == 1 else None)
+    return default
+
+
 def worktrees(root: Path) -> int:
     from handoff_state import finished, status_fields
     try:
         listed = worktree_list(root)
-        try:
-            default = command(["git", "-C", str(root), "symbolic-ref", "refs/remotes/origin/HEAD"]).strip().replace("refs/remotes/origin/", "")
-        except subprocess.CalledProcessError:
-            branches = command(["git", "-C", str(root), "for-each-ref", "--format=%(refname:short)", "refs/heads/"]).splitlines()
-            conventional = [b for b in branches if b in ("main", "master")]
-            default = conventional[0] if len(conventional) == 1 else (branches[0] if len(branches) == 1 else None)
+        default = default_branch(root)
         default_ref = None
         if default:
             for ref in (f"refs/heads/{default}", f"refs/remotes/origin/{default}"):

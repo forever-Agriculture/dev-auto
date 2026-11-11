@@ -368,6 +368,9 @@ def open_budget(args: dict) -> int:
     import run_needs
     project = Path(args.get("--project") or Path.cwd())
     needs = run_needs.run_needs(project, int(epic))
+    if needs["state"] == "NOT_IN_FORCE":
+        print(f"ALLOWANCES: NOT IN FORCE: {needs['reason']}; start no run; ledger unchanged")
+        return EXIT_REFUSED
     if needs["state"] == "NEEDS_MOVE":
         # A project still on BMAD runs no dev-auto run (BMN 108.6): no budget opens, nothing is written.
         print(f"NEEDS_MOVE: {needs['reason']}; start no run here and report the move to the owner")

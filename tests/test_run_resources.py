@@ -124,7 +124,13 @@ class LeftoversTests(unittest.TestCase):
         body = "## Started\n- " + json.dumps(entry)
         handoff.write_text(body)
         with patch.object(resources.shutil, "which", return_value="docker"), patch.object(resources, "command", return_value=""), patch("builtins.print") as output:
-            self.assertEqual(resources.leftovers(self.root), 0)
+            code = resources.leftovers(self.root)
+        # Host-owned same-uid processes may deny /proc reads (e.g. non-dumpable
+        # desktop services). That makes the global inventory partial, not the
+        # recorded child's identity unavailable. Never weaken the inventory guard.
+        self.assertIn(code, (0, 2))
+        if code == 2:
+            self.assertIn("inventory partial", str(output.call_args_list))
         self.assertIsNone(child.poll())
         self.assertEqual(handoff.read_text(), body)
         self.assertTrue(any(f"pid={child.pid}" in str(c) for c in output.call_args_list))

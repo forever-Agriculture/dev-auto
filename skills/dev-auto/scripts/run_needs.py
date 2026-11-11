@@ -419,7 +419,7 @@ def parse_needs(text: str | None) -> dict:
     return needs
 
 
-def run_needs(project: Path, epic: int) -> dict:
+def recorded_needs(project: Path, epic: int) -> dict:
     status = resolve(project)
     board = Path(status["board"])
     bmad = status.get("format") == "bmad"
@@ -598,6 +598,26 @@ def run_needs(project: Path, epic: int) -> dict:
             "decisions_at_go": f"git -C {repo} show {go['commit'][:12]}:<epic file>, ## Decisions"}
 
 
+def run_needs(project: Path, epic: int) -> dict:
+    """A working file must match the version its go/allow recorded before a run starts."""
+    result = recorded_needs(project, epic)
+    held = result.get("allowances")
+    reason = (held or {}).get("hand_edit")
+    root = result.get("plan_root")
+    if root and result["state"] not in ('NEEDS_MOVE', 'PLAN_CONFLICT'):
+        folder = Path(root) / "allowances"
+        names = [p.name for p in folder.iterdir() if p.suffix == '.yaml' and p.stem.isdigit() and int(p.stem) == epic] if folder.is_dir() else []
+        if len(names) > 1:
+            reason = "duplicate working allowance files"
+        elif names and not held and (result["state"] == 'GO' or result.get('floor')):
+            reason = "the working allowance file was never recorded by this epic's go or allow"
+    result["allowances_state"] = "in force" if held else "none"
+    if reason:
+        result.update(state="NOT_IN_FORCE", allowances_state="NOT IN FORCE", unconfirmed=True, floor=False,
+                      reason=f"{reason}; put the file back to the last recorded version, or obtain his new go on the corrected file")
+    return result
+
+
 def main(argv: list[str]) -> int:
     if not argv or {"-h", "--help"} & set(argv) or not argv[0].isdigit():
         print((__doc__ or "").strip())
@@ -610,7 +630,11 @@ def main(argv: list[str]) -> int:
         return 2
     if "--json" in argv:
         print(json.dumps(result, indent=2))
-        return 0
+        return 1 if result["state"] == "NOT_IN_FORCE" else 0
+    if result["state"] == "NOT_IN_FORCE":
+        print(f"ALLOWANCES: NOT IN FORCE: {result['reason']}; start no run")
+        return 1
+    print(f"ALLOWANCES: {result.get('allowances_state', 'none')}")
     if result["state"] == "GO":
         print(f"GO: epic {result['epic']}, go {result['go_date']}, commit {result['go_commit'][:12]} in {result['history_repo']}")
         if result["provenance"] == "recorded":

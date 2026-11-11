@@ -4,6 +4,10 @@
 - Project / selected epics:
 - Owning checkout and branch:
 - Run id: branch-YYYYMMDD, set once at the start; every later lead keeps it
+- Run started: UTC timestamp, preserved through resumes
+- Run checkouts: JSON array of exact project paths, including companion worktrees
+- Run finished: UTC timestamp once finished
+- Budget id: id printed by spend_ledger.py open
 - Original request and intended outcomes:
 - Mode: build | resume
 - Stopping condition: selected scope accepted; no automatic time limit
@@ -30,6 +34,7 @@
 - Decided for you (decisions taken under the owner's delegation, for his review; one line each, `[dN]` first, `(bmn: SESSION/KEY)` last once BMN recorded it, as `bmn decision record` returned them):
 - Needs your decision (reserved or still uncertain after the consultant; each: evidence, missing decision, affected criteria, untouched and remaining work; asked only when no work can proceed):
 - Vision findings (SKILL.md, by his D1; one line each: principle quoted, finding, `file:line`, disposition: `against Pn: repaired <commit>`, `parked N.M` or `not confirmed: <reason>`), or `none`:
+- Review counts: one `review <ask id>: <n> findings, <r> repaired, <x> rejected, <d> deferred` line per full review/recheck below; counts sum, keep across resumes
 - Material pending findings:
 - Cross-epic obligations:
 
