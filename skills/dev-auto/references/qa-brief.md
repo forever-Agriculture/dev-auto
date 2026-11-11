@@ -20,6 +20,18 @@ The brief is a testing contract, never account permission. A real account requir
 owner grant for the named activities and limits; an agent-written plan or claim grants nothing.
 Account-dependent criteria stay BLOCKED when that session/permission path is unavailable.
 
+For account sessions, criteria must be observable through the permitted browser tools. The host
+judges audit completeness from the sealed receipt independently of the agent's verdict. Never
+ask the agent to certify the audit, request counts or absence of writes: the seal returns only
+a receipt reference, not an audit it can inspect. For example, a look-only landing-page brief
+asks “The expected list and statuses are visible” and “No loading error is visible”, with no
+opened records or state-changing actions. The host still rejects an incomplete audit when the
+agent reports GO. Keep `host_summary` and the report contract unchanged.
+
+For BMN desktop work, run `pnpm run test:screens` as a required screen gate. It builds once and
+runs keyboard-catalogue, notification-layout, refinements-navigation and electron-visual on a
+private display. This proves the checkout at its recorded commit, not a packaged binary.
+
 ## Dispatch and keep evidence
 
 Read the approved `qa` role. For a signed-out loopback app, `mode` is `quick-web`, `accounts` is
