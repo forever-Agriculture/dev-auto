@@ -245,10 +245,11 @@ class QaGateTests(unittest.TestCase):
                            "--history-review", review, *extra)
 
     def test_history_closes_a_coverage_reopen_on_the_same_candidate(self):
-        for claude in [False, True]:
-            with self.subTest(claude=claude):
-                history, prior, current = self.history_chain(f"-{claude}")
-                review = self.review(history, prior, f"review-{claude}", claude=claude)
+        cases = [(role, claude) for role in ["epic-reviewer", "small-epic-reviewer"] for claude in [False, True]]
+        for role, claude in cases:
+            with self.subTest(role=role, claude=claude):
+                history, prior, current = self.history_chain(f"-{role}-{claude}")
+                review = self.review(history, prior, f"review-{role}-{claude}", role=role, claude=claude)
                 before = {str(p): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
                 code, result = self.gate(history, prior, current, review)
                 self.assertEqual((code, result["status"], result.get("history_closures")), (0, "pass", ["F1"]))

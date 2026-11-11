@@ -34,6 +34,7 @@ names no models. Ask the team for the role:
 | Manual QA of the running interface | `qa` |
 | Epic pre-review (quick) | `pre-reviewer` |
 | Epic review | `epic-reviewer` |
+| Small, well-evidenced epic review | `small-epic-reviewer` |
 | Project pre-review (quick) | `project-pre-reviewer` |
 | Project final review | `final-reviewer` |
 | Consultant | `consultant` |
@@ -49,8 +50,13 @@ BLOCKED, never substituted.
   `eligible`, and the owner's approved choice for the role in that project, if any.
   `then` says what follows the last candidate: `lead` (the lead does it itself), `skip`,
   `blocked` or `owner-chooses`. `recheck` gives the effort for rechecking a finding: a
-  new run of the same reviewer under the same role. `small_work` is the candidate for a
-  small, well-evidenced epic's review.
+  new run of the same reviewer under the same role.
+- **Small epic review.** Check `bmn roster role small-epic-reviewer --project "$PROJECT" --json`
+  and ask with `bmn team ask --role small-epic-reviewer` using the options below.
+  Only if the roster reports no such role, use `--role epic-reviewer --small-work`
+  (the old role's `small_work` candidate). Other errors or unavailable candidates follow
+  the normal route rules. Recheck with `--recheck-of ID` under the role used for the
+  original review; do not switch roles or add `--small-work` to a recheck.
 - **How to read it.** Honor applicable owner model choices (SKILL.md, Owner decisions);
   otherwise BMN asks the first eligible candidate that may get the data: the first agent
   of a role is the default. A lead may pick another for its own helpers with `--agent` and
@@ -72,9 +78,8 @@ BLOCKED, never substituted.
 
   `--agent` names the owner's one-time pick or the next candidate, `--recheck-of ID`
   rechecks with the earlier run's teammate under the same role, at the role's `recheck`
-  effort or, where it has none, an `--effort` you choose; `--small-work` takes the
-  role's small-work candidate. Each new ask gets a new key name. Reports cite an ask by
-  its run `id`. Once it ends, before acceptance, save its record with
+  effort or, where it has none, an `--effort` you choose. Each new ask gets a new key
+  name. Reports cite an ask by its run `id`. Once it ends, before acceptance, save its record with
   `bmn team asks export <id> --output .dev-auto/evidence/<story>/<name>` and read it once
   with `scripts/check.py usage` on that folder. Without `bmn`, an approved team or BMN
   running, ask nothing and report BLOCKED.
