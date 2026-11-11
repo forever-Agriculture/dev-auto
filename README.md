@@ -90,6 +90,7 @@ The owner's BMN team says who does what, so the skill assigns no model to any ro
 | Bounded review or debugging look | `focused-reviewer` |
 | Manual QA of the running interface | `qa` |
 | Epic pre-review and review | `pre-reviewer`, `epic-reviewer` |
+| Small, well-evidenced epic review | `small-epic-reviewer` |
 | Project pre-review and final review | `project-pre-reviewer`, `final-reviewer` |
 | Method questions and step-backs | `consultant` |
 

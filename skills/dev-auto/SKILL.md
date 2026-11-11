@@ -215,6 +215,8 @@ same brief, using the pre-review map and your dispositions as navigation, not pr
 one full review, consolidated repairs and one focused recheck, the candidate unedited
 while a reviewer or gate reads it. Further review needs a named material risk or a consequential new
 change or evidence, reusing unaffected results.
+For a small, well-evidenced epic use `--role small-epic-reviewer` with the fallback in
+[references/models.md](references/models.md); recheck with `--recheck-of` under the same role.
 
 For owner-selected lead-run desktop QA, use the versioned bench receipt route in that reference:
 reserve inputs before launch, finalize retained evidence after cleanup, and check with

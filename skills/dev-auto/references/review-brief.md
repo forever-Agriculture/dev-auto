@@ -58,7 +58,7 @@ For a plan under review: does each answer in the epic's `## Challenges` hold (Sc
 5. Which boundaries did you not examine? Say so explicitly.
 6. Does any change work against a principle or a "We refuse" line of the project's
    vision? BMN attaches the project's `VISION.md` to `focused-reviewer`,
-   `epic-reviewer` and `final-reviewer` asks; with none attached, answer "no vision
+   `epic-reviewer`, `small-epic-reviewer` and `final-reviewer` asks; with none attached, answer "no vision
    given".
 
 At project scope, also examine the aggregate multi-epic change for consequential

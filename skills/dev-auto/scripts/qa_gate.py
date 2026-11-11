@@ -14,7 +14,7 @@ class Invalid(ValueError):
     pass
 
 
-REVIEW_ROLES = {"epic-reviewer", "consultant", "focused-reviewer", "final-reviewer"}
+REVIEW_ROLES = {"epic-reviewer", "small-epic-reviewer", "consultant", "focused-reviewer", "final-reviewer"}
 
 
 def load(path: Path) -> dict:
