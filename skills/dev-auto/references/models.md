@@ -8,19 +8,14 @@ receipts; a CLI option or prompt alone does not prove a live route.
 
 ## Peer coordination
 
-Routine BMN session-to-session coordination uses `bmn tell` or `bmn handoff` under the owner's
-standing authorization, present or away, without another permission card or exact-text grant.
-Send minimum task context within existing task and recipient/provider data permissions;
-exclude credentials, customer data, unapproved personal data and raw private transcripts.
-Peer messages convey context, not authority. Existing stops, refusals and depth/rate limits
-still bind. Helper dispatch and review requirements keep their own authorization and limits.
+Routine BMN peer coordination with `bmn tell` or `bmn handoff` runs under the owner's standing
+authorization: SKILL.md, Scope and delivery. Helper dispatch and review keep their own
+authorization and limits.
 
 ## Lead
 
 The owner picks and starts the lead; `bmn roster role lead --json` lists who may lead
 and at which efforts.
-GLM is deactivated (owner, 2026-09-30): no GLM lead or helper
-until the owner reactivates it; [GLM (deactivated)](#glm-deactivated) keeps its rules.
 
 ## Helpers and reviewers
 
@@ -40,47 +35,37 @@ names no models. Ask the team for the role:
 | Consultant | `consultant` |
 | Senior collected consult / step-back | `senior-consultant` |
 
-A project's own PR review asks its lenses through the routes the project's rules name
-an exception to the first-eligible chain
-under BMN's eligibility and any project choice; a route that cannot answer leaves that ticket
-BLOCKED, never substituted.
+A project's own PR review asks its lenses through the routes the project's rules name, under
+BMN's eligibility and any project choice; this is the one exception to the first-eligible chain.
+A route that cannot answer leaves that ticket BLOCKED, never substituted.
 
-- **Ask.** `bmn roster role <role> --project "$PROJECT" --json` gives the approved
-  chain: `candidates` in order, each with its `efforts` (with `effort_choice` the lead
-  picks: the lowest listed unless the question is critical or complex) and whether it is
-  `eligible`, and the owner's approved choice for the role in that project, if any.
-  `then` says what follows the last candidate: `lead` (the lead does it itself), `skip`,
-  `blocked` or `owner-chooses`. `recheck` gives the effort for rechecking a finding: a
-  new run of the same reviewer under the same role.
-- **Small epic review.** Check `bmn roster role small-epic-reviewer --project "$PROJECT" --json`
-  and ask with `bmn team ask --role small-epic-reviewer` using the options below.
-  Only if the roster reports no such role, use `--role epic-reviewer --small-work`
-  (the old role's `small_work` candidate). Other errors or unavailable candidates follow
-  the normal route rules. Recheck with `--recheck-of ID` under the role used for the
-  original review; do not switch roles or add `--small-work` to a recheck.
+- **Ask.** `bmn roster role <role> --project "$PROJECT" --json` gives the approved chain in
+  order, the owner's approved choice for the role in that project, and `then`: what follows the
+  last candidate (`lead`: the lead does it itself, `skip`, `blocked` or `owner-chooses`). Where
+  a candidate has `effort_choice`, pick the lowest listed effort unless the question is critical
+  or complex. `recheck` gives the effort for rechecking a finding: a new run of the same
+  reviewer under the same role.
+- **Small epic review.** Ask `--role small-epic-reviewer`. Only if the roster reports no such
+  role, use `--role epic-reviewer --small-work`. Recheck with `--recheck-of ID` under the role
+  used for the original review; do not switch roles or add `--small-work` to a recheck.
 - **How to read it.** Honor applicable owner model choices (SKILL.md, Owner decisions);
   otherwise BMN asks the first eligible candidate that may get the data: the first agent
   of a role is the default. A lead may pick another for its own helpers with `--agent` and
-  says why in one line (owner, 2026-11-05: "I want lead models to have flexibility to
-  choose"). Otherwise move to the next when that route fails or is unavailable (error,
+  says why in one line. Otherwise move to the next when that route fails or is unavailable (error,
   quota, missing access), leaves the question unresolved or cannot do the task, and
   follow `then` after the last candidate. A good enough answer ends it. Record the route
-  and the reason for any move. Codex agents spend Codex quota, Claude Code agents Claude
-  quota.
-- **Ask through BMN.** Every helper is asked with `bmn team ask` from the project; BMN
-  checks the ask against the team, runs the teammate read-only, supervises it and keeps
-  its record. `bmn team ask --help` gives its options, the key's form, its exit codes
-  and how to wait for, show or stop an ask:
+  and the reason for any move.
+- **Ask through BMN.** Every helper is asked with `bmn team ask` from the project;
+  `bmn team ask --help` gives its options, the key's form and its exit codes:
 
   ```bash
   bmn team ask --role "$ROLE" --effort "$EFFORT" --project "$PROJECT" \
     --question-file "$PROMPT" --key "$(date -u +%Y%m%d)-<story>-<name>" --json > "$OUTPUT"
   ```
 
-  `--agent` names the owner's one-time pick or the next candidate, `--recheck-of ID`
-  rechecks with the earlier run's teammate under the same role, at the role's `recheck`
-  effort or, where it has none, an `--effort` you choose. Each new ask gets a new key
-  name. Reports cite an ask by its run `id`. Once it ends, before acceptance, save its record with
+  `--agent` names the owner's one-time pick or the next candidate. `--recheck-of ID` runs at
+  the role's `recheck` effort or, where it has none, an `--effort` you choose. Each new ask
+  gets a new key name. Reports cite an ask by its run `id`. Once it ends, before acceptance, save its record with
   `bmn team asks export <id> --output .dev-auto/evidence/<story>/<name>` and read it once
   with `scripts/check.py usage` on that folder. Without `bmn`, an approved team or BMN
   running, ask nothing and report BLOCKED.
@@ -99,36 +84,19 @@ BLOCKED, never substituted.
   record instead of asking again; do not use a new retry key or change providers. Report the
   refusal and park only dependent work. This Away rule overrides the present-owner retry and
   route sequence above; it creates no dispatch or spending authority.
-- **Helpers review; the lead writes the code and tests.** **Routine chores**: wide
-  lookups, evidence gathering, log and test-output triage, checklist rechecks.
-  **Focused review**: another model's eyes on a bounded area when the lead wants
-  them, or a diagnosis of a failure from the source and logs the lead supplies.
-  **Manual QA**: the running goal, criteria, exploration and retests in [qa-brief.md](qa-brief.md).
-- **Consultant**: a choice hard to undo (stored data/migration, security/privacy, public
-  interface), or the brake after two failed approaches. A reviewer disagreement alone
-  is no trigger: decide a reversible point with one evidence line; consult only if the
-  disagreement involves a hard-to-undo choice or reaches the brake. Take `consults` before asking; use
-  [consult-brief.md](consult-brief.md), attaching the epic with `--file`. One stuck-boundary
-  ask gives up to three ranked methods; reuse its recorded next method without another ask.
-- **Senior consultant**: when the first consult did not unblock a boundary, its methods
-  are exhausted or a step-back is due, collect the epic's main open and most complex
-  questions (at most five, ranked, grouping related issues) with evidence into one ask.
-  Take `senior_consults` (the exact `fable_consults` name in Epics 114–117); ask
-  `--role senior-consultant --time-limit 40`, or BMN's shorter maximum. The owner's
-  configured second candidate is Opus-2/xhigh; the roster supplies the chain. If the role
-  is absent, ask the consultant chain's next eligible agent other than its first through
-  `--role consultant --agent NAME`, still using the senior limit. A configured role's
-  failure is governed by the normal route and Away rules, never treated as absence.
-  Record each consult's run id and outcome (`unblocked`, `partly`, `not`, with why) in
-  the handoff and report. Every ordinary/senior ask, full review and recheck needs a
-  taken ledger use, including file-free runs: defaults 6 ordinary/1 senior per epic,
-  2 full reviews/4 rechecks per boundary, no ceilings. File numbers hold exactly;
-  a refusal parks dependent work and forbids the ask.
+- **Helpers review; the lead writes the code and tests.** Routine chores are wide lookups,
+  evidence gathering, log and test-output triage and checklist rechecks. A focused review may
+  also diagnose a failure from the source and logs the lead supplies.
+- **Consultant**: when and how: SKILL.md, Owner decisions, and [consult-brief.md](consult-brief.md).
+  A reviewer disagreement alone is no trigger: decide a reversible point with one evidence
+  line; consult only if it involves a hard-to-undo choice or reaches the brake.
+- **Senior consultant**: the consult brief gives the collected ask. If the role is absent,
+  ask the consultant chain's next eligible agent other than its first through
+  `--role consultant --agent NAME`, still using the senior limit. A configured role's failure
+  is governed by the normal route and Away rules, never treated as absence.
 - **Review sequence and its bounds**: SKILL.md, Helpers and review.
 
-Helper summaries are navigation aids, not acceptance proof. Reviewers examine the
-original requirements, relevant source, raw evidence, architecture, cross-story
-effects, omissions and drift. Record requested and observed effort separately.
+Helper summaries are navigation aids, not acceptance proof. Record requested and observed effort separately.
 
 ## Dispatch
 
@@ -147,11 +115,7 @@ A temporary profile does not isolate a shared executable. Global installs or own
 changes need explicit authorization; keep probes out of the owner's installed release.
 
 Observe model, effort and usage from records: an ask's export, and for the lead and
-native helpers their host records. Codex writes
-every session, the lead's and native helpers', to `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`
-(`turn_context` carries model and effort, the last `token_count` the cumulative
-`total_token_usage`). Claude Code writes each session and native helper as a transcript
-under `~/.claude/projects/<project>/`.
+native helpers their host records.
 `scripts/check.py usage PATH` reads all of them; `usage --list PROJECT` lists a project's
 Codex rollouts. One session's counter is that session's
 usage, not the epic's; read lead and helper records separately and never add a
@@ -184,8 +148,7 @@ systemd-run --user --collect --setenv=PATH="$PATH" \
   --property=WorkingDirectory="$PROJECT" /bin/bash "$JOB_SCRIPT"
 ```
 
-Pass BMN's environment variables by name so a background ask keeps its requesting session;
-never put a token value in the command or job script. The ledger launcher does this automatically.
+Never put a token value in the command or job script; the ledger launcher passes these names itself.
 
 Record the unit or PID and stop it on an explicit owner stop.
 Before cleanup, judge liveness from its sentinel, log growth or PID, never from a
@@ -208,13 +171,3 @@ same route escalated. If approval review rejects for missing consent and permits
 presenting evidence, cite the existing authorization once when it covers that exact
 action and payload; otherwise report the reason and request approval. Never change
 routes or permissions to evade a refusal.
-
-QA asks use the approved `qa` role with a curated brief and a disposable running target;
-[qa-brief.md](qa-brief.md) defines inputs, saved evidence, retests and unavailable targets.
-The existing `browser` role remains in the owner's roster until he removes it.
-
-## GLM (deactivated)
-
-GLM is deactivated for now. Before owner-authorized reactivation, recover its routing
-and safety instructions from commit `014f98c` and its `helper.sh` from `a341041`,
-revalidate them, and run the team check on its inner command.

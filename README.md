@@ -26,9 +26,6 @@ The installer links each client to `skills/dev-auto` in this checkout and regist
 | --- | --- | --- |
 | Codex | `~/.agents/skills/dev-auto` | `~/.codex/hooks.json` |
 | Claude Code | `~/.claude/skills/dev-auto` | `~/.claude/settings.json` |
-| Claude Code on GLM, when `~/.claude-glm` exists | `~/.claude-glm/skills/dev-auto` | `~/.claude-glm/settings.json` |
-
-GLM routes have been deactivated since 2026-09-30; the installer still maintains the profile if it exists.
 
 Keep the checkout in place, because every link uses the same files. Existing conflicting files and links are preserved, and settings are replaced atomically, so run the installer while no client is writing them. `--links-only` skips the hook and `--target-root` installs below another directory. Codex asks you to trust a new hook once through `/hooks`. Start a fresh client session after installing or changing the skill.
 

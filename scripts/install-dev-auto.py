@@ -2,17 +2,13 @@
 # MODULE: install-dev-auto.py - link shared skills and register the dev-auto recovery hook
 """Install or check the shared skill links and dev-auto's SessionStart recovery hook.
 
-Links: Codex and Claude Code share ``skills/dev-auto`` from this checkout. The GLM
-profile (``claude glm``) also receives it when it exists. ``skills/epic-lead-planning``
+Links: Codex and Claude Code share ``skills/dev-auto`` from this checkout. ``skills/epic-lead-planning``
 is no longer installed: planning is BMN's ``plan`` skill, which BMN installs itself.
 Existing conflicting files or links are never overwritten.
 
 Hooks (default; skip with ``--links-only``): one ``SessionStart`` group with matcher ``compact|resume``
 running ``hooks/dev-auto-session-start.py`` is appended to
-``~/.claude/settings.json``, ``~/.codex/hooks.json`` and, with the GLM profile,
-``~/.claude-glm/settings.json``, where it also sets ``env.CLAUDE_CODE_EFFORT_LEVEL``
-to ``max`` (owner rule: GLM always runs at max effort; Claude Code keeps a saved
-``max`` for one session only). Existing groups, order, and unrelated
+``~/.claude/settings.json`` and ``~/.codex/hooks.json``. Existing groups, order, and unrelated
 keys are preserved; files are written atomically and read back. Codex still
 requires trusting the new hook through ``/hooks``.
 """
@@ -37,10 +33,6 @@ HOOK_FILES = (
     Path(".claude/settings.json"),
     Path(".codex/hooks.json"),
 )
-# Claude Code on the GLM route keeps its own config directory; it is optional.
-GLM_PROFILE = Path(".claude-glm")
-GLM_EFFORT = "max"
-GLM_EFFORT_VAR = "CLAUDE_CODE_EFFORT_LEVEL"
 HOOK_EVENT = "SessionStart"
 HOOK_MATCHER = "compact|resume"
 HOOK_TIMEOUT = 10
@@ -167,12 +159,6 @@ def write_atomic(path: Path, data: dict) -> None:
         raise RuntimeError(f"read-back mismatch: {path}")
 
 
-def glm_effort_is_max(path: Path) -> bool:
-    data = load_json(path)
-    env = data.get("env") if data else None
-    return isinstance(env, dict) and env.get(GLM_EFFORT_VAR) == GLM_EFFORT
-
-
 def register_hook(path: Path, script: Path) -> None:
     data = load_json(path)
     assert data is not None
@@ -200,14 +186,6 @@ def main() -> int:
         for name, skill_source in sources.items()
     ]
     hook_files = [root / relative for relative in HOOK_FILES]
-    glm_profile = root / GLM_PROFILE
-    glm_settings = glm_profile / "settings.json" if glm_profile.is_dir() else None
-    if glm_settings:
-        destinations.extend((glm_profile / "skills" / name, skill_source)
-                            for name, skill_source in sources.items())
-        hook_files.append(glm_settings)
-    else:
-        print(f"SKIPPED: no GLM profile at {glm_profile}")
 
     problems: list[str] = []
     for destination, skill_source in destinations:
@@ -225,9 +203,6 @@ def main() -> int:
             state = hook_state(hook_file, HOOK_SCRIPT)
             if state in {"UNREADABLE", "CONFLICT"}:
                 problems.append(f"hook file {state.lower()}: {hook_file}")
-        glm_data = load_json(glm_settings) if glm_settings else None
-        if glm_data and not isinstance(glm_data.get("env", {}), dict):
-            problems.append(f"GLM settings env is not an object: {glm_settings}")
 
     if args.check:
         ok = True
@@ -239,10 +214,6 @@ def main() -> int:
             state = hook_state(hook_file, HOOK_SCRIPT)
             ok = ok and state == "OK"
             print(f"HOOK {state}: {hook_file}")
-        if glm_settings:
-            effort = glm_effort_is_max(glm_settings)
-            ok = ok and effort
-            print(f"GLM EFFORT {'OK' if effort else 'NOT MAX'}: {glm_settings}")
         return 0 if ok else 1
 
     if problems:
@@ -266,11 +237,6 @@ def main() -> int:
                 continue
             register_hook(hook_file, HOOK_SCRIPT)
             print(f"HOOKED: {hook_file} <- {HOOK_EVENT} [{HOOK_MATCHER}] {HOOK_SCRIPT}")
-        if glm_settings and not glm_effort_is_max(glm_settings):
-            data = load_json(glm_settings)
-            data.setdefault("env", {})[GLM_EFFORT_VAR] = GLM_EFFORT
-            write_atomic(glm_settings, data)
-            print(f"SET: env {GLM_EFFORT_VAR}={GLM_EFFORT} in {glm_settings}")
         print("Codex: run /hooks in Codex once to review and trust the new hook.")
     return 0
 

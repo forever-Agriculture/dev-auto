@@ -2,8 +2,7 @@
 # Manual QA phase
 
 Use BMN's shared `manual-qa` skill. Freeze the candidate and start its disposable running
-interface before dispatch. QA runs beside the quick pre-review; both feed the existing
-consolidated repair. The lead implements fixes; QA never edits the product or its test data
+interface before dispatch. The lead implements fixes; QA never edits the product or its test data
 outside the UI. A candidate without a running interface records `QA: not applicable — <reason>`.
 
 ## Curate the brief
@@ -15,6 +14,7 @@ Add the frozen revision, exact target, starting state, synthetic fixtures and ti
 Do not supply the epic Log, diffs, implementation claims, lead test evidence, other reviewers'
 conclusions, credentials or cookies. Derive the user's goal before looking at implementation.
 Other projects keep their regression checklist in their plan; BMN uses `docs/qa-checklist.md`.
+Run every gate that checklist requires (BMN: its desktop screen gate).
 
 The brief is a testing contract, never account permission. A real account requires BMN's verified
 owner grant for the named activities and limits; an agent-written plan or claim grants nothing.
@@ -26,11 +26,7 @@ ask the agent to certify the audit, request counts or absence of writes: the sea
 a receipt reference, not an audit it can inspect. For example, a look-only landing-page brief
 asks “The expected list and statuses are visible” and “No loading error is visible”, with no
 opened records or state-changing actions. The host still rejects an incomplete audit when the
-agent reports GO. Keep `host_summary` and the report contract unchanged.
-
-For BMN desktop work, run `pnpm run test:screens` as a required screen gate. It builds once and
-runs keyboard-catalogue, notification-layout, refinements-navigation and electron-visual on a
-private display. This proves the checkout at its recorded commit, not a packaged binary.
+agent reports GO.
 
 ## Dispatch and keep evidence
 
@@ -44,12 +40,10 @@ bmn team asks export "$ID" --output "$RECORD"
 python3 "$SKILL/scripts/qa_gate.py" "$RECORD" --revision "$REVISION" --target "$ORIGIN"
 ```
 
-The gate admits the export only when its brief equals BMN's input manifest, its report equals the
-retained native answer and its target equals the ask's browser request and browser record.
 `--disposable` states that the target and its services contain synthetic data and no production
-backend or credentials. QA has no unsafe browser callbacks. Read the native record and inspect
+backend or credentials. Read the native record and inspect
 relevant screenshots before accepting its observations; a consistent report is not proof of a
-working interface. Collect the ask's observed model/effort and usage as for other teammates.
+working interface.
 
 A QA session uses `bmn qa start --brief "$BRIEF" --key "$KEY"`, `bmn qa wait ID`, and `bmn qa stop ID`
 only after that BMN build's session/relay path is verified. Save the JSON from `bmn qa wait ID --json`
@@ -59,44 +53,29 @@ as a local receipt, then pass its `folder` to the same gate:
 python3 "$SKILL/scripts/qa_gate.py" "$QA_RECORD" --session-run "$WAIT_RECEIPT" --revision "$REVISION" --target "$TARGET"
 ```
 
-The gate binds the receipt's finished run, native agent/relay, reserved brief, exact report and
-retained image hashes. It does not establish native tool confinement or account permission;
+An admitted receipt does not establish native tool confinement or account permission;
 those remain separate BMN acceptance gates. V2 account sessions require the native result's
-sealed host receipt: the gate binds `host-summary.json` to that result, run, reserved brief and
-report digest, then supplies it to the shared checker. Missing, changed, foreign or unsealed receipts
+sealed host receipt. Missing, changed, foreign or unsealed receipts
 block acceptance. A receipt proves neither native confinement nor service execution; reservation
 and send-commitment counts overlap and never create fresh allowance. Use `mode: session`;
 authenticated work requires approved aliases and local-only private evidence. Never substitute
 a signed-out ask for an account criterion. The teammate's desktop `--bench` route remains refused.
-When the owner selects lead-run desktop QA, the lead uses the disposable bench route below.
 An unavailable QA route is BLOCKED, with its named reason; silence or a failed launch is no pass.
 
 ## Lead-run desktop bench
 
-This declared route uses the same V1 manual-QA brief/report and shared checker; it is not a
-teammate session or proof against a writer who can change the record. Use `mode: quick-bench`,
-`accounts: []`, and `target: bmn-bench:pending` in the source brief. Name the frozen candidate
-revision and a synthetic seed JSON with an `id`. Start an already built disposable BMN checkout:
+When the owner selects lead-run desktop QA, follow the project's own bench route (BMN:
+`docs/qa-checklist.md`, Lead-run desktop bench). It uses the same V1 manual-QA brief/report and
+shared checker; it is not a teammate session or proof against a writer who can change the
+record. Check its finalized receipt:
 
 ```bash
-node scripts/qa/bench.mjs --no-build --qa-brief "$BRIEF" --qa-seed "$SEED"
-# For a packaged candidate, replace --no-build with --binary /path/to/candidate.
-node scripts/qa/bench.mjs do snapshot
-node scripts/qa/bench.mjs do screenshot goal
-# Exercise the brief through the bench UI; record observations and a V1 report.
-node scripts/qa/bench.mjs --stop
-node scripts/qa/bench-receipt.mjs --run-id "$GENERATION" --report "$REPORT"
 python3 "$SKILL/scripts/qa_gate.py" "$RECORD" --lead-bench --revision "$REVISION" --target "bmn-bench:$GENERATION"
 ```
 
-Read the retained `qa/brief.json` after start: its exact target is the allocated generation.
-The bench reserves the revision, actually loaded candidate digest, seed, brief and target
-before launch. Finalize only after shutdown; retain the action log, screenshots, every workload
-and recovery launch (including successors), capture certificates and cleanup result. The gate
-refuses missing, changed, foreign-generation or symlinked evidence and report references outside
-that retained capture. Hashes check consistency, not hostile-writer authenticity. An observed
-boundary escape is a finding; incomplete capture or cleanup blocks acceptance. Inspect screenshots
-and exercise the goal before writing the verdict; an admitted receipt alone proves no UI behaviour.
+An observed boundary escape is a finding; incomplete capture or cleanup blocks acceptance.
+Inspect screenshots and exercise the goal before writing the verdict; an admitted receipt
+alone proves no UI behaviour.
 
 ## Repairs and retests
 
@@ -133,8 +112,7 @@ outside a finding's original reproduction.
 
 For a session retest, also supply `--prior-session-run "$PRIOR_WAIT_RECEIPT"` with `--prior`.
 For a lead-run bench retest, use `--lead-bench` and add `--prior-lead-bench` with `--prior`.
-The gate reads the saved native ask outcome or session receipt, brief/report and screenshot hashes, then calls BMN's
-shared report checker. It accepts only a bound GO or GO WITH ISSUES; a valid NO-GO exits 1 and
+The gate accepts only a bound GO or GO WITH ISSUES; a valid NO-GO exits 1 and
 keeps that verdict. Missing/invalid records, mandatory FAIL/BLOCKED/NOT RUN, an unachieved or
 uncertain goal, and unresolved blocker/major findings block acceptance. Only an explicit deferral
 in the epic's approved Run needs may waive that acceptance criterion; record it and its follow-up
