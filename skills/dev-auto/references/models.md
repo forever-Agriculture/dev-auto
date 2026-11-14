@@ -92,7 +92,7 @@ A route that cannot answer leaves that ticket BLOCKED, never substituted.
   line; consult only if it involves a hard-to-undo choice or reaches the brake.
 - **Senior consultant**: the consult brief gives the collected ask. If the role is absent,
   ask the consultant chain's next eligible agent other than its first through
-  `--role consultant --agent NAME`, still using the senior limit. A configured role's failure
+  `--role consultant --agent NAME`, still under the senior limit where a file names one. A configured role's failure
   is governed by the normal route and Away rules, never treated as absence.
 - **Review sequence and its bounds**: SKILL.md, Helpers and review.
 

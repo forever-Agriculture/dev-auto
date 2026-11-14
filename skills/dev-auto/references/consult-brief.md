@@ -1,8 +1,8 @@
 # MODULE: consult-brief.md - Epic 118: one collected consult with epic context and an actionable answer
 # Consult brief
 
-Use this form for every ordinary or senior consult. Take the applicable ledger use first;
-a refusal means no ask. Include every question open in the epic now in one collected
+Use this form for every ordinary or senior consult. With an allowances file in force, take
+the applicable ledger use first; a refusal means no ask. Include every question open in the epic now in one collected
 request, never one ask per question: at most five numbered questions, ranked by consequence,
 grouping related issues when necessary. Do not wait for more questions before a consult
 needed now. One question alone is right when the epic has no other open one.
@@ -39,8 +39,8 @@ For a first stuck-boundary ask use `--role consultant`. Keep its ranked methods 
 brake record; before each later attempt name the next unused method taken, without a new
 consult. When it did not unblock development, its methods are exhausted or a step-back is
 due, collect the epic's main open and most complex questions into a senior request with
-this same form. Take `senior_consults` (or the approved file's exact `fable_consults` name
-in Epics 114–117), then use `--role senior-consultant --time-limit 40`, or BMN's shorter
+this same form. With a file in force take `senior_consults` first (or the approved file's exact
+`fable_consults` name in Epics 114–117). Use `--role senior-consultant --time-limit 40`, or BMN's shorter
 maximum. Without the role, use the consultant chain's next eligible agent other than its
 first via `--role consultant --agent NAME`, still counted as a senior use. Refusals and
 Away rules still hold. A step-back adds [step-back-brief.md](step-back-brief.md)'s exact

@@ -160,6 +160,22 @@ class ScorecardTests(unittest.TestCase):
         self.ledger['jobs']['bad']=None
         self.assertIsNone(self.summarize()['boundaries']['epic']['money_usd']['used'])
 
+    def test_a_run_with_no_file_has_only_its_rounds_as_limits(self):
+        from spend_ledger import rounds_allowed
+        go = {'kind': 'go', 'commit': 'a' * 40, 'rounds': 4}
+        self.ledger.update(gos=[go])
+        found = scorecard.effective_limits({'state': 'GO', 'parsed': {'rounds': 4}}, self.ledger)
+        self.assertEqual(found, {'repair_rounds': {'limit': rounds_allowed(self.ledger, go), 'per': 'boundary'}})
+
+    def test_an_old_default_use_is_shown_as_not_in_force(self):
+        self.ledger['uses'] = {'u': {'answer': 'TAKEN', 'limit': 'full_reviews', 'boundary': '7.1', 'amount': 1, 'value': 2, 'per': 'boundary'}}
+        data = scorecard.summarize(7, self.body, self.ledger, self.runs, limits={'repair_rounds': {'limit': 4, 'per': 'boundary'}})
+        self.assertFalse(data['boundaries']['7.1']['full_reviews']['in_force'])
+        self.assertNotIn('in_force', data['boundaries']['7.1']['repair_rounds'])
+        text = scorecard.render(data)
+        self.assertIn('7.1 | full_reviews | 1.00 / 2.00 (boundary, limit when taken, not in force now)', text)
+        self.assertIn('7.1 | repair_rounds | 1.00 / 4.00 (boundary)', text)
+
     def test_account_wide_null_project_asks_are_unrelated_not_unknown(self):
         self.ask('account-wide',project=None)
         self.assertEqual(self.summarize()['unknown'],[])

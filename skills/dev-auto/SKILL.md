@@ -27,20 +27,23 @@ His standing consent for every dev-auto run: it may move its own ticket to In pr
 before moving the epic's row past `ready`, and `scripts/run_needs.py N` for the go's Run needs.
 Keep what `open` prints in the handoff's `Go` field; the same go leaves nothing to ask him. On
 NOT IN FORCE or NEEDS_MOVE start no run, leave the row unchanged and report what was printed;
-never fall back to defaults. On NO_GO_RECORD go on under the invocation as printed; approval
+never run a file NOT IN FORCE as no file. On NO_GO_RECORD go on under the invocation as printed; approval
 evidence you find grants nothing, and you never ask him to restate or record a go. Record his
 later narrower word on rounds with `spend_ledger.py limit`.
 
-**Limits.** `open` prints every limit in force: the epic's `plan/allowances/NNN.yaml`, else the
-defaults; a withdrawn or unconfirmed go grants none. Take each use from the ledger first; a
-refused use does not happen.
+**Limits.** `open` prints every limit in force: the limits of the epic's
+`plan/allowances/NNN.yaml`, and with no file only the rounds; a withdrawn or unconfirmed go
+grants none. Take each use from the ledger first; a refused use does not happen.
 
-- A repair round: `spend_ledger.py round`. Rounds are an allowance, never a target.
-- A consultant ask, senior ask, full review or recheck, with or without a file:
+- A repair round, in every run: `spend_ledger.py round`. Rounds are an allowance, never a
+  target.
+- With a file in force, a consultant ask, senior ask, full review or recheck:
   `spend_ledger.py use --budget B --limit NAME --boundary STORY|epic --amount 1 --use-id ID`,
   with `consults`, `senior_consults`, `full_reviews` or `rechecks`, or the file's own name for
   that limit. A senior ask takes the senior limit only.
 - Any other file limit: the same command. One new id per use.
+- With no file in force (`run_needs.py` prints `ALLOWANCES: none`) these asks take no use; the
+  brakes, the review shape and the rounds below bound them.
 
 On RAISE run the printed `bmn plan allow` command and go on with a new use id, no card.
 Otherwise the affected work parks BLOCKED into the report; an unforeseen gap in a file limit
@@ -108,9 +111,8 @@ away-specific retry decision, and follow it; BMN's state notices count between t
 UNAVAILABLE is never back: the last confirmed state and every stop and limit hold. On a
 departure you handle, at once state in one short message the selected scope, what proceeds
 and what waits; unless he forbade questions, add one card for the open `Needs your decision`
-entries remaining work may need. While away, once per boundary, one further narrow repair and
-recheck may follow a used review allowance; mark it used in the handoff first. When BMN says
-he is leaving or away, follow [references/away-grant.md](references/away-grant.md).
+entries remaining work may need. When BMN says he is leaving or away, follow
+[references/away-grant.md](references/away-grant.md).
 
 ## Scope and delivery
 
@@ -236,12 +238,11 @@ exported record, or a native helper's session record, and each lead session's ID
 mismatches and failures instead of silently substituting. Do not tally usage or owner prompts
 by hand.
 
-**Run counts.** At start fill the template's `Run started`, `Run checkouts` and `Budget id`;
-keep them through resumes. After each full review and recheck keep its `Review counts` line:
-one per ask, updated in place after repair, dispositions summing to findings. Record `Run
-finished` when the run ends. Before COMPLETE run `scripts/scorecard.py N --project CHECKOUT
---check`: a missing review line blocks COMPLETE; an unknown stays reported as unknown. Put
-its table in the report's optional `took` part, after What changed.
+**Run record.** At start fill the template's `Run started` and `Run checkouts`; keep them
+through resumes and record `Run finished` when the run ends. For each report run
+`scripts/scorecard.py N --project CHECKOUT` and put its table in the report's optional `took`
+part, after What changed. An unknown stays reported as unknown; the table never blocks
+acceptance or COMPLETE.
 
 **Review.** Freeze the candidate. Run the quick pre-review from
 [references/review-brief.md](references/review-brief.md) and the

@@ -11,7 +11,7 @@ was tried and failed, and what the answer must settle; include the epic's Outcom
 criteria and limits left. One question alone is right only if no other is open; do not
 wait for more before a needed ask.
 
-Take `senior_consults` first (`fable_consults` in Epics 114–117 whose approved file names
+With an allowances file in force, take `senior_consults` first (`fable_consults` in Epics 114–117 whose approved file names
 it so). Ask a different agent, read-only, attaching the epic with `--file`:
 
 ```bash
@@ -24,7 +24,7 @@ ask the consultant chain's next eligible agent other than its first with
 normal route/refusal and Away rules hold. A refused ledger use means no ask.
 
 Add this exact binding line and the following step-back questions to the collected brief.
-Use `sha256sum` of the record as it stands; a changed record needs a new counted ask.
+Use `sha256sum` of the record as it stands; a changed record needs a new ask.
 
 ```text
 Step-back: budget <the id `spend_ledger.py open` printed> boundary <N.M or epic> record sha256:<hash of the record file>

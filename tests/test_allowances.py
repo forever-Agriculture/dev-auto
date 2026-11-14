@@ -299,13 +299,14 @@ class Allowances(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("use same-id: REFUSED pages", out)
 
-    def test_use_defaults_with_no_file_but_refuses_a_withdrawn_go(self) -> None:
+    def test_use_counts_nothing_with_no_file_and_refuses_a_withdrawn_go(self) -> None:
         self.body = test_run_needs.epic()
         self.go(None)
         budget = self.open()
         code, out = self.use(budget, "a")
-        self.assertEqual(code, 0, out)
-        self.assertIn("DEFAULT: rechecks: 4 per boundary", out)
+        self.assertEqual(code, 2, out)
+        self.assertIn("no allowances file is in force", out)
+        self.assertEqual(self.data(budget).get("uses", {}), {})
         self.body = test_run_needs.epic(POINTER)
         self.go(FILE, "2026-10-24")
         self.reader(fields())
@@ -477,6 +478,9 @@ class Allowances(unittest.TestCase):
         self.assertEqual(data["rounds"]["r1"]["answer"], "TAKEN")
         self.assertEqual(data["uses"]["u1"]["answer"], "TAKEN")
         self.assertNotIn("allowances", data["gos"][-1])
+        code, out = self.use(budget, "u2")
+        self.assertEqual(code, 2, out)
+        self.assertEqual(list(self.data(budget)["uses"]), ["u1"])
         # The floor is back, with what was used still used.
         self.assertIn("ROUNDS: 4 extra per boundary", self.opened)
         self.assertIn("7.1 1 used", self.opened)

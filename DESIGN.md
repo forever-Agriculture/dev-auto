@@ -23,7 +23,7 @@ Deliver accepted project outcomes with a direct coding lead. Optimize accepted q
 
 **No controller.** The host's tools and permissions are the boundary. There is no scheduler, worker framework, event journal or progress database. The code a run uses answers a demonstrated gap: read-only lints and inventories, the recovery hook and one ledger.
 
-**The ledger is the one script a run uses that keeps state.** Lead-kept tallies were wrong or missing, and a resume or new lead could reset them. Money caps, repair rounds and named messages therefore live in a locked file outside every worktree, so no resume, lead or worktree can refill what was used. A go is read from the plan's history, not from a handoff, so a lead's notes can't grant anything.
+**The ledger is the one script a run uses that keeps state.** Lead-kept tallies were wrong or missing, and a resume or new lead could reset them. Money caps, repair rounds and named messages therefore live in a locked file outside every worktree, so no resume, lead or worktree can refill what was used. A go is read from the plan's history, not from a handoff, so a lead's notes can't grant anything. Consults, full reviews and rechecks are counted there only against an approved allowances file; a run without one is bounded by the brakes and its rounds (owner, 2026-11-14).
 
 **The team, not the skill, names models.** Routes change often and are the owner's choice, so `references/models.md` holds roles and `bmn team ask` checks each ask against his approved team, keeping its record. A route that fails is reported and the next candidate is named, never silently substituted.
 
@@ -33,7 +33,7 @@ Deliver accepted project outcomes with a direct coding lead. Optimize accepted q
 
 **Plan for autonomous implementation.** Before the go, planning covers foreseeable limits, permissions, money, commands and targets, prerequisites, delivery and cleanup, with justified contingency. An unforeseen gap may need an amendment card while the owner is present: exact before/after, reason, cost/exposure and work unlocked. Only approval recorded through `bmn plan allow` changes the named YAML terms; prior usage stays counted. This is recovery, never routine renegotiation.
 
-**Rounds and parking replace waiting.** A run has at least 4 rounds per boundary unless its approved file sets another allowance, taken without a card, and the last needs a step-back from a different agent. Exhausted work is deferred if approved or parks pending any unforeseen amendment; everything independent continues. Away and external refusals still hold. Nights were being lost to a single stuck story or an unanswered question.
+**Rounds and parking replace waiting.** A run has at least 4 rounds per boundary unless its approved file sets another allowance, taken without a card, and the last needs a step-back from a different agent. Away adds no repair outside these rounds (owner, 2026-11-14). Exhausted work is deferred if approved or parks pending any unforeseen amendment; everything independent continues. Away and external refusals still hold. Nights were being lost to a single stuck story or an unanswered question.
 
 **Questions are rare and batched.** Everything not reserved to the owner is decided on the recommended option and listed where he can reverse it. A broad "continue" answers no reserved point.
 

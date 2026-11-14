@@ -167,7 +167,10 @@ def summarize(epic, body, ledger, runs, *, limits=None, now=None):
                     continue
                 target = 'epic' if per == 'epic' else boundary
                 row = boundaries.setdefault(target, {})
+                # A use keeps the limit it was taken against; it is in force only if today's limits still name it.
                 entry = row.setdefault(name, {'used': 0, 'limit': use.get('value'), 'per': per})
+                if collection == 'uses' and limits is not None and name not in limits:
+                    entry['in_force'] = False
                 entry['used'] += quantity
             if not complete[collection]:
                 unknown.append(f'ledger {collection} unknown')
@@ -217,7 +220,8 @@ def render(data):
     lines.append('Boundary | limit | used / in force')
     for boundary, row in sorted(data['boundaries'].items()):
         for name, use in sorted(row.items()):
-            lines.append(f"{boundary} | {name} | {number(use['used'])} / {number(use.get('limit'))} ({use.get('per', 'unknown')})")
+            note = '' if use.get('in_force', True) else ', limit when taken, not in force now'
+            lines.append(f"{boundary} | {name} | {number(use['used'])} / {number(use.get('limit'))} ({use.get('per', 'unknown')}{note})")
     for review in data['reviews']:
         lines.append(f"review {review['id']}: " + (json.dumps(review['counts']) if review['counts'] else 'not counted'))
     for consult in data['consults']:
@@ -228,10 +232,10 @@ def render(data):
 
 def effective_limits(needs, ledger):
     """Reuse the ledger's effective rounds, including the owner's go-scoped restriction."""
-    from spend_ledger import DEFAULT_LIMITS, latest_go, rounds_allowed
+    from spend_ledger import latest_go, rounds_allowed
     if needs['state'] != 'GO' and not needs.get('floor'):
         return None
-    limits = (needs.get('parsed') or {}).get('limits') or (DEFAULT_LIMITS if not needs.get('allowances') else None)
+    limits = (needs.get('parsed') or {}).get('limits') or ({} if not needs.get('allowances') else None)
     if limits is None or ledger is None:
         return None
     fields = needs.get('parsed') if needs.get('allowances') else None

@@ -326,6 +326,11 @@ class Words(unittest.TestCase):
     def read(self, name: str) -> str:
         return (REPO / "skills" / "dev-auto" / name).read_text(encoding="utf-8")
 
+    def test_away_adds_no_repair_outside_the_ledger(self) -> None:
+        self.assertNotIn("narrow repair", self.read("SKILL.md"))
+        self.assertNotIn("away repair", self.read("references/away-grant.md"))
+        self.assertNotIn("away repair", self.read("assets/handoff.md"))
+
     def test_the_skill_parks_and_never_waits_for_his_answer(self) -> None:
         skill = self.read("SKILL.md")
         self.assertNotIn("retrying only on\nhis answer", skill)

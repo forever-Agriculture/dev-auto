@@ -7,7 +7,6 @@
 - Run started: UTC timestamp, preserved through resumes
 - Run checkouts: JSON array of exact project paths, including companion worktrees
 - Run finished: UTC timestamp once finished
-- Budget id: id printed by spend_ledger.py open
 - Original request and intended outcomes:
 - Mode: build | resume
 - Stopping condition: selected scope accepted; no automatic time limit
@@ -34,7 +33,6 @@
 - Decided for you (decisions taken under the owner's delegation, for his review; one line each, `[dN]` first, `(bmn: SESSION/KEY)` last once BMN recorded it, as `bmn decision record` returned them):
 - Needs your decision (reserved or still uncertain after the consultant; each: evidence, missing decision, affected criteria, untouched and remaining work; asked only when no work can proceed):
 - Vision findings (SKILL.md, by his D1; one line each: principle quoted, finding, `file:line`, disposition: `against Pn: repaired <commit>`, `parked N.M` or `not confirmed: <reason>`), or `none`:
-- Review counts: one `review <ask id>: <n> findings, <r> repaired, <x> rejected, <d> deferred` line per full review/recheck below; counts sum, keep across resumes
 - Material pending findings:
 - Cross-epic obligations:
 
@@ -55,7 +53,7 @@ An intentionally retained resource adds `"keep":"reason"`.)
 - Reviewed scope and route:
 - Project PR reviews, one line each (ticket, final head, READY or BLOCKED, comment link), or `none`:
 - Baseline and reviewed revisions / material finding dispositions / recheck or delta evidence:
-- Review allowance per boundary, kept across leads: rechecks used / consultation used / final repair used / away repair used:
+- Review allowance per boundary, kept across leads: rechecks used / consultation used / final repair used:
 - Brake record per stuck outcome or gate, kept across leads (method history in the log): attempts / gate runs / harness rerun used per method / failed agreed methods / paid spend / latest usage per lead session / rounds used with their source and the last step-back, or none:
 - Unreviewed or unverified areas:
 - Reports: one per accepted epic: receipt path, id/link and browser result; resume reuses a matching page SHA256

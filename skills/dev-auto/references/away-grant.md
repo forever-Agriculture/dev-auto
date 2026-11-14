@@ -57,7 +57,7 @@ rule or GitHub stopped before any use is `--item <term id> --text <why>`. A repo
 
 ## A round at a parked boundary
 
-A boundary parked by either brake or the away repair takes one round at a time, the ledger's
+A boundary parked by either brake takes one round at a time, the ledger's
 first, without a card:
 
 1. Record the new evidence and a consultant-agreed method in the brake record, and save the

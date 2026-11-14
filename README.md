@@ -77,10 +77,10 @@ The lead asks only about what is reserved to the owner: spend beyond what he app
 
 **Spend and messages** go through `spend_ledger.py`. Every paid job launches through it against the go's cap, and a message the go's Run needs name is limited to 2 per person and purpose. No resume, new lead or worktree resets what was used.
 
-Every consultant/senior ask, full review and recheck needs a taken ledger `use`, even
-without an allowance file: defaults are 6 consults and 1 senior per epic, 2 full reviews
-and 4 rechecks per boundary, with no ceilings. Approved file limits hold instead;
-a refusal parks affected work. Ordinary technical choices stay with the lead; one stuck
+With an allowances file in force, every consultant or senior ask, full review and recheck
+needs a taken ledger `use` against the file's limit; a refusal parks affected work. A run
+with no file takes no such use: its brakes, its one full review and one recheck, and the
+ledger's rounds bound it. Ordinary technical choices stay with the lead; one stuck
 boundary consult supplies up to three ranked methods, reused without another ask.
 See [consult-brief.md](skills/dev-auto/references/consult-brief.md) for the collected ask,
 evidence, answer form and one outcome line per consult.
