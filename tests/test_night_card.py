@@ -60,7 +60,21 @@ class NightCardTest(unittest.TestCase):
         limit["boundaries"][0].update(used=3)
         need = {"name": "rechecks", "boundary": "7.2", "uses": 1, "reason": "More review work"}
         remaining = {"title": "Epic Seven", "scope": "Upcoming review", "limits": [need]}
-        self.assertEqual([term["kind"] for term in night.compose(self.facts, remaining, "/checkout", 7)["terms"]], ["merge"])
+        card = night.compose(self.facts, remaining, "/checkout", 7)
+        self.assertEqual([term["kind"] for term in card["terms"]], ["merge"])
+        self.assertIn("limits.rechecks.limit=4", card["waits"][0])
         need["uses"] = 3
         term = night.compose(self.facts, remaining, "/checkout", 7)["terms"][0]
         self.assertEqual((term["from"], term["to"]), (3, 6))
+
+    def test_uses_the_current_head_and_keeps_independent_access_when_prs_are_unknown(self):
+        remaining = {"title": "Epic Seven", "scope": "A sign-in and merge", "actions": [
+            {"kind": "merge", "repository": "example/app", "pr": 1, "headSha": "b" * 40, "reason": "Old head"}],
+            "access": [{"name": "Sign in", "command": "gh auth login", "reason": "Needs its own account"}]}
+        card = night.compose(self.facts, remaining, "/checkout", 7)
+        self.assertEqual(card["terms"][1]["headSha"], "a" * 40)
+        self.assertNotEqual(card["terms"][1]["reason"], "Old head")
+        self.facts["pullRequests"]["state"] = "unknown"
+        card = night.compose(self.facts, remaining, "/checkout", 7)
+        self.assertEqual([term["kind"] for term in card["terms"]], ["access"])
+        self.assertTrue(any("could not confirm" in reason for reason in card["waits"]))

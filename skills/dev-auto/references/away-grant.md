@@ -72,7 +72,7 @@ An approved limit raise is applied with `bmn grant apply --run ID --item I --use
 Keep its use id stable. The BMN-written source in the plan's allowance history
 identifies the owner's answer. Read the new allowance before taking another use.
 When a run parks with unfinished work while Away, log the boundary and send one
-`bmn grant report --run ID --stopped --cause CAUSE --text TEXT`. Use `limit:NAME`,
+`bmn grant report --run ID --stopped --period DEPARTURE --cause CAUSE --text TEXT`. Pass the period id captured from BMN when the stop was observed. Use `limit:NAME`,
 `action:merge|push|pr|command|message`, `access`, `decision`, `prompt` or `other`.
 Describe the stop without secrets. If BMN is unavailable the local log still holds it.
 
