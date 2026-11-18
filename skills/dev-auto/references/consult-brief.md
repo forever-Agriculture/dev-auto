@@ -7,10 +7,16 @@ request, never one ask per question: at most five numbered questions, ranked by 
 grouping related issues when necessary. Do not wait for more questions before a consult
 needed now. One question alone is right when the epic has no other open one.
 
-Attach the epic's file with `--file "$EPIC_FILE"`. Give source and synthetic evidence only,
+Attach the epic's file with `--file "$EPIC_FILE"`, and any plan file a question rests on that
+sits outside the ask's folder (a Claude Code consultant reads only that folder). Give source and synthetic evidence only,
 within existing provider/data permission. The consultant may explore the project, use its
 helpers and search the web where its configured tools and existing permissions allow it;
 this brief grants no extra access, spending or authority.
+
+Leave the consultant's thinking free: never tell it to accept your framing or cause ("do not
+re-derive"), cap its answer or forbid exploring; a helper's fences do not apply. State only
+real limits: read-only, data and provider permission, the owner's and the project's
+restrictions. While he is away, replace the template's helper line with `Do not delegate.`
 
 ```text
 Epic: <N; Outcome in the plan's words; epic file:line attached with --file>
@@ -24,6 +30,8 @@ Solo decisions: <one line and evidence per relevant decision, or none>
    Must settle: <the concrete decision or different method needed, keeping every criterion>
 2. <next question, same fields; omit unused entries, maximum five questions>
 
+First: is the problem as I state it the right one? Name a wrong assumption, misread criterion
+or untreated cause (a step-back's questions 1-2 already ask this).
 Answer per numbered question:
 - Verdict and confidence, with reason.
 - Evidence actually read, citing file:line; separate facts from inference.
