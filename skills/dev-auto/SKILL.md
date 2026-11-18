@@ -70,7 +70,8 @@ handoff. A failed need, or an owner step not done, goes under `Needs your decisi
 stories that name it; only those park. At his departure say a step not done once, in one line.
 
 Log `<UTC stamp> parked N.M` when you park a story and `<UTC stamp> unparked N.M` when it
-resumes. Keep the handoff's `Waiting on` and `Finished stories` current as the template says.
+resumes. While Away, also report the stop with its cause through
+[the Away grant](references/away-grant.md). Keep the handoff's `Waiting on` and `Finished stories` current as the template says.
 
 **Reserved to him,** however sure you are: spend beyond what he approved or delegated,
 changes to selected work or its acceptance criteria, actions the global rules reserve to him,

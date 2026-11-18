@@ -15,21 +15,35 @@ card and exact-text steps below apply to people and external destinations.
 On his departure words to you, forward `bmn away --leaving` first. He is getting ready:
 Away starts on his Go in the window or on Telegram, or by itself after 10 minutes without
 an action of his on the list. Do not forward `bmn away` unless he says he is already gone.
-On those words or on BMN's notice that he is getting ready or away, answer once, within
-3 minutes, by piping
-the card as JSON to `bmn grant ask --run <Run id> --card-file -` (`bmn grant --help` shows
-its shape): the title, the remaining scope and only the terms that work needs, each with
-its reason. Every session with unfinished authorised work answers, including one with no
-dev-auto run: use its session's name as the title and a stable run id for that work:
+On those words or on BMN's notice that he is getting ready or away, read
+`bmn grant facts --run <Run id> --epic N --project P --json` and walk the remaining
+stories and review boundaries. Ask once, within 3 minutes. Use only the work already
+authorized and give a reason for each line.
 
-- with a go (`scripts/run_needs.py`), its Run needs' named actions with their targets and
-  no rounds, an exact `command` or `message` included; with none, `bmn grant ask --run <Run id>
-  --nothing`;
-- without a go, no rounds (a run has its default rounds) and each reserved action you foresee
-  with its target (a PR merge at its head
-  SHA, a push to the default branch, a PR in another repository, one exact command with its
-  folder, one exact message with its tool, target and whole text); `--nothing` when the work
-  needs none.
+- A limit needed by a remaining boundary may be raised within its existing ceiling
+  through the ledger's usual `RAISE` path. Ask for a `limit` only when the remaining
+  uses exceed what is left at the ceiling. Name its current value and the amount the
+  remaining work needs.
+- Rerun each Prepared check. If a login only the owner can do fails, add an `access`
+  line with its name, exact login command and reason. Never include credentials or
+  check output. On his Done, suppress the check's stdout and stderr and report only
+  `bmn grant report --run ID --item I --attempt A --access works`, or `--access fails
+  --cause not-signed-in|expired|no-access|network|other`, using the attempt BMN gave.
+- Use the open PR's exact head and policy. Ask for a named merge, default-branch
+  push or PR from the remaining work when its approval is needed. A PR whose
+  checks are still pending under a policy that permits merging when green waits
+  for its checks. Keep any planned exact commands or messages in their own lines.
+- Epic 131's evidence gate dropped advance-choice lines. Reserved choices still
+  wait on the ordinary workflow.
+
+`scripts/night_card.py --run ID --epic N --project P --remaining FILE --key K` reads the
+facts again, draws the needed lines and sends the card. Supply the remaining work
+in JSON (run `--help` for fields). Without a recorded go, BMN provides PR facts only.
+For a session without a planned epic, use its stable run id and ask for specific
+authorized action targets directly. An empty answer needs `--nothing --reason TEXT`.
+Name each contradictory fact in `--despite FACT` only when the reason explains why
+it cannot stop the remaining work. If facts are unreadable, keep the checks in
+the run log. No unreadable fact grants anything.
 
 A message whose text you do not know yet goes as a draft on one non-blocking `bmn ask` card,
 and the run continues. Before he leaves, run the go's `Prepared` checks again (SKILL.md, Owner
@@ -53,6 +67,14 @@ waits. A use id belongs to its run and away period, and his
 answer to a new revision is a new grant, its actions counted afresh. A boundary is a story
 (`96.3`) or `epic`, as the handoff's review allowance names it, so rounds used count across
 resumes, leads, away periods and gos.
+
+An approved limit raise is applied with `bmn grant apply --run ID --item I --use-id U`.
+Keep its use id stable. The BMN-written source in the plan's allowance history
+identifies the owner's answer. Read the new allowance before taking another use.
+When a run parks with unfinished work while Away, log the boundary and send one
+`bmn grant report --run ID --stopped --cause CAUSE --text TEXT`. Use `limit:NAME`,
+`action:merge|push|pr|command|message`, `access`, `decision`, `prompt` or `other`.
+Describe the stop without secrets. If BMN is unavailable the local log still holds it.
 
 After each step, report it for his morning summary: `bmn grant report --run
 <Run id> --period <its period> --use-id <id> --result passed|failed|blocked` for a round,
