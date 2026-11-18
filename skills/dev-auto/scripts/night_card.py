@@ -37,10 +37,11 @@ def compose(facts, remaining, project, epic):
         limit = limits[name]
         available = limit if boundary is None else next(
             (use for use in limit["boundaries"] if use["boundary"] == boundary), None)
-        if limit["mayRaise"] or available is None or available["left"] is None or available["left"] >= demand["uses"]:
+        if available is None or available["left"] is None or available["left"] >= demand["uses"]:
             continue
         new_value = available["used"] + demand["uses"]
-        if new_value <= limit["value"] or new_value <= proposed.get(name, {}).get("to", 0):
+        ceiling = limit["ceiling"] if limit["ceiling"] is not None else limit["value"]
+        if new_value <= ceiling or new_value <= proposed.get(name, {}).get("to", 0):
             continue
         proposed[name] = dict(kind="limit", name=name, project=project, epic=epic,
                               **{"from": limit["value"], "to": new_value, "reason": " · ".join(demand["reasons"])})

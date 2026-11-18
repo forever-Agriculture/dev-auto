@@ -44,7 +44,6 @@ class NightCardTest(unittest.TestCase):
         self.assertEqual(raise_term["reason"], "A storage decision · An authority decision")
 
     def test_ceiling_and_empty_acknowledgment(self):
-        self.facts["plan"]["limits"][0]["mayRaise"] = True
         self.facts["pullRequests"]["items"][0]["policy"] = "merge-when-green"
         remaining = {"title": "Epic Seven", "scope": "One check ahead", "nothing_reason": "No further review uses."}
         with self.assertRaisesRegex(ValueError, "Explain each conflict"):
@@ -54,3 +53,14 @@ class NightCardTest(unittest.TestCase):
         self.facts["plan"]["state"] = "unknown"
         with self.assertRaisesRegex(ValueError, "could not confirm"):
             night.compose(self.facts, remaining, "/checkout", 7)
+
+    def test_asks_only_when_projected_need_exceeds_ceiling(self):
+        limit = self.facts["plan"]["limits"][0]
+        limit.update(value=3, ceiling=4, mayRaise=True)
+        limit["boundaries"][0].update(used=3)
+        need = {"name": "rechecks", "boundary": "7.2", "uses": 1, "reason": "More review work"}
+        remaining = {"title": "Epic Seven", "scope": "Upcoming review", "limits": [need]}
+        self.assertEqual([term["kind"] for term in night.compose(self.facts, remaining, "/checkout", 7)["terms"]], ["merge"])
+        need["uses"] = 3
+        term = night.compose(self.facts, remaining, "/checkout", 7)["terms"][0]
+        self.assertEqual((term["from"], term["to"]), (3, 6))
