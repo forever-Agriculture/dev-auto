@@ -38,11 +38,11 @@ def checked_lead_record(root):
     run_id = receipt.get('runId')
     if not isinstance(run_id, str) or not re.fullmatch(r'\d+-[a-f0-9]{16}', run_id):
         raise ValueError('Lead bench generation is invalid')
-    def artifact(reference):
+    def artifact(reference, *, max_bytes=256 * 1024 * 1024):
         if not isinstance(reference, dict) or set(reference) != {'path', 'bytes', 'sha256', 'runId'} or reference['runId'] != run_id:
             raise ValueError('Lead bench evidence belongs to a foreign generation')
         path = local(reference['path'])
-        if type(reference['bytes']) is not int or not 0 < reference['bytes'] <= 256 * 1024 * 1024 or path.stat().st_size != reference['bytes']:
+        if type(reference['bytes']) is not int or not 0 < reference['bytes'] <= max_bytes or path.stat().st_size != reference['bytes']:
             raise ValueError('Lead bench evidence size changed or is empty')
         with path.open('rb') as stream:
             digest = hashlib.file_digest(stream, 'sha256').hexdigest()
@@ -92,7 +92,9 @@ def checked_lead_record(root):
             not re.fullmatch(r'[1-9]\d*', str(identity.get('start_ticks', ''))) or retained[launch['key']].get('identity') != identity or
             retained[launch['key']].get('role') != launch['role'] or completed[launch['key']].get('complete') is not True):
             raise ValueError('Lead bench launch identity or capture completion is invalid')
-        artifact(launch['trace']); cert = document(artifact(launch['certificate']))
+        # Certified captures grow with actual QA duration; hash the complete file in bounded memory.
+        artifact(launch['trace'], max_bytes=1024 * 1024 * 1024)
+        cert = document(artifact(launch['certificate']))
         if (cert.get('runId') != run_id or cert.get('launchKey') != launch['key'] or cert.get('role') != launch['role'] or
             cert.get('traceBytes') != launch['trace']['bytes'] or cert.get('traceSha256') != launch['trace']['sha256'] or cert.get('traceErrors') != []):
             raise ValueError('Lead bench trace differs from its retained capture certificate')

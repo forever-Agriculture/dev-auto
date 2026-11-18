@@ -73,6 +73,46 @@ class LeadBenchTests(unittest.TestCase):
             if receipt[key]['path'] == artifact: receipt[key] = self.describe(root, artifact)
         self.write(root, 'lead-bench.json', receipt)
 
+    def test_certified_large_trace_preserves_hash_and_existing_refusals(self):
+        root = self.record('large-certified-trace')
+        receipt = self.load(root, 'lead-bench.json')
+        launch = receipt['launches'][1]
+        trace = root / launch['trace']['path']
+        with trace.open('r+b') as stream:
+            stream.truncate(256 * 1024 * 1024 + 1)
+        with trace.open('rb') as stream:
+            digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+        launch['trace'].update(bytes=trace.stat().st_size, sha256=digest)
+        cert = self.load(root, launch['certificate']['path'])
+        cert.update(traceBytes=trace.stat().st_size, traceSha256=digest)
+        self.write(root, launch['certificate']['path'], cert)
+        launch['certificate'] = self.describe(root, launch['certificate']['path'])
+        self.write(root, 'lead-bench.json', receipt)
+        self.assertEqual(self.invoke(root)[1]['status'], 'pass')
+        with trace.open('r+b') as stream:
+            stream.seek(-1, 2); stream.write(b'X')
+        self.assertEqual(self.invoke(root)[1]['status'], 'invalid')
+        with trace.open('r+b') as stream:
+            stream.seek(-1, 2); stream.write(b'\0')
+        launch['trace']['runId'] = 'foreign'
+        self.write(root, 'lead-bench.json', receipt)
+        self.assertEqual(self.invoke(root)[1]['status'], 'invalid')
+        launch['trace']['runId'] = RUN
+        with trace.open('r+b') as stream:
+            stream.truncate(1024 * 1024 * 1024 + 1)
+        launch['trace']['bytes'] = trace.stat().st_size
+        self.write(root, 'lead-bench.json', receipt)
+        self.assertEqual(self.invoke(root)[1]['status'], 'invalid')
+
+    def test_non_trace_artifact_keeps_256mib_limit(self):
+        root = self.record('large-image')
+        receipt = self.load(root, 'lead-bench.json'); image = receipt['screenshots'][0]
+        with (root / image['path']).open('r+b') as stream:
+            stream.truncate(256 * 1024 * 1024 + 1)
+        image['bytes'] = 256 * 1024 * 1024 + 1
+        self.write(root, 'lead-bench.json', receipt)
+        self.assertEqual(self.invoke(root)[1]['status'], 'invalid')
+
     def test_honest_go_passes_and_readonly_resume_reuses_it(self):
         root = self.record(); before = {str(p): p.read_bytes() for p in root.rglob('*') if p.is_file()}
         for _ in range(2): self.assertEqual(self.invoke(root)[1]['status'], 'pass')

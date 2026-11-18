@@ -1,3 +1,4 @@
+# MODULE: away-grant.md - collect the night's requests while getting ready, then read and use only the owner's answers
 # Away grant
 
 Read this when the owner says he is leaving or BMN says he is (BMN Epic 84), and at a
@@ -11,11 +12,15 @@ card and exact-text steps below apply to people and external destinations.
 
 ## Before he leaves
 
-On his departure words to you, forward `bmn away --leaving` first. On those words or on
-BMN's notice that he is leaving or away, ask once, before you forward `bmn away`, by piping
+On his departure words to you, forward `bmn away --leaving` first. He is getting ready:
+Away starts on his Go in the window or on Telegram, or by itself after 10 minutes without
+an action of his on the list. Do not forward `bmn away` unless he says he is already gone.
+On those words or on BMN's notice that he is getting ready or away, answer once, within
+3 minutes, by piping
 the card as JSON to `bmn grant ask --run <Run id> --card-file -` (`bmn grant --help` shows
 its shape): the title, the remaining scope and only the terms that work needs, each with
-its reason:
+its reason. Every session with unfinished authorised work answers, including one with no
+dev-auto run: use its session's name as the title and a stable run id for that work:
 
 - with a go (`scripts/run_needs.py`), its Run needs' named actions with their targets and
   no rounds, an exact `command` or `message` included; with none, `bmn grant ask --run <Run id>

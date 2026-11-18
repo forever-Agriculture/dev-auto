@@ -104,8 +104,10 @@ exception. The final report lists open entries.
 **Away.** Away mode starts on `away` as an invocation argument or a message of its own, or
 when he says he is leaving now and unreachable even by phone ("going to bed"; still on his
 phone or Remote Control is not away). It is a handoff term with his quote and time, until he
-says he is back or cancels it; an explicit stop outranks it. Forward his departure or return
-words once with `bmn away` or `bmn back --revision R`; activity is never either. Run
+says he is back or cancels it; an explicit stop outranks it. Forward departure words once with
+`bmn away --leaving`: he is getting ready, and each session with unfinished authorised work
+answers its card within 3 minutes; Away starts on his Go. Forward `bmn away` only when he
+says he is already gone, and return words with `bmn back --revision R`; activity is never either. Run
 `scripts/check.py away` at invocation and resume and before an owner question or an
 away-specific retry decision, and follow it; BMN's state notices count between those reads.
 UNAVAILABLE is never back: the last confirmed state and every stop and limit hold. On a
