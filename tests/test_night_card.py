@@ -67,14 +67,25 @@ class NightCardTest(unittest.TestCase):
         term = night.compose(self.facts, remaining, "/checkout", 7)["terms"][0]
         self.assertEqual((term["from"], term["to"]), (3, 6))
 
-    def test_uses_the_current_head_and_keeps_independent_access_when_prs_are_unknown(self):
+    def test_keeps_confirmed_heads_and_independent_access_when_pr_inventory_is_partial(self):
         remaining = {"title": "Epic Seven", "scope": "A sign-in and merge", "actions": [
             {"kind": "merge", "repository": "example/app", "pr": 1, "headSha": "b" * 40, "reason": "Old head"}],
             "access": [{"name": "Sign in", "command": "gh auth login", "reason": "Needs its own account"}]}
         card = night.compose(self.facts, remaining, "/checkout", 7)
         self.assertEqual(card["terms"][1]["headSha"], "a" * 40)
         self.assertNotEqual(card["terms"][1]["reason"], "Old head")
-        self.facts["pullRequests"]["state"] = "unknown"
+        prs = self.facts["pullRequests"]
+        prs.update(state="unknown", reason="Upstream listing is unavailable")
+        item = prs["items"][0]
+        prs["items"] += [
+            {**item, "number": 2, "headSha": "c" * 40, "mayMerge": None},
+            {**item, "number": 3, "headSha": "d" * 40, "mayMerge": None, "policy": None},
+            {**item, "number": 4, "headSha": "e" * 40, "policy": "merge-when-green"},
+        ]
         card = night.compose(self.facts, remaining, "/checkout", 7)
-        self.assertEqual([term["kind"] for term in card["terms"]], ["access"])
-        self.assertTrue(any("could not confirm" in reason for reason in card["waits"]))
+        self.assertEqual([term["kind"] for term in card["terms"]], ["access", "merge"])
+        self.assertEqual((card["terms"][1]["pr"], card["terms"][1]["headSha"]), (1, "a" * 40))
+        self.assertIn("Upstream listing is unavailable", card["waits"])
+        with self.assertRaisesRegex(ValueError, "Upstream listing is unavailable"):
+            night.compose({**self.facts, "pullRequests": {**prs, "items": prs["items"][1:]}},
+                          {"title": "Epic Seven", "scope": "Pending", "nothing_reason": "Nothing else"}, "/checkout", 7)

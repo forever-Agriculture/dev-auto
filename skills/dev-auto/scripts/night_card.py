@@ -62,7 +62,7 @@ def compose(facts, remaining, project, epic):
             waits.append(f"Read the allowance token and use bmn plan allow {epic} limits.{name}.limit={amount} within the ceiling.")
     merge_actions = [term for term in remaining.get("actions", []) if term["kind"] == "merge"]
     explicit = {(term["repository"].lower(), term.get("pr")): term for term in merge_actions}
-    for pr in prs["items"] if prs["state"] == "read" else []:
+    for pr in prs["items"]:
         identity = (pr["repository"].lower(), pr["number"])
         supplied = explicit.pop(identity, None)
         # The normal policy can merge when green. Pending checks are a wait, not a request for wider power.
@@ -77,6 +77,9 @@ def compose(facts, remaining, project, epic):
     if explicit:
         waits.append("A requested merge had no verified open head. Read BMN’s pull request facts before asking for that merge.")
     if plan["state"] == "unknown" or prs["state"] == "unknown":
+        for section in (plan, prs):
+            if section["state"] == "unknown" and section.get("reason"):
+                waits.append(section["reason"])
         waits.append("BMN could not confirm all facts. Keep the checks in your run log.")
     terms.extend(term for term in remaining.get("actions", []) if term["kind"] != "merge")
     if len(terms) > 8:
