@@ -1,6 +1,7 @@
 # MODULE: test_allowances.py - BMN Stories 110.4 and 110.6: an epic's allowances file through run_needs.py and spend_ledger.py; BMN's reader is a stub here (its own tests hold it)
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -21,6 +22,7 @@ import test_run_needs  # noqa: E402
 LEDGER = SCRIPTS / "spend_ledger.py"
 STUB = """#!/bin/sh
 if [ "$1 $2" = "plan allowances" ]; then cat "{root}/allowances.json"; exit 0; fi
+if [ "$1 $2 $3" = "team asks show" ]; then cat "{root}/ask-$4.json"; exit $?; fi
 cat "{root}/status.json"
 """
 FILE = "schema: 1\nepic: 7\nlimits:\n  rechecks: {limit: 2, ceiling: 4, per: boundary}\n"
@@ -373,6 +375,30 @@ class Allowances(unittest.TestCase):
         data = self.data(budget)
         self.assertEqual([data["rounds"][f"r{n}"]["answer"] for n in (1, 2)], ["TAKEN", "TAKEN"])
         self.assertEqual([data["uses"][f"u{n}"]["answer"] for n in (1, 2)], ["TAKEN", "TAKEN"])
+
+    def test_the_file_allows_the_sixth_round_with_the_required_step_back(self) -> None:
+        values = fields(rounds=6)
+        values["limits"]["repair_rounds"] = {"limit": 6, "ceiling": 6, "per": "boundary", "unit": "count"}
+        self.go(FILE + "  repair_rounds: {limit: 6, ceiling: 6, per: boundary}\n")
+        self.reader(values)
+        budget = self.open()
+        args = ("round", "--budget", budget, "--boundary", "7.1", "--use-id")
+        for n in range(1, 6):
+            code, out = self.ledger(*args, f"r{n}")
+            self.assertEqual(code, 0, out)
+        record = self.root / "methods.md"
+        record.write_text("A second method failed.")
+        digest = hashlib.sha256(record.read_bytes()).hexdigest()
+        (self.root / "question.md").write_text(f"Step-back: budget {budget} boundary 7.1 record sha256:{digest}\n")
+        (self.root / "ask-six.json").write_text(json.dumps({
+            "state": "answered", "exit": "0", "answer": "Try the other seam.", "role": "consultant",
+            "teammate": {"agent": "astra"}, "record": str(self.root),
+        }))
+        code, out = self.ledger(*args, "r6", "--step-back", "six", "--record", str(record),
+                                "--method", "Try the other seam", "--lead", "sol")
+        self.assertEqual(code, 0, out)
+        self.assertIn("6 of 6", out)
+        self.assertEqual(self.ledger(*args, "r7")[0], 1)
 
     def test_round_exhaustion_uses_delegated_headroom_without_a_card(self) -> None:
         self.go()

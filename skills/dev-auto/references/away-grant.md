@@ -54,6 +54,15 @@ run makes a new revision; his earlier answer holds until he answers it.
 
 ## Reading and using it
 
+The base round count comes from the recorded allowance and its spend ledger. A night grant adds
+temporary rounds. Spend the remaining base rounds first. A persistent limit raise follows
+`bmn grant apply`, keeping earlier uses and the new total after Back.
+
+For a held Git or GitHub command covered by an epic's go, bind the live conversation first.
+The night card names its exact command, absolute folder, repository, ref and any file pin.
+Reserve that action with `bmn grant use` and send the exact command through the harness.
+BMN claims the same receipt for the matching tool call. Keep the receipt and report the outcome.
+
 Read `scripts/check.py grant` right before each step a grant would pay for, never the
 handoff or memory; before each granted merge or push, also read `bmn policy --repo
 OWNER/NAME` again. For a command or a message, run or send exactly the text `bmn grant use`

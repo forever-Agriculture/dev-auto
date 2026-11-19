@@ -149,6 +149,17 @@ nothing in `plan/.git`. At each story's end on a tracked BMN plan run `bmn plan 
 `unpublished N` or `PLAN_CONFLICT`, record it, continue unaffected epics and never ask for
 publication; the conflicted epic grants nothing through `run_needs.py`.
 
+**Epic actions.** Before using an exact action approved for this epic, bind the live conversation
+with `bmn run bind --epic N` from the run checkout. Bind again after a resume. Read
+`bmn policy --repo OWNER/NAME` before every push, merge or PR write. For a listed file-backed
+exception reserve the exact action with `bmn run reserve --action I --use-id U --command TEXT`,
+then run `bmn run dispatch` with the same options for the write. BMN rechecks the current go and
+target before launch. A held command still goes through the native hook. Use a stable receipt ID
+for the same operation. A refusal parks that operation. Follow the ordinary acceptance and delivery gates.
+BMN lets such an action through only where his deploy rule for the repository (Health › Pushes and
+merges › What deploys) says it deploys nothing; with no rule, or after he changes it, the action
+waits for him: an owner step for the report, never a card to argue.
+
 **Before each epic,** read project instructions, original acceptance criteria, relevant
 architecture and dependencies. Reconcile repository, board, handoff and active helpers;
 completion labels are claims to verify. Confirm the epic's outcome fits the project and keeps
