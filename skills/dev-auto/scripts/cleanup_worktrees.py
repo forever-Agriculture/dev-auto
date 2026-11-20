@@ -31,27 +31,64 @@ def git(root, *args):
     return subprocess.run(['git', '-C', str(root), *args], check=True, capture_output=True, text=True).stdout.strip()
 
 
+NOFOLLOW_DIR = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+
+
+def records_fd(root):
+    """Open the records directory itself, refusing a link."""
+    try:
+        return os.open(root, NOFOLLOW_DIR)
+    except OSError as exc:
+        raise ValueError('records directory missing or symlinked') from exc
+
+
+def read_handoff(tree):
+    """Read .dev-auto/handoff.md without following a link at either step."""
+    fd = records_fd(tree / '.dev-auto')
+    try:
+        with os.fdopen(os.open('handoff.md', os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd), encoding='utf-8') as stream:
+            return stream.read()
+    except OSError as exc:
+        raise ValueError('handoff missing, unreadable or symlinked') from exc
+    finally:
+        os.close(fd)
+
+
 def manifest(root):
-    """Map each record to its SHA-256, or a symlink to {'link': target text}; never follow a link."""
+    """Map each record to its SHA-256, or a symlink to {'link': target text}.
+
+    No link is followed, even to classify it; any scan error propagates.
+    """
     result = {}
-    if root.is_symlink() or not root.is_dir():
-        raise ValueError('records directory missing or symlinked')
-    for top, dirs, files in os.walk(root):  # does not descend into linked directories
-        for name in sorted(dirs + files):
-            path = Path(top) / name
-            key = path.relative_to(root).as_posix()
-            mode = path.lstat().st_mode
+
+    def scan(fd, prefix):
+        with os.scandir(fd) as entries:
+            items = sorted(entries, key=lambda e: e.name)
+        for entry in items:
+            key = prefix + entry.name
+            mode = entry.stat(follow_symlinks=False).st_mode
             if stat.S_ISLNK(mode):
-                result[key] = {'link': os.readlink(path)}
+                result[key] = {'link': os.readlink(entry.name, dir_fd=fd)}
             elif stat.S_ISREG(mode):
                 digest = hashlib.sha256()
-                fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-                with os.fdopen(fd, 'rb') as stream:
+                with os.fdopen(os.open(entry.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fd), 'rb') as stream:
                     for block in iter(lambda: stream.read(1024 * 1024), b''):
                         digest.update(block)
                 result[key] = digest.hexdigest()
-            elif not stat.S_ISDIR(mode):
+            elif stat.S_ISDIR(mode):
+                child = os.open(entry.name, NOFOLLOW_DIR, dir_fd=fd)
+                try:
+                    scan(child, key + '/')
+                finally:
+                    os.close(child)
+            else:
                 raise ValueError('records contain a special file')
+
+    fd = records_fd(root)
+    try:
+        scan(fd, '')
+    finally:
+        os.close(fd)
     return result
 
 
@@ -104,7 +141,7 @@ def archive_records(tree, destination):
     return count
 
 
-def cleanup(tree, *, run_id, checkouts, permission, archive_root):
+def cleanup(tree, *, run_id, checkouts, permission, archive_root, check_only=False):
     tree = tree.resolve()
     result = {'path': str(tree), 'action': 'kept'}
     try:
@@ -117,7 +154,7 @@ def cleanup(tree, *, run_id, checkouts, permission, archive_root):
         main = Path(rows[0]['worktree']).resolve()
         if current is None or tree == main or 'locked' in current:
             raise ValueError('not an unlocked linked worktree')
-        body = (tree / '.dev-auto/handoff.md').read_text()
+        body = read_handoff(tree)
         if field(body, 'Run id') != run_id or not finished(body):
             raise ValueError('different run, unfinished, or explicit stop')
         branch = default_branch(main)
@@ -128,6 +165,9 @@ def cleanup(tree, *, run_id, checkouts, permission, archive_root):
         git(main, 'merge-base', '--is-ancestor', head, f'origin/{branch}')
         if git(tree, 'status', '--porcelain=v1', '--untracked-files=all'):
             raise ValueError('uncommitted files')
+        if check_only:
+            result['action'] = 'ready'
+            return result
         # inventory must already have been checked by the lead; archive and remove no process.
         size = int(subprocess.run(['du', '-s', '--block-size=1', '--', str(tree)], check=True, capture_output=True, text=True).stdout.split()[0])
         name = tree.name + '-' + hashlib.sha256(str(tree).encode()).hexdigest()[:8] + '.tar.zst'
@@ -138,7 +178,7 @@ def cleanup(tree, *, run_id, checkouts, permission, archive_root):
         # Recheck identities and clean state immediately before removal. Git itself refuses changes.
         if git(tree, 'rev-parse', 'HEAD') != head or git(tree, 'status', '--porcelain=v1', '--untracked-files=all'):
             raise ValueError('checkout changed after archiving')
-        if (tree / '.dev-auto/handoff.md').read_text() != body:
+        if read_handoff(tree) != body:
             raise ValueError('handoff changed after archiving')
         verify_archive(archive, manifest(tree / '.dev-auto'))
         git(main, 'worktree', 'remove', str(tree))
@@ -157,7 +197,10 @@ def main(argv=None):
     args = parser.parse_args(argv)
     import run_needs
     needs = run_needs.run_needs(args.project, args.epic)
-    body = (args.project / '.dev-auto/handoff.md').read_text()
+    try:
+        body = read_handoff(args.project)
+    except ValueError as exc:
+        parser.error(str(exc))
     run_id = field(body, 'Run id')
     if not run_id or not re.fullmatch(r'[\w-]+', run_id):
         parser.error('handoff needs a safe Run id')
@@ -165,13 +208,23 @@ def main(argv=None):
     permission = needs['state'] == 'GO' and PERMISSION in needs['parsed'].get('may', []) and finished(body)
     # Every repository archives into the owning project's default checkout.
     archive_root = Path(worktree_list(args.project)[0]['worktree']) / '.dev-auto/archive'
-    for tree in args.worktree:
-        result = cleanup(tree, run_id=run_id, checkouts=checkouts, permission=permission, archive_root=archive_root)
-        print(json.dumps(result))
-        log = archive_root / run_id / 'cleanup.jsonl'
-        log.parent.mkdir(parents=True, exist_ok=True)
-        with log.open('a') as out:
-            out.write(json.dumps(result) + '\n')
+    # The owning checkout goes last so its handoff stays for a retry; every tree is checked
+    # before any is removed, and the first refusal stops the rest.
+    project = args.project.resolve()
+    trees = sorted(args.worktree, key=lambda t: t.resolve() == project)
+    log = archive_root / run_id / 'cleanup.jsonl'
+    options = dict(run_id=run_id, checkouts=checkouts, permission=permission, archive_root=archive_root)
+    for check_only in (True, False):
+        for tree in trees:
+            result = cleanup(tree, check_only=check_only, **options)
+            if check_only and result['action'] == 'ready':
+                continue
+            print(json.dumps(result))
+            log.parent.mkdir(parents=True, exist_ok=True)
+            with log.open('a') as out:
+                out.write(json.dumps(result) + '\n')
+            if result['action'] != 'removed':
+                return 1
     return 0
 
 

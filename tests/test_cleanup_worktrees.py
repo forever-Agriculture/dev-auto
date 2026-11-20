@@ -11,6 +11,39 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'skills/dev-auto/sc
 import cleanup_worktrees as cleanup
 
 
+class StrictEntry:
+    """A DirEntry that fails the test on any call that would follow a link."""
+    def __init__(self, entry):
+        self.entry, self.name = entry, entry.name
+    def stat(self, *, follow_symlinks=True):
+        if follow_symlinks:
+            raise AssertionError('followed a link: ' + self.name)
+        return self.entry.stat(follow_symlinks=False)
+    def is_dir(self, *, follow_symlinks=True):
+        if follow_symlinks:
+            raise AssertionError('followed a link: ' + self.name)
+        return self.entry.is_dir(follow_symlinks=False)
+    def is_file(self, *, follow_symlinks=True):
+        if follow_symlinks:
+            raise AssertionError('followed a link: ' + self.name)
+        return self.entry.is_file(follow_symlinks=False)
+    def is_symlink(self):
+        return self.entry.is_symlink()
+
+
+class StrictScandir:
+    def __init__(self, real, *args):
+        self.it = real(*args)
+    def __enter__(self):
+        return self
+    def __exit__(self, *exc):
+        self.it.close()
+    def __iter__(self):
+        return (StrictEntry(e) for e in self.it)
+    def close(self):
+        self.it.close()
+
+
 class CleanupTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -114,6 +147,83 @@ class CleanupTests(unittest.TestCase):
         self.assertEqual((outside / 'secret.txt').read_text(), 'outside file')
         self.assertEqual((outside / 'dir/inner.txt').read_text(), 'outside dir')
         self.assertFalse((outside / 'missing').exists())
+
+    def test_manifest_never_follows_a_link_even_to_classify_it(self):
+        _, links = self.add_links()
+        real = cleanup.os.scandir
+        with patch.object(cleanup.os, 'scandir', lambda *a: StrictScandir(real, *a)):
+            found = cleanup.manifest(self.tree / '.dev-auto')
+        for name, target in links.items():
+            self.assertEqual(found[name], {'link': target})
+
+    def test_scan_error_keeps_tree_and_never_counts_as_fresh_manifest(self):
+        locked = self.tree / '.dev-auto/evidence/locked'
+        locked.mkdir(parents=True)
+        (locked / 'late.txt').write_text('added later')
+        self.addCleanup(locked.chmod, 0o700)
+        locked.chmod(0)
+        with self.assertRaises(PermissionError):
+            cleanup.manifest(self.tree / '.dev-auto')
+        self.assertEqual(self.run_cleanup()['action'], 'kept')
+        locked.chmod(0o700)
+        original = cleanup.archive_records
+        def lock_after_archive(tree, archive):
+            count = original(tree, archive)
+            (locked / 'later.txt').write_text('added after archiving')
+            locked.chmod(0)
+            return count
+        with patch.object(cleanup, 'archive_records', side_effect=lock_after_archive):
+            self.assertEqual(self.run_cleanup()['action'], 'kept')
+        self.assertTrue(self.tree.exists())
+
+    def test_linked_handoff_or_records_root_grants_nothing(self):
+        handoff = self.tree / '.dev-auto/handoff.md'
+        elsewhere = self.root / 'other-handoff.md'
+        elsewhere.write_text(handoff.read_text())
+        handoff.unlink()
+        handoff.symlink_to(elsewhere)
+        result = self.run_cleanup()
+        self.assertEqual(result['action'], 'kept')
+        self.assertIn('handoff', result['reason'])
+        self.assertTrue(self.tree.exists())
+        with self.assertRaises(SystemExit):
+            with patch.dict(sys.modules, run_needs=self.go_stub()):
+                cleanup.main(['7', '--project', str(self.tree), '--worktree', str(self.tree)])
+        self.assertTrue(self.tree.exists())
+
+    def go_stub(self):
+        stub = type(sys)('run_needs')
+        stub.run_needs = lambda project, epic: {'state': 'GO', 'parsed': {'may': [cleanup.PERMISSION]}}
+        return stub
+
+    def run_main_with_companion(self, dirty):
+        companion = self.root / 'companion'
+        self.git('worktree', 'add', '-b', 'companion', str(companion))
+        (companion / '.dev-auto').mkdir()
+        (companion / '.dev-auto/handoff.md').write_text('- Run id: run-7\n- Explicit user stop: none\n- Status: COMPLETE\n')
+        if dirty:
+            (companion / 'changes').write_text('keep me')
+        (self.tree / '.dev-auto/handoff.md').write_text(
+            '- Run id: run-7\n- Run checkouts: ' + json.dumps([str(self.tree), str(companion)])
+            + '\n- Explicit user stop: none\n- Status: COMPLETE\n')
+        with patch.dict(sys.modules, run_needs=self.go_stub()):
+            code = cleanup.main(['7', '--project', str(self.tree), '--worktree', str(self.tree), '--worktree', str(companion)])
+        return code, companion
+
+    def test_companion_refusal_removes_nothing(self):
+        code, companion = self.run_main_with_companion(dirty=True)
+        self.assertEqual(code, 1)
+        self.assertTrue(self.tree.exists())
+        self.assertTrue(companion.exists())
+        self.assertEqual(list(self.archive.glob('run-7/*.tar.zst')), [])
+
+    def test_companion_removed_before_owner(self):
+        code, companion = self.run_main_with_companion(dirty=False)
+        self.assertEqual(code, 0)
+        self.assertFalse(self.tree.exists())
+        self.assertFalse(companion.exists())
+        rows = [json.loads(l) for l in (self.archive / 'run-7/cleanup.jsonl').read_text().splitlines()]
+        self.assertEqual([Path(r['path']).name for r in rows], ['companion', 'run'])
 
     def test_archive_with_changed_link_target_fails_verification(self):
         _, links = self.add_links()
