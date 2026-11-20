@@ -177,7 +177,8 @@ uncommitted files.
 **Removing worktrees.** At delivery, when the current recorded go's `may` includes "remove
 this run's own worktrees after delivery, once merged, clean and archived", remove them only
 with `scripts/cleanup_worktrees.py N --project OWNING --worktree PATH`; it archives each
-`.dev-auto/`, verifies it and removes only what its guards allow, without `--force`. First
+`.dev-auto/` (symlinks as links, never followed), verifies it and removes only what its
+guards allow, without `--force`. First
 finish the leftovers cleanup below for every checkout and mark each owning and companion
 handoff COMPLETE with the same Run id and exact `Run checkouts`. Run it from outside every
 tree it removes, the owning checkout last, and keep a current handoff and log beside the

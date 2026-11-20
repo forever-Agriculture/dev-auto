@@ -4,6 +4,7 @@
 
 Permission comes only from the epic's current recorded go. No --force or branch deletion.
 The caller must run outside each tree being removed. Kept trees are reported with reasons.
+Symlinks in the records are archived as links (path and target text) and never followed.
 """
 from __future__ import annotations
 import argparse
@@ -12,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 import tarfile
@@ -30,16 +32,26 @@ def git(root, *args):
 
 
 def manifest(root):
+    """Map each record to its SHA-256, or a symlink to {'link': target text}; never follow a link."""
     result = {}
     if root.is_symlink() or not root.is_dir():
         raise ValueError('records directory missing or symlinked')
-    for path in sorted(root.rglob('*')):
-        if path.is_symlink():
-            raise ValueError('records contain a symlink; preserve for manual review')
-        if path.is_file():
-            result[path.relative_to(root).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
-        elif not path.is_dir():
-            raise ValueError('records contain a special file')
+    for top, dirs, files in os.walk(root):  # does not descend into linked directories
+        for name in sorted(dirs + files):
+            path = Path(top) / name
+            key = path.relative_to(root).as_posix()
+            mode = path.lstat().st_mode
+            if stat.S_ISLNK(mode):
+                result[key] = {'link': os.readlink(path)}
+            elif stat.S_ISREG(mode):
+                digest = hashlib.sha256()
+                fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+                with os.fdopen(fd, 'rb') as stream:
+                    for block in iter(lambda: stream.read(1024 * 1024), b''):
+                        digest.update(block)
+                result[key] = digest.hexdigest()
+            elif not stat.S_ISDIR(mode):
+                raise ValueError('records contain a special file')
     return result
 
 
@@ -51,11 +63,14 @@ def verify_archive(archive, expected):
                 for member in tar:
                     if member.isdir():
                         continue
-                    if not member.isfile() or not member.name.startswith('.dev-auto/'):
+                    if not (member.isfile() or member.issym()) or not member.name.startswith('.dev-auto/'):
                         raise ValueError('unexpected archive member')
                     name = member.name[len('.dev-auto/'):]
                     if name in found or '..' in Path(name).parts:
                         raise ValueError('duplicate or unsafe archive member')
+                    if member.issym():
+                        found[name] = {'link': member.linkname}
+                        continue
                     digest = hashlib.sha256()
                     with tar.extractfile(member) as stream:
                         for block in iter(lambda: stream.read(1024 * 1024), b''):

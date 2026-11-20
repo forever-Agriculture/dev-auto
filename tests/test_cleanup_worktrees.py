@@ -73,12 +73,92 @@ class CleanupTests(unittest.TestCase):
         self.assertEqual(self.run_cleanup()['action'], 'kept')
         self.assertTrue(self.tree.exists())
 
-    def test_failed_archive_verification_or_symlink_keeps_tree(self):
+    def add_links(self):
+        """A file and a directory outside the tree, both unreadable, plus a dangling link."""
+        outside = self.root / 'outside'
+        (outside / 'dir').mkdir(parents=True)
+        (outside / 'secret.txt').write_text('outside file')
+        (outside / 'dir/inner.txt').write_text('outside dir')
+        bench = self.tree / '.dev-auto/evidence/qa-bench/x/recovery-root/bin'
+        bench.mkdir(parents=True)
+        links = {'evidence/qa-bench/x/recovery-root/bin/node': str(outside / 'secret.txt'),
+                 'evidence/qa-bench/x/dir-link': str(outside / 'dir'),
+                 'evidence/qa-bench/x/dangling': str(outside / 'missing')}
+        for name, target in links.items():
+            (self.tree / '.dev-auto' / name).symlink_to(target)
+        # Any read or traversal of a target now fails, so passing proves no target is read.
+        (outside / 'secret.txt').chmod(0)
+        (outside / 'dir').chmod(0)
+        self.addCleanup((outside / 'dir').chmod, 0o700)
+        self.addCleanup((outside / 'secret.txt').chmod, 0o600)
+        return outside, links
+
+    def archived_links(self, archive):
+        listing = subprocess.run(['tar', '--zstd', '-tvf', str(archive)], check=True, capture_output=True, text=True).stdout
+        return {line.split(' -> ')[0].split()[-1][len('.dev-auto/'):]: line.split(' -> ')[1]
+                for line in listing.splitlines() if line.startswith('l')}
+
+    def test_symlinks_are_archived_as_links_and_tree_removed(self):
+        outside, links = self.add_links()
+        expected = cleanup.manifest(self.tree / '.dev-auto')
+        for name, target in links.items():
+            self.assertEqual(expected[name], {'link': target})
+        result = self.run_cleanup()
+        self.assertEqual(result['action'], 'removed', result)
+        self.assertFalse(self.tree.exists())
+        self.assertEqual(result['files'], 5)
+        self.assertEqual(cleanup.verify_archive(Path(result['archive']), expected), 5)
+        self.assertEqual(self.archived_links(result['archive']), links)
+        (outside / 'secret.txt').chmod(0o600)
+        (outside / 'dir').chmod(0o700)
+        self.assertEqual((outside / 'secret.txt').read_text(), 'outside file')
+        self.assertEqual((outside / 'dir/inner.txt').read_text(), 'outside dir')
+        self.assertFalse((outside / 'missing').exists())
+
+    def test_archive_with_changed_link_target_fails_verification(self):
+        _, links = self.add_links()
+        expected = cleanup.manifest(self.tree / '.dev-auto')
+        name = 'evidence/qa-bench/x/dangling'
+        archive = self.root / 'a.tar.zst'
+        subprocess.run(['tar', '--zstd', '-cf', str(archive), '-C', str(self.tree), '.dev-auto'], check=True)
+        changed = dict(expected, **{name: {'link': '/elsewhere'}})
+        with self.assertRaises(ValueError):
+            cleanup.verify_archive(archive, changed)
+        self.assertEqual(cleanup.verify_archive(archive, expected), 5)
+
+    def test_guards_still_keep_tree_with_links(self):
+        _, links = self.add_links()
+        def kept(reason=None, **options):
+            result = self.run_cleanup(**options)
+            self.assertEqual(result['action'], 'kept', result)
+            if reason:
+                self.assertIn(reason, result['reason'])
+            self.assertTrue(self.tree.exists())
+            for name, target in links.items():
+                self.assertEqual(str((self.tree / '.dev-auto' / name).readlink()), target)
+        with patch.object(cleanup, 'verify_archive', side_effect=ValueError('archive mismatch')):
+            kept('archive mismatch')
+        handoff = self.tree / '.dev-auto/handoff.md'
+        handoff.write_text('- Run id: run-7\n- Explicit user stop: none\n- Status: ACTIVE\n')
+        kept('unfinished')
+        handoff.write_text('- Run id: run-7\n- Explicit user stop: none\n- Status: COMPLETE\n')
+        (self.tree / 'changes').write_text('keep me')
+        kept('uncommitted')
+        cleanup.git(self.tree, 'add', 'changes')
+        cleanup.git(self.tree, 'commit', '-qm', 'unmerged')
+        kept()
+
+    def test_failed_archive_verification_or_symlinked_records_root_keeps_tree(self):
         with patch.object(cleanup, 'verify_archive', side_effect=ValueError('archive mismatch')):
             self.assertIn('archive mismatch', self.run_cleanup()['reason'])
         self.assertTrue(self.tree.exists())
-        (self.tree / '.dev-auto/linked').symlink_to(self.main / '.gitignore')
-        self.assertIn('symlink', self.run_cleanup()['reason'])
+        real = self.root / 'records'
+        (self.tree / '.dev-auto').rename(real)
+        (self.tree / '.dev-auto').symlink_to(real)
+        with self.assertRaisesRegex(ValueError, 'symlinked'):
+            cleanup.manifest(self.tree / '.dev-auto')
+        self.assertEqual(self.run_cleanup()['action'], 'kept')
+        self.assertTrue(self.tree.exists())
 
     def test_source_mutation_during_archive_prevents_removal(self):
         original = cleanup.archive_records
