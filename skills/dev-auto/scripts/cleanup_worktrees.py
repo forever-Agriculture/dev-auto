@@ -141,7 +141,7 @@ def archive_records(tree, destination):
     return count
 
 
-def cleanup(tree, *, run_id, checkouts, permission, archive_root, check_only=False):
+def cleanup(tree, *, run_id, checkouts, permission, archive_root, prepare_only=False):
     tree = tree.resolve()
     result = {'path': str(tree), 'action': 'kept'}
     try:
@@ -165,9 +165,6 @@ def cleanup(tree, *, run_id, checkouts, permission, archive_root, check_only=Fal
         git(main, 'merge-base', '--is-ancestor', head, f'origin/{branch}')
         if git(tree, 'status', '--porcelain=v1', '--untracked-files=all'):
             raise ValueError('uncommitted files')
-        if check_only:
-            result['action'] = 'ready'
-            return result
         # inventory must already have been checked by the lead; archive and remove no process.
         size = int(subprocess.run(['du', '-s', '--block-size=1', '--', str(tree)], check=True, capture_output=True, text=True).stdout.split()[0])
         name = tree.name + '-' + hashlib.sha256(str(tree).encode()).hexdigest()[:8] + '.tar.zst'
@@ -175,6 +172,9 @@ def cleanup(tree, *, run_id, checkouts, permission, archive_root, check_only=Fal
         if archive.is_relative_to(tree):
             raise ValueError('archive destination lies inside removed worktree')
         count = archive_records(tree, archive)
+        if prepare_only:
+            result.update(action='archived', archive=str(archive), files=count)
+            return result
         # Recheck identities and clean state immediately before removal. Git itself refuses changes.
         if git(tree, 'rev-parse', 'HEAD') != head or git(tree, 'status', '--porcelain=v1', '--untracked-files=all'):
             raise ValueError('checkout changed after archiving')
@@ -208,16 +208,16 @@ def main(argv=None):
     permission = needs['state'] == 'GO' and PERMISSION in needs['parsed'].get('may', []) and finished(body)
     # Every repository archives into the owning project's default checkout.
     archive_root = Path(worktree_list(args.project)[0]['worktree']) / '.dev-auto/archive'
-    # The owning checkout goes last so its handoff stays for a retry; every tree is checked
-    # before any is removed, and the first refusal stops the rest.
+    # The owning checkout goes last so its handoff stays for a retry. Every tree is checked,
+    # archived and verified before any is removed, and the first refusal stops the rest.
     project = args.project.resolve()
     trees = sorted(args.worktree, key=lambda t: t.resolve() == project)
     log = archive_root / run_id / 'cleanup.jsonl'
     options = dict(run_id=run_id, checkouts=checkouts, permission=permission, archive_root=archive_root)
-    for check_only in (True, False):
+    for prepare_only in (True, False):
         for tree in trees:
-            result = cleanup(tree, check_only=check_only, **options)
-            if check_only and result['action'] == 'ready':
+            result = cleanup(tree, prepare_only=prepare_only, **options)
+            if prepare_only and result['action'] == 'archived':
                 continue
             print(json.dumps(result))
             log.parent.mkdir(parents=True, exist_ok=True)

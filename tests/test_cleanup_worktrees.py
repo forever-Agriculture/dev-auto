@@ -196,13 +196,17 @@ class CleanupTests(unittest.TestCase):
         stub.run_needs = lambda project, epic: {'state': 'GO', 'parsed': {'may': [cleanup.PERMISSION]}}
         return stub
 
-    def run_main_with_companion(self, dirty):
+    def run_main_with_companion(self, dirty, bad_owner_archive=False):
         companion = self.root / 'companion'
         self.git('worktree', 'add', '-b', 'companion', str(companion))
         (companion / '.dev-auto').mkdir()
         (companion / '.dev-auto/handoff.md').write_text('- Run id: run-7\n- Explicit user stop: none\n- Status: COMPLETE\n')
         if dirty:
             (companion / 'changes').write_text('keep me')
+        if bad_owner_archive:
+            name = self.tree.name + '-' + cleanup.hashlib.sha256(str(self.tree.resolve()).encode()).hexdigest()[:8] + '.tar.zst'
+            (self.archive / 'run-7').mkdir(parents=True)
+            (self.archive / 'run-7' / name).write_bytes(b'not an archive')
         (self.tree / '.dev-auto/handoff.md').write_text(
             '- Run id: run-7\n- Run checkouts: ' + json.dumps([str(self.tree), str(companion)])
             + '\n- Explicit user stop: none\n- Status: COMPLETE\n')
@@ -216,6 +220,12 @@ class CleanupTests(unittest.TestCase):
         self.assertTrue(self.tree.exists())
         self.assertTrue(companion.exists())
         self.assertEqual(list(self.archive.glob('run-7/*.tar.zst')), [])
+
+    def test_invalid_owner_archive_removes_nothing(self):
+        code, companion = self.run_main_with_companion(dirty=False, bad_owner_archive=True)
+        self.assertEqual(code, 1)
+        self.assertTrue(self.tree.exists())
+        self.assertTrue(companion.exists())
 
     def test_companion_removed_before_owner(self):
         code, companion = self.run_main_with_companion(dirty=False)
